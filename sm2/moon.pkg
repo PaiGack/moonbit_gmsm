@@ -1,4 +1,4 @@
 import {
-  "paigack/gmsm/sm2",
+  "moonbitlang/core/ref",
   "paigack/gmsm/sm3",
 }

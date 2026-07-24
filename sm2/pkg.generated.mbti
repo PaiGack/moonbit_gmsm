@@ -1,0 +1,39 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "paigack/gmsm/sm2"
+
+import {
+  "moonbitlang/core/bigint",
+}
+
+// Values
+pub fn sm2_check_pubkey(PubKey) -> Bool
+
+pub fn sm2_decrypt(PriKey, Bytes, Int) -> Bytes?
+
+pub fn sm2_encrypt(PubKey, Bytes, Int) -> Bytes?
+
+pub fn sm2_generate_key() -> PriKey
+
+pub fn sm2_key_exchange(Int, Bytes, Bytes, PriKey, PubKey, PriKey, PubKey, Bool) -> (Bytes, Bytes, Bytes)?
+
+pub fn sm2_sign(PriKey, Bytes, Bytes, Bool) -> (@bigint.BigInt, @bigint.BigInt)
+
+pub fn sm2_verify(PubKey, Bytes, Bytes, @bigint.BigInt, @bigint.BigInt) -> Bool
+
+// Errors
+
+// Types and methods
+pub(all) struct PriKey {
+  pubkey : PubKey
+  d : @bigint.BigInt
+}
+
+pub(all) struct PubKey {
+  x : @bigint.BigInt
+  y : @bigint.BigInt
+}
+
+// Type aliases
+
+// Traits
+
