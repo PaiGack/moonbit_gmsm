@@ -1,7 +1,12 @@
 CNB_VSCODE_PROXY_URI
 
 # MoonBit build artifacts
-moon.pkg.json.bak
+.DS_Store
+_build/
 target/
+target
+.mooncakes/
 .moon/cache/
+.moonagent/
 *.wasm
+moon.pkg.json.bak
