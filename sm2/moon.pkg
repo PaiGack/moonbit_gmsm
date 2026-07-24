@@ -1,4 +1,5 @@
 import {
-  "moonbitlang/core/ref",
-  "paigack/gmsm/sm3",
+  "moonbitlang/core/bytes",
 }
+
+pkgtype(kind: "library")

@@ -2,34 +2,32 @@
 /// These tests verify the public API through the top-level package.
 
 ///|
-test "gmsm_sm2_keygen_and_sign_verify" {
-  let key = sm2_generate_key()
-  assert_true(sm2_check_pubkey(key.pubkey), msg="key should be valid")
+test "gmsm_sm2_keygen_and_verify" {
+  let curve = sm2_p256()
+  let (private_key, pubkey) = sm2_generate_key(curve)
+  assert_true(
+    sm2_is_on_curve(curve, pubkey.x, pubkey.y),
+    msg="public key should be on curve",
+  )
 
   let msg : Bytes = b"hello world"
-  let (r, s) = sm2_sign(key, msg, Bytes::make(0, b'\x00'), true)
+  let uid : Bytes = b"\x31\x32\x33\x34\x35\x36\x37\x38\x31\x32\x33\x34\x35\x36\x37\x38"
+  let (r, s) = sm2_sign(curve, private_key, msg, uid)
   assert_true(
-    sm2_verify(key.pubkey, msg, Bytes::make(0, b'\x00'), r, s),
+    sm2_verify(curve, pubkey, msg, uid, r, s),
     msg="sign-verify",
   )
 }
 
 ///|
 test "gmsm_sm2_encrypt_decrypt" {
-  let key = sm2_generate_key()
+  let curve = sm2_p256()
+  let (private_key, pubkey) = sm2_generate_key(curve)
   let msg : Bytes = b"Hello, GMSM!"
 
-  let enc = sm2_encrypt(key.pubkey, msg, 0)
-  match enc {
-    Some(c) => {
-      let dec = sm2_decrypt(key, c, 0)
-      match dec {
-        Some(p) => assert_eq(p, msg)
-        None => assert_true(false, msg="decrypt failed")
-      }
-    }
-    None => assert_true(false, msg="encrypt failed")
-  }
+  let enc = sm2_encrypt(curve, pubkey, msg, C1C3C2)
+  let dec = sm2_decrypt(curve, private_key, enc, C1C3C2)
+  assert_eq(dec, msg)
 }
 
 ///|
