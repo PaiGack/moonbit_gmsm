@@ -9,17 +9,17 @@
 //   "moonbitlang/x@0.4.6",
 // }
 
-name = "rzhangsan/moonbit_gm"
+name = "paigack/gmsm"
 
 version = "0.1.0"
 
-readme = "README.md"
+readme = "README.mbt.md"
 
-repository = "https://github.com/paigack/moonbit_gm.git"
+repository = "https://github.com/paigack/gmsm.git"
 
 license = "Apache-2.0"
 
-keywords = ["crypto", "sm2", "sm3", "sm4", "gm", "moonbit"]
+keywords = [ "crypto", "sm2", "sm3", "sm4", "gm", "moonbit" ]
 
 preferred_target = "wasm-gc"
 
