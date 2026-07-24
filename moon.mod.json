@@ -1,0 +1,12 @@
+{
+  "name": "moonbit_gm",
+  "version": "0.1.0",
+  "description": "国密 SM2/SM3/SM4 算法库的 MoonBit 移植",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/paigack/moonbit_gm.git",
+  "keywords": ["crypto", "sm2", "sm3", "sm4", "gm", "moonbit"],
+  "readme": "README.md",
+  "source": "src",
+  "test": "src",
+  "deps": {}
+}

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 取消同一 ref 上正在运行的旧工作流，节省 CI 资源
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  moonbit:
+    name: MoonBit check & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MoonBit toolchain
+        # MoonBit 官方安装脚本，安装到 $HOME/.moon，并把 bin 加入 PATH
+        run: |
+          curl -fsSL https://cli.moonbitlang.cn/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: MoonBit version
+        run: moon --version
+
+      - name: moon check
+        run: moon check --deny-warning
+
+      - name: moon test
+        run: moon test --deny-warning
+
+      - name: moon build
+        run: moon build --target wasm-gc
