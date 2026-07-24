@@ -1,0 +1,48 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "paigack/gmsm/sm2"
+
+// Values
+pub fn derive_public_key(SM2Curve, Bytes) -> SM2PublicKey
+
+pub fn generate_key(SM2Curve) -> (Bytes, SM2PublicKey)
+
+pub fn is_on_curve(SM2Curve, Bytes, Bytes) -> Bool
+
+pub fn sm2_decrypt(SM2Curve, Bytes, Bytes, CipherMode) -> Bytes
+
+pub fn sm2_encrypt(SM2Curve, SM2PublicKey, Bytes, CipherMode) -> Bytes
+
+pub fn sm2_p256() -> SM2Curve
+
+pub fn sm2_sign(SM2Curve, Bytes, Bytes, Bytes) -> (Bytes, Bytes)
+
+pub fn sm2_verify(SM2Curve, SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool
+
+pub fn sm3_sum(Bytes) -> Bytes
+
+// Errors
+
+// Types and methods
+pub enum CipherMode {
+  C1C3C2
+  C1C2C3
+} derive(Eq)
+
+pub(all) struct SM2Curve {
+  p : FixedArray[UInt]
+  a : FixedArray[UInt]
+  b : FixedArray[UInt]
+  n : FixedArray[UInt]
+  gx : FixedArray[UInt]
+  gy : FixedArray[UInt]
+}
+
+pub(all) struct SM2PublicKey {
+  x : FixedArray[UInt]
+  y : FixedArray[UInt]
+}
+
+// Type aliases
+
+// Traits
+
