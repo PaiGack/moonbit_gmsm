@@ -1,13 +1,41 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "paigack/gmsm"
 
+import {
+  "paigack/gmsm/sm2",
+}
+
 // Values
+pub fn sm2_decrypt(@sm2.SM2Curve, Bytes, Bytes, @sm2.CipherMode) -> Bytes
+
+pub fn sm2_derive_public_key(@sm2.SM2Curve, Bytes) -> @sm2.SM2PublicKey
+
+pub fn sm2_encrypt(@sm2.SM2Curve, @sm2.SM2PublicKey, Bytes, @sm2.CipherMode) -> Bytes
+
+pub fn sm2_generate_key(@sm2.SM2Curve) -> (Bytes, @sm2.SM2PublicKey)
+
+pub fn sm2_is_on_curve(@sm2.SM2Curve, Bytes, Bytes) -> Bool
+
+pub fn sm2_p256() -> @sm2.SM2Curve
+
+pub fn sm2_sign(@sm2.SM2Curve, Bytes, Bytes, Bytes) -> (Bytes, Bytes)
+
+pub fn sm2_verify(@sm2.SM2Curve, @sm2.SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool
+
+pub fn sm3_sum(Bytes) -> Bytes
+
+pub fn sm3_sum_multi(Array[Bytes]) -> Bytes
 
 // Errors
 
 // Types and methods
 
 // Type aliases
+pub using @sm2 {type CipherMode}
+
+pub using @sm2 {type SM2Curve}
+
+pub using @sm2 {type SM2PublicKey}
 
 // Traits
 
