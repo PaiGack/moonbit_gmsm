@@ -38,6 +38,4 @@ jobs:
         run: |
             moon version --all
             moon update
-            moon check --deny-warn
-            moon test --deny-warn
-            moon build --target wasm-gc
+            

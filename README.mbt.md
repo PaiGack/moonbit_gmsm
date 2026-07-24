@@ -1,6 +1,6 @@
 # paigack/gmsm
 
-国密 SM2/SM3/SM4 算法库的 MoonBit 移植。
+国密算法库的 MoonBit 移植。
 
 本项目计划将 Go 生态中成熟的国密算法库 [`tjfoc/gmsm`](https://github.com/tjfoc/gmsm)（Apache-2.0）的核心能力移植到 [MoonBit](https://www.moonbitlang.com/) 生态，提供纯 MoonBit 实现、可测试、可复用的国密基础库。
 
@@ -12,11 +12,7 @@
 
 ## 状态
 
-> 项目初始化阶段，已完成工程脚手架与 CI 搭建，算法实现尚未开始。
-
-## 开发环境
-
-本地开发推荐使用 CNB 提供的 `.ide/Dockerfile` 开发镜像（已预装 MoonBit 工具链与 code-server）。
+> 项目初始化阶段，已完成工程脚手架与 CI 搭建，具体算法实现尚未开始。
 
 ## 构建与测试
 

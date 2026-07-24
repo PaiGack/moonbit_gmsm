@@ -15,12 +15,10 @@ version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = "https://github.com/paigack/gmsm.git"
+repository = "https://github.com/paigack/moonbit_gmsm.git"
 
 license = "Apache-2.0"
 
-keywords = [ "crypto", "sm2", "sm3", "sm4", "gm", "moonbit" ]
+keywords = [ "crypto", "sm2", "sm3", "sm4", "gm", "国密"]
 
-preferred_target = "wasm-gc"
-
-description = "国密 SM2/SM3/SM4 算法库的 MoonBit 移植"
+description = "国密算法库的 MoonBit 移植"
