@@ -123,8 +123,7 @@ NIST P-256 的等价关系式 `2^256 ≡ 2^224 − 2^192 − 2^96 + 1` 与上式
    - `s[6]·2^384  ≡  s[6]·2^352 + s[6]·2^224 − s[6]·2^192 + s[6]·2^128`
    - `s[7]·2^448  ≡  s[7]·2^416 + s[7]·2^288 − s[7]·2^256 + s[7]·2^192`
      再把出现的 `2^256`、`2^288`、`2^352`、`2^416` 各自递归一次（每递归一次最高位下降 32-bit，三次后所有项均 ≤ 2^256）；
-3. 把累加结果 mod `p`：先做最多 2 次条件减 `p`（因为上界约为 17·2^256）；
-4. 再做 1 次最终条件减，保证结果 ∈ [0, p)。
+3. 把累加结果 mod `p`：由于展开后各项累加（每递归一层就把一个高位项拆成多个 ≤ 256-bit 项，递归 3 层后项数可达数十甚至上百，每项 ≤ 2^256），最终上界远大于 2·2^256，**不能只做 2 次减法**。正确做法是**循环条件减 `p`**（`while r >= p { r -= p }`），直到 `r < p`。这一步务必用 M1 的「随机 512-bit 输入与 `math/big` 模 p 比对 1000+ 组」兜底验证，不要硬编码减法次数。
 
 **P3 备选公式**（仅供有 SM2 经验者参考；以 NIST P-256 汇编路径为模板、把符号翻转）：
 
@@ -305,6 +304,11 @@ pub fn compress_point(p : SM2PublicKey) -> Bytes
 pub fn decompress_point(b : Bytes) -> SM2PublicKey raise Sm2Error
 ```
 
+> **算法要点（SM2 签名 / 验证，须与 gmsm `Sm2Sign`/`Sm2Verify` 对齐）**：
+> - 记 `e = SM3(ZA ‖ msg)`，`ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA)`；
+> - 签名：`(x1, y1) = k·G`，`r = (e + x1) mod n`；若 `r = 0` 或 `r + k = n` 则换 `k` 重算；`s = (1+d)⁻¹ · (k − r·d) mod n`，若 `s = 0` 则换 `k` 重算（`k` 范围 `[1, n-1]`，见 §2.1）；
+> - 验证：先拒 `r,s ∉ [1, n-1]` 或 `t = (r + s) mod n = 0`；否则 `(x1, y1) = s·G + t·P`，`R = (e + x1) mod n`，成功当且仅当 `R = r`。
+
 > **命名约定**：与 gmsm TestKEB2 的返回值保持一致 —— `key_exchange_a` 返回 `(k, S1, S2)`、`key_exchange_b` 返回 `(k, S1, S2)`。GM/T 0003 协议中「B 侧计算的『B 侧的 S1』」即 gmsm 测试里的 `Sb`，「A 侧计算的『A 侧的 S2』」即 gmsm 测试里的 `Sa`；互验即 `key_exchange_a().1 == key_exchange_b().1` 且 `key_exchange_a().2 == key_exchange_b().2`（即 `S1 == Sb`、`S2 == Sa`）。
 
 错误类型：
@@ -330,7 +334,7 @@ pub suberror Sm2Error {
 
 | 元素 | 字节序 | 长度 | 说明 |
 | --- | --- | --- | --- |
-| `Bytes` 与 `FixedArray[UInt]` 互转 | 大端（MSB first） | 32 B / 256 bit | 匹配 gmsm `big.Int.Bytes()` |
+| `Bytes` 与 `FixedArray[UInt64]` 互转 | 大端（MSB first） | 32 B / 256 bit | 匹配 gmsm `big.Int.Bytes()` |
 | 仿射点字节表示 | 04 ‖ X ‖ Y | 65 B（总 65） | 与 gmsm `Encrypt/Decrypt` 的密文首字节一致 |
 | 压缩公钥 | 02/03 ‖ X | 33 B（总 33） | 高 1 位表示 `y` 奇偶 |
 | 签名 ASN.1 | `SEQUENCE { r INTEGER, s INTEGER }` DER | 可变（典型 70–72 B） | 与 gmsm `SignDigitToSignData` 一致 |
@@ -360,6 +364,8 @@ Gy = BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0
 R = 7ffffffd80000002fffffffe000000017ffffffe800000037ffffffc80000002
 ```
 
+> 注：上表中的 `R` 在 gmsm 源码（`p256.go:75`）里的真实名字是 `RInverse`，是 gmsm 那套 9×29-bit 优化字段运算内部的 Montgomery 逆元常数，**不是 SM2 标准曲线参数**，也**不用于本规范推荐的 P2（4×64-bit Barrett）路径**，实现时无需引入。
+
 ### 4.2 默认 UID（来自 `sm2.go:37`）
 
 ```text
@@ -388,7 +394,7 @@ expk = 6C89347354DE2484 C60B4AB1FDE4C6E5  (klen=16)
 - `key_exchange_a(16, ida, idb, priv(da), pub(db), priv(ra), pub(rb)).0 == expk`
 - 双方 `S1 == Sb` 且 `Sa == S2`（即 `key_exchange_a().1 == key_exchange_b().1` 且 `key_exchange_a().2 == key_exchange_b().2`，参见 §2.4 命名约定）。
 
-### 4.4 签名的确定性 KAT（来自 `sm2.go:43-47` 的私钥与 ZA）
+### 4.4 签名的确定性 KAT（私钥使用 §4.3 的 `da`，随机源使用 gmsm `zeroReader` `sm2.go:663-674`）
 
 为支持「固定随机源 → 固定签名」的可重复测试，引入 gmsm 同款 `zeroReader{}`（`sm2.go:663-674`）：
 
@@ -405,7 +411,7 @@ fn read(dst : FixedArray[Byte]) -> Int { ... }   // 全 0 返回 dst.length()
 # 生成命令（在 gmsm 仓库目录下）
 go test -run TestSm2SignDeterministic -v
 
-# 私钥 d_hex        ：
+# 私钥 d_hex        ：= §4.3 的 da = 81EB26E941BB5AF16DF116495F90695272AE2C6D3D6C4AE1678418BE48230029
 # 消息 msg_hex       ：
 # uid_hex           ：31323334353637383132333435363738  ("1234567812345678")
 # 随机源            ：zeroReader（32 字节全 0）
@@ -421,7 +427,7 @@ go test -run TestSm2SignDeterministic -v
 ```text
 msg = "123456"  (hex: 313233343536)
 uid = "1234567812345678"
-d   = 来自 §4.4（同上）
+d   = 来自 §4.3 的 da（与签名 KAT 同一固定私钥）
 random = ZeroReader{}
 mode = C1C3C2
 ```
@@ -446,7 +452,7 @@ mode = C1C3C2
 - `len(cipher) == 1 + 64 + 32 + len(msg)`；
 - `cipher[0] == 0x04`；
 - `decrypt(cipher) == msg`；
-- 翻转 cipher[70]（C3 中间字节）后 `decrypt` 抛 `Sm2Error::InvalidCipher`。
+- 翻转 C3 区段内任一字节（如 `cipher[80]`；C3 位于密文 `[65..96]`，中间约 80）后 `decrypt` 抛 `Sm2Error::InvalidCipher`。
 
 ## 5. 测试方案
 
@@ -475,9 +481,9 @@ mode = C1C3C2
    - 负点 `(x, -y)` 与 `n-1 · G` 应相等。
 3. **SM3**（沿用现有 `sm3_abc` 等 KAT）。
 4. **ZA / KDF / ke_x_hat**
-   - `za(G, default_uid)` 与「手工拼装 ENTLA=0x0080 ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ Gx ‖ Gy」的 SM3 摘要比对；
-   - `kdf(16, x2, y2)` 在 0 输入下返回 `ok=false`；
-   - `ke_x_hat(0xFFFF...FF)` = `2^127 + (2^128-1) & ((2^128)-1)` = `0x80...00 + 0x7F...FF` 范围内的具体值（与 gmsm 一致）。
+   - `za(pub_da, default_uid)`（`pub_da = derive_public_key(da)`，da 见 §4.3）与「手工拼装 ENTLA=0x0080 ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA」的 SM3 摘要比对（xA/yA 为该公钥的仿射坐标，不是基点 G）；
+   - `kdf` 仅在派生出的 `length` 字节**全部为 0**时才返回 `ok=false`（概率极低）；对任意常规/零输入都应返回 `ok=true`。测试应断言 `kdf(16, x2, y2)` 返回 `ok=true`，并另行验证「全 0 输出 → ok=false」的判定分支；
+   - `ke_x_hat(0xFFFF...FF)`（256-bit 全 1）= `(x & (2^128-1)) | 2^127` = `0x7FFF...FFF`（32 个十六进制数字、首位 0x7F，即 `2^128 + 2^127 - 1` 的低 128 位），与 gmsm `keXHat`（`sm2.go:561-576`）一致。
 
 ### 5.2 黑盒集成测试
 
@@ -517,7 +523,7 @@ mode = C1C3C2
    - 同时验证 `key_exchange_a` 失败场景：`pubB` 传一个非法点 → `Sm2Error::NotOnCurve`；
    - 同时验证 `key_exchange_a` 失败场景：`v = ∞` 时抛 `Sm2Error::NotOnCurve`（gmsm 行为）。
 9. **压缩 / 解压**：
-   - `compress_point(G)` 长度 = 33，首字节 ∈ {02, 03}；
+   - `compress_point(pub_da)`（`pub_da = derive_public_key(da)`，da 见 §4.3）长度 = 33，首字节 ∈ {02, 03}；
    - `decompress_point(compress_point(G))` 恢复的 `x, y` 满足 `is_on_curve`；
    - 末位翻转后 `decompress_point` 抛 `Sm2Error::InvalidPoint`。
 10. **跨实现互操作（手工 / CI 可选）**：
@@ -545,13 +551,15 @@ mode = C1C3C2
 | 私钥 d = 0 | `derive_public_key` / `private_key_from_bytes` | `Sm2Error::ZeroParam` |
 | 私钥 d ≥ n | `private_key_from_bytes` | `Sm2Error::ZeroParam`（gmsm 用 `errZeroParam`） |
 | 公钥点不在曲线 | `public_key_from_xy` | `Sm2Error::NotOnCurve` |
-| uid 长度 ≥ 8192 bit | `za` | `Sm2Error::InvalidParameter`（沿用 gmsm uidLen 校验） |
+| uid 长度 ≥ 8192 字节 | `za` | `Sm2Error::InvalidParameter`（沿用 gmsm `uidLen >= 8192` 字节校验，`sm2.go:446`） |
 | uid 为空 | `sm2_sign` / `sm2_verify` | 允许，gmsm 默认走 `default_uid` 路径 |
 | msg 为空 | `sm2_sign` / `sm2_encrypt` | 允许，应正常返回 |
 | 密文长度 < 97 | `sm2_decrypt` | `Sm2Error::InvalidCipher` |
 | 密文首字节 ≠ 0x04 | `sm2_decrypt` | `Sm2Error::InvalidCipher` |
 | DER 解码失败 | `sm2_verify_der` / `cipher_unmarshal` | 返回 `false` / 抛 `Sm2Error::InvalidCipher` |
 | `@random` 注入失败 | `sm2_sign` / `sm2_encrypt` | `Sm2Error::ZeroRandom` |
+
+> 注：上表中「密文长度 < 97」与「密文首字节 ≠ 0x04」两条是**本实现新增的防御性校验**，gmsm `Decrypt`（`sm2.go:325-344`）本身不做这两项检查（直接 `data[1:]` 取子串，短输入会越界而非返回该错误）。保留它们不会影响与 gmsm 的互操作（gmsm 产出的密文首字节恒为 0x04、长度恒定），但实现时应清楚它们是规范层的加固，不是 gmsm 行为。
 
 ## 6. 实施路线
 
