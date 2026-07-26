@@ -11,11 +11,22 @@ RUN curl -fsSL https://downloads.claude.ai/claude-code-releases/bootstrap.sh | b
 
 RUN curl -fsSL https://github.com/SaladDay/cc-switch-cli/releases/latest/download/install.sh | bash
 
-ENV PATH="/root/.local/bin:$PATH"
+
+RUN wget https://go.dev/dl/go1.26.5.linux-amd64.tar.gz \
+     && rm -rf /usr/local/go && tar -C /usr/local -xzf go1.26.5.linux-amd64.tar.gz \
+     && rm -rf go1.26.5.linux-amd64.tar.gz
+
+ENV PATH="$PATH:/root/.local/bin:/usr/local/go/bin" \
+     GOPROXY=https://goproxy.cn,direct
+
+RUN go install golang.org/x/tools/gopls@latest \
+     && go install honnef.co/go/tools/cmd/staticcheck@latest \
+     && go install github.com/go-delve/delve/cmd/dlv@latest
 
 ENV workspace="/workspace"
 
 RUN code-server --install-extension tamasfe.even-better-toml \
      && code-server --install-extension usernamehw.errorlens \
      && code-server --install-extension chanhx.crabviz \
+     && code-server --install-extension golang.Go \
      && code-server --install-extension Anthropic.claude-code
