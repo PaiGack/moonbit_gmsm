@@ -1,5 +1,0 @@
-import {
-  "moonbitlang/core/bytes",
-}
-
-pkgtype(kind: "library")

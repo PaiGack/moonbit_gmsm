@@ -5,6 +5,10 @@
 > `gmsm/sm2/sm2.go`、`gmsm/sm2/p256.go`、`gmsm/sm2/utils.go`、`gmsm/sm2/sm2_test.go`
 > 在功能与测试向量上对齐。
 
+## 全局规则
+
+- go 版本的 tjfoc/gmsm gmsm 不需要看 github 的远端代码库，代码就在 gmsm 里面
+
 ## 1. 范围与目标
 
 ### 1.1 覆盖范围

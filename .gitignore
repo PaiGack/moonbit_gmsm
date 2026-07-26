@@ -10,3 +10,8 @@ target
 .moon/cache/
 *.wasm
 moon.pkg.json.bak
+
+.claude/
+.vscode/
+.idea/
+
