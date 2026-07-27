@@ -1,0 +1,178 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "paigack/gmsm/sm2"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/random",
+}
+
+// Values
+pub fn bn_add(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> UInt
+
+pub fn bn_addmod_p(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_copy(FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_eq(FixedArray[UInt64], FixedArray[UInt64]) -> Bool
+
+pub fn bn_exp_mod_p(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_from_bytes(FixedArray[UInt64], Bytes, Int) -> Unit
+
+pub fn bn_gt(FixedArray[UInt64], FixedArray[UInt64]) -> Bool
+
+pub fn bn_is_zero(FixedArray[UInt64]) -> Bool
+
+pub fn bn_lt(FixedArray[UInt64], FixedArray[UInt64]) -> Bool
+
+pub fn bn_mod_n(FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_mod_p(FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_modinv_p(FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_modmul_p(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_modsqr_p(FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_mul(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_rand_k(@random.Rand?) -> FixedArray[UInt64]
+
+pub fn bn_sqr(FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_sub(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> UInt
+
+pub fn bn_submod_p(FixedArray[UInt64], FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn bn_to_bytes(FixedArray[UInt64]) -> Bytes
+
+pub fn bn_zero(FixedArray[UInt64]) -> Unit
+
+pub fn cipher_marshal(Bytes) -> Bytes
+
+pub fn cipher_unmarshal(Bytes) -> Bytes
+
+pub fn compress_point(SM2PublicKey) -> Bytes
+
+pub fn decompress_point(Bytes) -> SM2PublicKey
+
+pub fn default_uid() -> Bytes
+
+pub fn derive_public_key(SM2PrivateKey) -> SM2PublicKey
+
+pub fn generate_key(@random.Rand?) -> SM2PrivateKey
+
+pub fn int_to_bytes_be(Int) -> Bytes
+
+pub fn is_on_curve(SM2PublicKey) -> Bool
+
+pub fn kdf(Int, Array[Bytes]) -> (Bytes, Bool)
+
+pub fn ke_x_hat(FixedArray[UInt64]) -> FixedArray[UInt64]
+
+pub fn key_exchange_a(Int, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
+
+pub fn key_exchange_b(Int, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
+
+pub fn msg_hash(Bytes, Bytes) -> FixedArray[UInt64]
+
+pub fn point_add(SM2Point, SM2Point) -> Unit
+
+pub fn point_add_affine(SM2Point, FixedArray[UInt64], FixedArray[UInt64]) -> Unit
+
+pub fn point_copy(SM2Point, SM2Point) -> Unit
+
+pub fn point_double(SM2Point) -> Unit
+
+pub fn point_eq(SM2Point, SM2Point) -> Bool
+
+pub fn point_infinity() -> SM2Point
+
+pub fn point_is_infinity(SM2Point) -> Bool
+
+pub fn point_is_on_curve_affine(FixedArray[UInt64], FixedArray[UInt64]) -> Bool
+
+pub fn point_neg(SM2Point) -> Unit
+
+pub fn point_set_infinity(SM2Point) -> Unit
+
+pub fn point_to_affine(SM2Point) -> (FixedArray[UInt64], FixedArray[UInt64])
+
+pub fn private_key_from_bytes(SM2Curve, Bytes) -> SM2PrivateKey
+
+pub fn public_key_from_xy(SM2Curve, Bytes, Bytes) -> SM2PublicKey
+
+pub fn scalar_base_mult(SM2Point, FixedArray[UInt64]) -> Unit
+
+pub fn scalar_mult(SM2Point, FixedArray[UInt64], SM2Point) -> Unit
+
+pub fn sm2_decrypt(SM2PrivateKey, Bytes, CipherMode) -> Bytes
+
+pub fn sm2_decrypt_asn1(SM2PrivateKey, Bytes) -> Bytes
+
+pub fn sm2_encrypt(SM2PublicKey, Bytes, @random.Rand?, CipherMode) -> Bytes
+
+pub fn sm2_encrypt_asn1(SM2PublicKey, Bytes, @random.Rand?) -> Bytes
+
+pub fn sm2_p256() -> SM2Curve
+
+pub fn sm2_sign(SM2PrivateKey, Bytes, Bytes, @random.Rand?) -> (Bytes, Bytes)
+
+pub fn sm2_sign_der(SM2PrivateKey, Bytes, Bytes, @random.Rand?) -> Bytes
+
+pub fn sm2_verify(SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool
+
+pub fn sm2_verify_der(SM2PublicKey, Bytes, Bytes, Bytes) -> Bool
+
+pub fn za(FixedArray[UInt64], FixedArray[UInt64], Bytes) -> Bytes
+
+// Errors
+pub suberror Sm2Error {
+  ZeroParam
+  NotOnCurve
+  InvalidCipher
+  InvalidSignature
+  InvalidPoint
+  InvalidParameter
+  ZeroRandom
+  KdfZeroKey
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub enum CipherMode {
+  C1C3C2
+  C1C2C3
+}
+
+pub(all) struct SM2Curve {
+  p : FixedArray[UInt64]
+  a : FixedArray[UInt64]
+  b : FixedArray[UInt64]
+  n : FixedArray[UInt64]
+  gx : FixedArray[UInt64]
+  gy : FixedArray[UInt64]
+}
+
+pub(all) struct SM2Point {
+  x : FixedArray[UInt64]
+  y : FixedArray[UInt64]
+  z : FixedArray[UInt64]
+}
+
+pub struct SM2PrivateKey {
+  curve : SM2Curve
+  d : FixedArray[UInt64]
+}
+
+pub struct SM2PublicKey {
+  curve : SM2Curve
+  x : FixedArray[UInt64]
+  y : FixedArray[UInt64]
+}
+
+// Type aliases
+pub type Bn = FixedArray[UInt64]
+
+// Traits
+
