@@ -4,7 +4,9 @@
 /// Helper to convert hex string to bytes.
 fn hex_to_bytes(s : String) -> Bytes {
   let len = s.length()
-  if len % 2 != 0 { abort("hex string must have even length") }
+  if len % 2 != 0 {
+    abort("hex string must have even length")
+  }
   let n = len / 2
   Bytes::makei(n, fn(i) {
     let hi = hex_nibble(s[i * 2])
@@ -13,6 +15,7 @@ fn hex_to_bytes(s : String) -> Bytes {
   })
 }
 
+///|
 fn hex_nibble(c : UInt16) -> Int {
   if c >= 48 && c <= 57 {
     (c - 48).to_int()
@@ -25,12 +28,18 @@ fn hex_nibble(c : UInt16) -> Int {
   }
 }
 
+///|
 /// GM/T 0002-2012 Appendix A: standard test vector
 let kat_key : Bytes = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
+
+///|
 let kat_plain : Bytes = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
 // Known ciphertext from GM/T 0002-2012 Appendix A
+
+///|
 let kat_cipher : Bytes = hex_to_bytes("681EDF34D206965E86B3E94F536E4246")
 
+///|
 /// Single block encryption KAT from GM/T 0002-2012 Appendix A.
 test "sm4_encrypt_block_kat" {
   let cipher = @sm4.sm4_encrypt_block(kat_key, kat_plain)
@@ -39,6 +48,7 @@ test "sm4_encrypt_block_kat" {
   }
 }
 
+///|
 /// Single block decryption KAT.
 test "sm4_decrypt_block_kat" {
   let plain = @sm4.sm4_decrypt_block(kat_key, kat_cipher)
@@ -47,13 +57,14 @@ test "sm4_decrypt_block_kat" {
   }
 }
 
+///|
 /// Single block encrypt/decrypt round-trip with random data.
 test "sm4_block_roundtrip" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
   // Test 100 random blocks
   for seed = 0; seed < 100; seed = seed + 1 {
     let data = Bytes::makei(16, fn(i) {
-      let v = ((seed * 256 + i * 17 + 42) & 0xFF)
+      let v = (seed * 256 + i * 17 + 42) & 0xFF
       v.to_byte()
     })
     let cipher = @sm4.sm4_encrypt_block(key, data)
@@ -64,6 +75,7 @@ test "sm4_block_roundtrip" {
   }
 }
 
+///|
 /// ECB encrypt/decrypt round-trip.
 test "sm4_ecb_roundtrip" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
@@ -75,6 +87,7 @@ test "sm4_ecb_roundtrip" {
   }
 }
 
+///|
 /// ECB encrypt/decrypt round-trip with multiple blocks.
 test "sm4_ecb_roundtrip_multiple_blocks" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
@@ -86,6 +99,7 @@ test "sm4_ecb_roundtrip_multiple_blocks" {
   }
 }
 
+///|
 /// CBC encrypt/decrypt round-trip.
 test "sm4_cbc_roundtrip" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
@@ -98,6 +112,7 @@ test "sm4_cbc_roundtrip" {
   }
 }
 
+///|
 /// CBC encrypt/decrypt round-trip with multi-block data.
 test "sm4_cbc_roundtrip_multiple_blocks" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
@@ -110,6 +125,7 @@ test "sm4_cbc_roundtrip_multiple_blocks" {
   }
 }
 
+///|
 /// CBC round-trip with single block and different key/IV.
 test "sm4_cbc_roundtrip_single_block" {
   let key = hex_to_bytes("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
@@ -122,6 +138,7 @@ test "sm4_cbc_roundtrip_single_block" {
   }
 }
 
+///|
 /// PKCS7 pad / unpad round-trip.
 test "pkcs7_pad_unpad_roundtrip" {
   let data = b"hello"
@@ -134,6 +151,7 @@ test "pkcs7_pad_unpad_roundtrip" {
   }
 }
 
+///|
 /// PKCS7 padding with exact block size produces a full block of padding.
 test "pkcs7_pad_exact_block" {
   let data = b"1234567890123456" // exactly 16 bytes
@@ -145,6 +163,7 @@ test "pkcs7_pad_exact_block" {
   }
 }
 
+///|
 /// PKCS7 unpadding empty padding block returns empty.
 test "pkcs7_unpad_full_block" {
   let padded = Bytes::makei(16, fn(_i) { b'\x10' })
@@ -152,6 +171,7 @@ test "pkcs7_unpad_full_block" {
   assert_eq(unpadded.length(), 0)
 }
 
+///|
 /// PKCS7 pad empty data.
 test "pkcs7_pad_empty" {
   let padded = @sm4.pkcs7_pad(b"", 16)
@@ -161,6 +181,7 @@ test "pkcs7_pad_empty" {
   }
 }
 
+///|
 /// PKCS7 pad with various block sizes.
 test "pkcs7_pad_different_block_sizes" {
   // block_size 16: pad "AB" (2 bytes) -> 14 bytes of 0x0E

@@ -74,7 +74,7 @@ pub fn bn_to_bytes(r : FixedArray[UInt64]) -> Bytes {
       3 => r[0]
       _ => abort("unreachable")
     }
-    let shift = 56 - (i % 8) * 8
+    let shift = 56 - i % 8 * 8
     ((limb >> shift) & 0xFFUL).to_byte()
   })
 }
@@ -82,24 +82,36 @@ pub fn bn_to_bytes(r : FixedArray[UInt64]) -> Bytes {
 ///|
 /// a == b (4 limbs)
 pub fn bn_eq(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
-  (a[0] == b[0]) && (a[1] == b[1]) && (a[2] == b[2]) && (a[3] == b[3])
+  a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]
 }
 
 ///|
 /// a < b (4 limbs, unsigned)
 pub fn bn_lt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
-  if a[3] != b[3] { return a[3] < b[3] }
-  if a[2] != b[2] { return a[2] < b[2] }
-  if a[1] != b[1] { return a[1] < b[1] }
+  if a[3] != b[3] {
+    return a[3] < b[3]
+  }
+  if a[2] != b[2] {
+    return a[2] < b[2]
+  }
+  if a[1] != b[1] {
+    return a[1] < b[1]
+  }
   a[0] < b[0]
 }
 
 ///|
 /// a > b (4 limbs, unsigned)
 pub fn bn_gt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
-  if a[3] != b[3] { return a[3] > b[3] }
-  if a[2] != b[2] { return a[2] > b[2] }
-  if a[1] != b[1] { return a[1] > b[1] }
+  if a[3] != b[3] {
+    return a[3] > b[3]
+  }
+  if a[2] != b[2] {
+    return a[2] > b[2]
+  }
+  if a[1] != b[1] {
+    return a[1] > b[1]
+  }
   a[0] > b[0]
 }
 
@@ -232,11 +244,7 @@ fn acc_sub_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
 
 ///|
 /// Recursively reduce a term: coeff * 2^power mod p
-fn reduce_term(
-  acc : FixedArray[UInt64],
-  coeff : UInt64,
-  power : Int,
-) -> Unit {
+fn reduce_term(acc : FixedArray[UInt64], coeff : UInt64, power : Int) -> Unit {
   if coeff == 0UL {
     return
   }
@@ -296,9 +304,15 @@ fn acc_ge_bn(acc : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
   if (acc[4] | acc[5] | acc[6] | acc[7] | acc[8]) != 0UL {
     return true
   }
-  if acc[3] != b[3] { return acc[3] > b[3] }
-  if acc[2] != b[2] { return acc[2] > b[2] }
-  if acc[1] != b[1] { return acc[1] > b[1] }
+  if acc[3] != b[3] {
+    return acc[3] > b[3]
+  }
+  if acc[2] != b[2] {
+    return acc[2] > b[2]
+  }
+  if acc[1] != b[1] {
+    return acc[1] > b[1]
+  }
   acc[0] >= b[0]
 }
 
@@ -363,7 +377,11 @@ pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
 /// The 128-bit product of each limb pair (hi*2^64 + lo) is placed at limbs
 /// (i+j) and (i+j+1). `acc_add_at` propagates carries correctly across all
 /// limbs, including the rare case where `hi + carry == 2^64`.
-pub fn bn_mul(r : FixedArray[UInt64], a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
+pub fn bn_mul(
+  r : FixedArray[UInt64],
+  a : FixedArray[UInt64],
+  b : FixedArray[UInt64],
+) -> Unit {
   for i = 0; i < 8; i = i + 1 {
     r[i] = 0UL
   }
@@ -420,7 +438,11 @@ pub fn bn_add(
   let mut carry : UInt64 = 0UL
   for i = 0; i < 4; i = i + 1 {
     let sum = a[i] + b[i] + carry
-    let new_carry : UInt64 = if sum < a[i] || (carry != 0UL && sum == a[i]) { 1UL } else { 0UL }
+    let new_carry : UInt64 = if sum < a[i] || (carry != 0UL && sum == a[i]) {
+      1UL
+    } else {
+      0UL
+    }
     r[i] = sum
     carry = new_carry
   }
@@ -564,6 +586,7 @@ pub fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   }
 }
 
+///|
 /// Add the low 4 limbs of `b` into the 8-limb accumulator `a` (with carry).
 fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
   let mut carry : UInt64 = 0UL
@@ -594,9 +617,7 @@ pub fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] {
     None => @random.Rand::chacha8()
   }
   while true {
-    let buf = Bytes::makei(32, fn(_i) {
-      (r.int(limit=256) & 0xFF).to_byte()
-    })
+    let buf = Bytes::makei(32, fn(_i) { (r.int(limit=256) & 0xFF).to_byte() })
     bn_from_bytes(k, buf, 0)
     if !bn_is_zero(k) && bn_lt(k, n) {
       return k

@@ -1,0 +1,6 @@
+import {
+  "moonbitlang/core/random",
+  "paigack/gmsm/sm2",
+}
+
+pkgtype(kind: "executable")

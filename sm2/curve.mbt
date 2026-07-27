@@ -4,9 +4,9 @@
 ///|
 /// SM2 Point in Jacobian coordinates
 pub(all) struct SM2Point {
-  x : FixedArray[UInt64]  // length 4
-  y : FixedArray[UInt64]  // length 4
-  z : FixedArray[UInt64]  // length 4
+  x : FixedArray[UInt64] // length 4
+  y : FixedArray[UInt64] // length 4
+  z : FixedArray[UInt64] // length 4
 }
 
 ///|
@@ -43,7 +43,9 @@ pub fn point_copy(dst : SM2Point, src : SM2Point) -> Unit {
 
 ///|
 /// Convert Jacobian point to affine coordinates
-pub fn point_to_affine(p : SM2Point) -> (FixedArray[UInt64], FixedArray[UInt64]) {
+pub fn point_to_affine(
+  p : SM2Point,
+) -> (FixedArray[UInt64], FixedArray[UInt64]) {
   let x : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let y : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
 
@@ -67,7 +69,10 @@ pub fn point_to_affine(p : SM2Point) -> (FixedArray[UInt64], FixedArray[UInt64])
 
 ///|
 /// Check if affine point (x, y) is on the curve: y^2 ≡ x^3 + a*x + b (mod p)
-pub fn point_is_on_curve_affine(x : FixedArray[UInt64], y : FixedArray[UInt64]) -> Bool {
+pub fn point_is_on_curve_affine(
+  x : FixedArray[UInt64],
+  y : FixedArray[UInt64],
+) -> Bool {
   let y2 : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_modsqr_p(y2, y)
 
@@ -257,7 +262,11 @@ pub fn point_add(p : SM2Point, q : SM2Point) -> Unit {
 
 ///|
 /// Point addition where q has z=1 (affine or mixed addition) — optimized
-pub fn point_add_affine(p : SM2Point, qx : FixedArray[UInt64], qy : FixedArray[UInt64]) -> Unit {
+pub fn point_add_affine(
+  p : SM2Point,
+  qx : FixedArray[UInt64],
+  qy : FixedArray[UInt64],
+) -> Unit {
   if point_is_infinity(p) {
     bn_copy(p.x, qx)
     bn_copy(p.y, qy)
@@ -343,10 +352,7 @@ pub fn scalar_mult(
 
 ///|
 /// Scalar multiplication with base point G
-pub fn scalar_base_mult(
-  result : SM2Point,
-  k : FixedArray[UInt64],
-) -> Unit {
+pub fn scalar_base_mult(result : SM2Point, k : FixedArray[UInt64]) -> Unit {
   let g = SM2Point::{
     x: FixedArray::makei(4, fn(i) {
       match i {

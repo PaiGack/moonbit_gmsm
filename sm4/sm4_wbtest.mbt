@@ -1,11 +1,13 @@
 /// SM4 whitebox tests (package-internal).
 
+///|
 /// S-Box boundary values.
 test "sbox_boundary" {
   assert_eq(sbox[0x00], b'\xd6')
   assert_eq(sbox[0xFF], b'\x48')
 }
 
+///|
 /// S-Box known values from standard.
 test "sbox_known_values" {
   assert_eq(sbox[0x01], b'\x90')
@@ -16,9 +18,10 @@ test "sbox_known_values" {
   assert_eq(sbox[0x80], b'\xea')
 }
 
+///|
 /// τ transformation: substitute each byte via S-Box.
 test "tau_transform" {
-  let input  = 0x01234567U
+  let input = 0x01234567U
   let a0 = sbox[0x01].to_uint()
   let a1 = sbox[0x23].to_uint()
   let a2 = sbox[0x45].to_uint()
@@ -27,13 +30,19 @@ test "tau_transform" {
   assert_eq(sm4_tau(input), expected)
 }
 
+///|
 /// L transformation: verify formula.
 test "L_transform" {
   let input = 0x01234567U
-  let expected = input ^ rotl(input, 2) ^ rotl(input, 10) ^ rotl(input, 18) ^ rotl(input, 24)
+  let expected = input ^
+    rotl(input, 2) ^
+    rotl(input, 10) ^
+    rotl(input, 18) ^
+    rotl(input, 24)
   assert_eq(sm4_L(input), expected)
 }
 
+///|
 /// L' transformation: verify formula.
 test "L_prime_transform" {
   let input = 0x01234567U
@@ -41,6 +50,7 @@ test "L_prime_transform" {
   assert_eq(sm4_L_prime(input), expected)
 }
 
+///|
 /// Key expansion: verify round key count is correct.
 test "key_expansion_count" {
   let key = Bytes::makei(16, fn(i) { (i & 0xFF).to_byte() })
@@ -54,15 +64,16 @@ test "key_expansion_count" {
   }
 }
 
+///|
 /// Block process encrypt then decrypt with reversed keys returns original.
 test "process_block_encrypt_decrypt" {
   let key = Bytes::from_array([
-    0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
-    0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10,
+    0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0xFE, 0xDC, 0xBA, 0x98, 0x76,
+    0x54, 0x32, 0x10,
   ])
   let data = Bytes::from_array([
-    0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
-    0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10,
+    0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0xFE, 0xDC, 0xBA, 0x98, 0x76,
+    0x54, 0x32, 0x10,
   ])
 
   let rk = sm4_expand_key(key)
@@ -79,6 +90,7 @@ test "process_block_encrypt_decrypt" {
   }
 }
 
+///|
 test "sm4_error_variants_constructible" {
   // Ensure all SM4Error variants are constructed (suppresses unused_constructor warning)
   let e0 = SM4Error::InvalidKey

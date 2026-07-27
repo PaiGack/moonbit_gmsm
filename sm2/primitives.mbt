@@ -9,51 +9,62 @@ fn default_uid_impl() -> Bytes {
 ///|
 // Curve constants as 32-byte strings
 fn a_bytes() -> Bytes {
-  bn_to_bytes(FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xFFFFFFFFFFFFFFFCUL
-      1 => 0xFFFFFFFF00000000UL
-      2 => 0xFFFFFFFFFFFFFFFFUL
-      3 => 0xFFFFFFFEFFFFFFFFUL
-      _ => abort("unreachable")
-    }
-  }))
+  bn_to_bytes(
+    FixedArray::makei(4, fn(i) {
+      match i {
+        0 => 0xFFFFFFFFFFFFFFFCUL
+        1 => 0xFFFFFFFF00000000UL
+        2 => 0xFFFFFFFFFFFFFFFFUL
+        3 => 0xFFFFFFFEFFFFFFFFUL
+        _ => abort("unreachable")
+      }
+    }),
+  )
 }
 
+///|
 fn b_bytes() -> Bytes {
-  bn_to_bytes(FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xDDBCBD414D940E93UL
-      1 => 0xF39789F515AB8F92UL
-      2 => 0x4D5A9E4BCF6509A7UL
-      3 => 0x28E9FA9E9D9F5E34UL
-      _ => abort("unreachable")
-    }
-  }))
+  bn_to_bytes(
+    FixedArray::makei(4, fn(i) {
+      match i {
+        0 => 0xDDBCBD414D940E93UL
+        1 => 0xF39789F515AB8F92UL
+        2 => 0x4D5A9E4BCF6509A7UL
+        3 => 0x28E9FA9E9D9F5E34UL
+        _ => abort("unreachable")
+      }
+    }),
+  )
 }
 
+///|
 fn gx_bytes() -> Bytes {
-  bn_to_bytes(FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0x715A4589334C74C7UL
-      1 => 0x8FE30BBFF2660BE1UL
-      2 => 0x5F9904466A39C994UL
-      3 => 0x32C4AE2C1F198119UL
-      _ => abort("unreachable")
-    }
-  }))
+  bn_to_bytes(
+    FixedArray::makei(4, fn(i) {
+      match i {
+        0 => 0x715A4589334C74C7UL
+        1 => 0x8FE30BBFF2660BE1UL
+        2 => 0x5F9904466A39C994UL
+        3 => 0x32C4AE2C1F198119UL
+        _ => abort("unreachable")
+      }
+    }),
+  )
 }
 
+///|
 fn gy_bytes() -> Bytes {
-  bn_to_bytes(FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0x02DF32E52139F0A0UL
-      1 => 0xD0A9877CC62A4740UL
-      2 => 0x59BDCEE36B692153UL
-      3 => 0xBC3736A2F4F6779CUL
-      _ => abort("unreachable")
-    }
-  }))
+  bn_to_bytes(
+    FixedArray::makei(4, fn(i) {
+      match i {
+        0 => 0x02DF32E52139F0A0UL
+        1 => 0xD0A9877CC62A4740UL
+        2 => 0x59BDCEE36B692153UL
+        3 => 0xBC3736A2F4F6779CUL
+        _ => abort("unreachable")
+      }
+    }),
+  )
 }
 
 ///|
