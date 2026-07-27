@@ -1,0 +1,39 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "paigack/gmsm/sm4"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn pkcs7_pad(Bytes, Int) -> Bytes
+
+pub fn pkcs7_unpad(Bytes) -> Bytes
+
+pub fn sm4_decrypt_block(Bytes, Bytes) -> Bytes
+
+pub fn sm4_decrypt_cbc(Bytes, Bytes, Bytes) -> Bytes
+
+pub fn sm4_decrypt_ecb(Bytes, Bytes) -> Bytes
+
+pub fn sm4_encrypt_block(Bytes, Bytes) -> Bytes
+
+pub fn sm4_encrypt_cbc(Bytes, Bytes, Bytes) -> Bytes
+
+pub fn sm4_encrypt_ecb(Bytes, Bytes) -> Bytes
+
+// Errors
+pub suberror SM4Error {
+  InvalidKey
+  InvalidData
+  InvalidIV
+  InvalidPadding
+  DecryptFailed
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

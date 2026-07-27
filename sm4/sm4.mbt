@@ -7,7 +7,7 @@
 
 ///|
 /// SM4 S-Box (256-byte fixed substitution table, from GM/T 0002-2012).
-let SBOX : FixedArray[Byte] = [
+let sbox : FixedArray[Byte] = [
   b'\xd6', b'\x90', b'\xe9', b'\xfe', b'\xcc', b'\xe1', b'\x3d', b'\xb7',
   b'\x16', b'\xb6', b'\x14', b'\xc2', b'\x28', b'\xfb', b'\x2c', b'\x05',
   b'\x2b', b'\x67', b'\x9a', b'\x76', b'\x2a', b'\xbe', b'\x04', b'\xc3',
@@ -43,16 +43,16 @@ let SBOX : FixedArray[Byte] = [
 ]
 
 ///|
-/// System parameters FK (GM/T 0002-2012 Appendix A.1).
-let FK : FixedArray[UInt] = [
+/// System parameters fk (GM/T 0002-2012 Appendix A.1).
+let fk : FixedArray[UInt] = [
   0xA3B1BAC6U, 0x56AA3350U, 0x677D9197U, 0xB27022DCU,
 ]
 
 ///|
-/// Fixed parameters CK (GM/T 0002-2012 Appendix A.2).
-/// CK[i][j] = (4i + j) × 7 mod 256
-let CK : FixedArray[UInt] = FixedArray::makei(32, fn(i) {
-  let base = (i * 4).to_uint()
+/// Fixed parameters ck (GM/T 0002-2012 Appendix A.2).
+/// ck[i][j] = (4i + j) × 7 mod 256
+let ck : FixedArray[UInt] = FixedArray::makei(32, fn(i) {
+  let base = (i * 4).reinterpret_as_uint()
   ((base * 7U) & 0xFFU) << 24 |
   (((base + 1U) * 7U) & 0xFFU) << 16 |
   (((base + 2U) * 7U) & 0xFFU) << 8 |
@@ -66,7 +66,7 @@ pub suberror SM4Error {
   InvalidIV        // IV not empty and length != 16 bytes
   InvalidPadding   // PKCS7 unpadding: padding value invalid
   DecryptFailed    // CBC decrypt failed
-} derive(Show, Eq)
+} derive(Debug, Eq)
 
 ///|
 /// 32-bit left rotation.
@@ -84,23 +84,15 @@ fn get_u32_be(buf : Bytes, offset : Int) -> UInt {
   buf[offset + 3].to_uint()
 }
 
-///|
-/// Write a 32-bit unsigned integer `v` to `buf` at `offset` in big-endian byte order.
-fn put_u32_be(buf : Bytes, offset : Int, v : UInt) -> Unit {
-  buf[offset] = (v >> 24).to_byte()
-  buf[offset + 1] = ((v >> 16) & 0xFFU).to_byte()
-  buf[offset + 2] = ((v >> 8) & 0xFFU).to_byte()
-  buf[offset + 3] = (v & 0xFFU).to_byte()
-}
 
 ///|
 /// Non-linear transformation τ: substitute each byte via S-Box.
 fn sm4_tau(a : UInt) -> UInt {
-  let a0 = ((a >> 24) & 0xFFU).to_int()
-  let a1 = ((a >> 16) & 0xFFU).to_int()
-  let a2 = ((a >> 8) & 0xFFU).to_int()
-  let a3 = (a & 0xFFU).to_int()
-  (SBOX[a0].to_uint() << 24) | (SBOX[a1].to_uint() << 16) | (SBOX[a2].to_uint() << 8) | SBOX[a3].to_uint()
+  let a0 = ((a >> 24) & 0xFFU).reinterpret_as_int()
+  let a1 = ((a >> 16) & 0xFFU).reinterpret_as_int()
+  let a2 = ((a >> 8) & 0xFFU).reinterpret_as_int()
+  let a3 = (a & 0xFFU).reinterpret_as_int()
+  (sbox[a0].to_uint() << 24) | (sbox[a1].to_uint() << 16) | (sbox[a2].to_uint() << 8) | sbox[a3].to_uint()
 }
 
 ///|
@@ -139,16 +131,16 @@ fn sm4_expand_key(key : Bytes) -> FixedArray[UInt] {
     get_u32_be(key, i * 4)
   })
 
-  // K[0..3] = MK[i] ⊕ FK[i]
-  let mut k : FixedArray[UInt] = FixedArray::makei(36, fn(i) {
-    if i < 4 { mk[i] ^ FK[i] } else { 0U }
+  // K[0..3] = MK[i] ⊕ fk[i]
+  let k : FixedArray[UInt] = FixedArray::makei(36, fn(i) {
+    if i < 4 { mk[i] ^ fk[i] } else { 0U }
   })
 
   // rk[0..31]
   let rk : FixedArray[UInt] = FixedArray::makei(32, fn(_i) { 0U })
 
   for i = 0; i < 32; i = i + 1 {
-    k[i + 4] = k[i] ^ sm4_T_prime(k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ CK[i])
+    k[i + 4] = k[i] ^ sm4_T_prime(k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ ck[i])
     rk[i] = k[i + 4]
   }
 
@@ -159,7 +151,7 @@ fn sm4_expand_key(key : Bytes) -> FixedArray[UInt] {
 /// Process one 128-bit block through SM4 with the given round keys.
 fn sm4_process_block(x : FixedArray[UInt], rk : FixedArray[UInt]) -> FixedArray[UInt] {
   let n = 4
-  let mut xv : FixedArray[UInt] = FixedArray::makei(36, fn(i) {
+  let xv : FixedArray[UInt] = FixedArray::makei(36, fn(i) {
     if i < n { x[i] } else { 0U }
   })
 
@@ -223,7 +215,7 @@ pub fn sm4_encrypt_ecb(key : Bytes, data : Bytes) -> Bytes {
   let rk = sm4_expand_key(key)
   let n_blocks = data.length() / 16
   // Pre-compute all result blocks as flat array of 32-bit words
-  let mut result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
+  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
   for b = 0; b < n_blocks; b = b + 1 {
     let x : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       get_u32_be(data, b * 16 + j * 4)
@@ -250,7 +242,7 @@ pub fn sm4_decrypt_ecb(key : Bytes, data : Bytes) -> Bytes {
   let rk = sm4_expand_key(key)
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
   let n_blocks = data.length() / 16
-  let mut result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
+  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
   for b = 0; b < n_blocks; b = b + 1 {
     let x : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       get_u32_be(data, b * 16 + j * 4)
@@ -277,7 +269,7 @@ pub fn sm4_encrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes {
 
   let rk = sm4_expand_key(key)
   let n_blocks = data.length() / 16
-  let mut result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
+  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
   for b = 0; b < n_blocks; b = b + 1 {
     // Compute plaintext block
     let plain : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
@@ -314,7 +306,7 @@ pub fn sm4_decrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes {
   let rk = sm4_expand_key(key)
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
   let n_blocks = data.length() / 16
-  let mut result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
+  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) { 0U })
   for b = 0; b < n_blocks; b = b + 1 {
     // Decrypt ciphertext block
     let cipher : FixedArray[UInt] = FixedArray::makei(4, fn(j) {

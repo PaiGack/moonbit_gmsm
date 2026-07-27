@@ -2,42 +2,42 @@
 
 /// S-Box boundary values.
 test "sbox_boundary" {
-  assert_eq!(SBOX[0x00], b'\xd6')
-  assert_eq!(SBOX[0xFF], b'\x48')
+  assert_eq(sbox[0x00], b'\xd6')
+  assert_eq(sbox[0xFF], b'\x48')
 }
 
 /// S-Box known values from standard.
 test "sbox_known_values" {
-  assert_eq!(SBOX[0x01], b'\x90')
-  assert_eq!(SBOX[0x10], b'\x2b')
-  assert_eq!(SBOX[0x20], b'\x9c')
-  assert_eq!(SBOX[0x7F], b'\x87')
-  assert_eq!(SBOX[0x80], b'\xea')
+  assert_eq(sbox[0x01], b'\x90')
+  assert_eq(sbox[0x10], b'\x2b')
+  assert_eq(sbox[0x20], b'\x9c')
+  assert_eq(sbox[0x7F], b'\x87')
+  assert_eq(sbox[0x80], b'\xea')
 }
 
 /// τ transformation: substitute each byte via S-Box.
 test "tau_transform" {
   let input  = 0x01234567U
-  let a0 = SBOX[0x01].to_uint()
-  let a1 = SBOX[0x23].to_uint()
-  let a2 = SBOX[0x45].to_uint()
-  let a3 = SBOX[0x67].to_uint()
+  let a0 = sbox[0x01].to_uint()
+  let a1 = sbox[0x23].to_uint()
+  let a2 = sbox[0x45].to_uint()
+  let a3 = sbox[0x67].to_uint()
   let expected = (a0 << 24) | (a1 << 16) | (a2 << 8) | a3
-  assert_eq!(sm4_tau(input), expected)
+  assert_eq(sm4_tau(input), expected)
 }
 
 /// L transformation: verify formula.
 test "L_transform" {
   let input = 0x01234567U
   let expected = input ^ rotl(input, 2) ^ rotl(input, 10) ^ rotl(input, 18) ^ rotl(input, 24)
-  assert_eq!(sm4_L(input), expected)
+  assert_eq(sm4_L(input), expected)
 }
 
 /// L' transformation: verify formula.
 test "L_prime_transform" {
   let input = 0x01234567U
   let expected = input ^ rotl(input, 13) ^ rotl(input, 23)
-  assert_eq!(sm4_L_prime(input), expected)
+  assert_eq(sm4_L_prime(input), expected)
 }
 
 /// Key expansion: verify round key count is correct.
@@ -74,6 +74,6 @@ test "process_block_encrypt_decrypt" {
   let plain = sm4_process_block(cipher, rk_rev)
 
   for i = 0; i < 4; i = i + 1 {
-    assert_eq!(plain[i], x[i])
+    assert_eq(plain[i], x[i])
   }
 }
