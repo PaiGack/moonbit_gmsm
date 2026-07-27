@@ -1,0 +1,24 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "paigack/gmsm/sm3"
+
+// Values
+pub fn new() -> SM3
+
+pub fn sm3_sum(Bytes) -> Bytes
+
+// Errors
+
+// Types and methods
+pub struct SM3 {
+  state : FixedArray[UInt]
+  buf : FixedArray[Byte]
+  buf_len : Int
+  total : UInt64
+}
+pub fn SM3::finish(Self) -> Bytes
+pub fn SM3::write(Self, Bytes) -> Self
+
+// Type aliases
+
+// Traits
+
