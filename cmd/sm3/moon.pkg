@@ -1,5 +1,6 @@
 import {
   "PaiGack/gmsm/sm3" @gmsm_sm3,
+  "PaiGack/gmsm/hexutil",
 }
 
 pkgtype(kind: "executable")

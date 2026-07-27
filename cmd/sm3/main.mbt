@@ -2,44 +2,6 @@
 //| Run with `moon run cmd/sm3`.
 
 ///|
-fn nibble_to_char(n : Int) -> Char {
-  if n < 10 {
-    Int::unsafe_to_char(n + '0'.to_int())
-  } else {
-    Int::unsafe_to_char(n - 10 + 'a'.to_int())
-  }
-}
-
-///|
-fn byte_to_hex(b : Byte) -> String {
-  let hi = (b.to_int() >> 4) & 0xF
-  let lo = b.to_int() & 0xF
-  nibble_to_char(hi).to_string() + nibble_to_char(lo).to_string()
-}
-
-///|
-fn bytes_to_hex(b : Bytes) -> String {
-  let buf = StringBuilder::new()
-  for i = 0; i < b.length(); i = i + 1 {
-    buf.write_string(byte_to_hex(b[i]))
-  }
-  buf.to_string()
-}
-
-///|
-fn bytes_eq(a : Bytes, b : Bytes) -> Bool {
-  if a.length() != b.length() {
-    return false
-  }
-  for i = 0; i < a.length(); i = i + 1 {
-    if a[i] != b[i] {
-      return false
-    }
-  }
-  true
-}
-
-///|
 fn main {
   println("========== SM3 Demo (GM/T 0004-2012) ==========")
 
@@ -60,7 +22,7 @@ fn main {
   for i = 0; i < cases.length(); i = i + 1 {
     let (name, data, expected) = cases[i]
     let hash = @gmsm_sm3.sm3_sum(data)
-    let got = bytes_to_hex(hash)
+    let got = @hexutil.bytes_to_hex(hash)
     let ok = got == expected
     println(
       name + " -> " + got + "  [" + (if ok { "OK" } else { "FAIL" }) + "]",
@@ -73,9 +35,9 @@ fn main {
   let ctx = ctx.write(b"def")
   let stream_hash = ctx.finish()
   let direct_hash = @gmsm_sm3.sm3_sum(b"abcdef")
-  let stream_ok = bytes_eq(stream_hash, direct_hash)
+  let stream_ok = @hexutil.bytes_eq(stream_hash, direct_hash)
   let stream_msg = "Streaming sm3(\"abcdef\"): " +
-    bytes_to_hex(stream_hash) +
+    @hexutil.bytes_to_hex(stream_hash) +
     "  [" +
     (if stream_ok { "OK" } else { "FAIL" }) +
     "]"

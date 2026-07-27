@@ -593,3 +593,48 @@ test "sign_digit_roundtrip_valid" {
     Err(_) => abort("expected Ok")
   }
 }
+
+///|
+test "generate_key_with_provided_rand" {
+  // Covers the `Some(rr)` branch of generate_key.
+  let r = @random.Rand::chacha8(seed=b"0123456789ABCDEF0123456789ABCDEF")
+  let pk = generate_key(Some(r))
+  ignore(pk)
+}
+
+///|
+test "sm2_verify_s_out_of_range" {
+  // r valid, s = n (out of range) -> InvalidSignature (sv branch).
+  let private_key = generate_key(None)
+  let public_key = derive_public_key(private_key)
+  let uid = default_uid()
+  let r_one = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
+  let r_b = bn_to_bytes(r_one)
+  let s_n = bn_to_bytes(n_limbs())
+  let res : Result[Unit, Sm2Error] = try {
+    ignore(sm2_verify(public_key, b"m", uid, r_b, s_n))
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  match res {
+    Err(InvalidSignature) => ()
+    _ => abort("expected InvalidSignature (s out of range)")
+  }
+}
+
+///|
+test "sm2_verify_t_zero_returns_false" {
+  // Pick r = 1, s = n - 1 so that (r + s) mod n == 0 -> t == 0 -> returns false.
+  let private_key = generate_key(None)
+  let public_key = derive_public_key(private_key)
+  let uid = default_uid()
+  let one = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
+  let n = n_limbs()
+  let s = FixedArray::makei(4, fn(_) { 0UL })
+  bn_sub(s, n, one) |> ignore // s = n - 1
+  let r_b = bn_to_bytes(one)
+  let s_b = bn_to_bytes(s)
+  // t = (r + s) mod n = (1 + n - 1) mod n = 0 -> returns false
+  assert_false(sm2_verify(public_key, b"m", uid, r_b, s_b))
+}

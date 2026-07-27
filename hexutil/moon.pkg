@@ -1,0 +1,2 @@
+// hexutil is a shared helper package (hex / byte utilities) used by the
+// command-line demos under cmd/.
