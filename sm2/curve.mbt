@@ -59,7 +59,6 @@ pub fn point_to_affine(p : SM2Point) -> (FixedArray[UInt64], FixedArray[UInt64])
 
   let z_inv3 : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_modmul_p(z_inv3, z_inv2, z_inv)
-
   bn_modmul_p(x, p.x, z_inv2)
   bn_modmul_p(y, p.y, z_inv3)
 
@@ -78,12 +77,11 @@ pub fn point_is_on_curve_affine(x : FixedArray[UInt64], y : FixedArray[UInt64]) 
   let x3 : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_modmul_p(x3, x2, x)
 
-  // a = p - 3, so a*x ≡ -3*x mod p
+  // a = p - 3, so a*x ≡ -3*x mod p. Use modular addition to avoid
+  // losing the carry when 3*x exceeds 2^256.
   let three_x : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
-  bn_add(three_x, x, x) |> ignore
-  let tmp : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
-  bn_copy(tmp, three_x)
-  bn_add(three_x, tmp, x) |> ignore
+  bn_addmod_p(three_x, x, x)
+  bn_addmod_p(three_x, three_x, x)
 
   let p = FixedArray::makei(4, fn(i) {
     match i {
@@ -94,17 +92,11 @@ pub fn point_is_on_curve_affine(x : FixedArray[UInt64], y : FixedArray[UInt64]) 
       _ => abort("unreachable")
     }
   })
-  let three_x_mod = FixedArray::makei(4, fn(_) { 0UL })
-  bn_copy(three_x_mod, three_x)
-  if !bn_lt(three_x_mod, p) {
-    bn_sub(three_x_mod, three_x_mod, p) |> ignore
-  }
-
   let ax : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
-  if bn_is_zero(three_x_mod) {
+  if bn_is_zero(three_x) {
     bn_zero(ax)
   } else {
-    bn_sub(ax, p, three_x_mod) |> ignore
+    bn_sub(ax, p, three_x) |> ignore
   }
 
   let rhs : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })

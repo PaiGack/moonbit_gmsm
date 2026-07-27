@@ -308,29 +308,44 @@ fn acc_sub_bn(acc : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
   for i = 0; i < 9; i = i + 1 {
     let bv = if i < 4 { b[i] } else { 0UL }
     let acc_i = acc[i]
-    let subtrahend = bv + borrow
-    if acc_i >= subtrahend {
-      acc[i] = acc_i - subtrahend
-      borrow = 0UL
-    } else {
-      acc[i] = acc_i + (0xFFFFFFFFFFFFFFFFUL - subtrahend) + 1UL
-      borrow = 1UL
-    }
+    let d1 = acc_i - bv
+    let borrow1 : UInt64 = if acc_i < bv { 1UL } else { 0UL }
+    let d2 = d1 - borrow
+    let borrow2 : UInt64 = if d1 < borrow { 1UL } else { 0UL }
+    acc[i] = d2
+    borrow = borrow1 + borrow2
   }
 }
 
 ///|
 /// Modular reduction modulo p (P2: Barrett-style with recursive term splitting)
+/// The single recursive pass folds the original high limbs of the product, but it
+/// can leave spillover terms in limbs >= 4 (e.g. 2^224·coeff spills its top 32 bits
+/// into the 2^256 region). Those must be reduced again, so we iterate until no limb
+/// at or above 2^256 remains, then do the final conditional subtraction of p.
 pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
   let acc : FixedArray[UInt64] = FixedArray::makei(9, fn(_) { 0UL })
 
-  for i = 0; i < 4; i = i + 1 {
+  for i = 0; i < 8; i = i + 1 {
     acc[i] = s[i]
   }
 
-  for i = 4; i < 8; i = i + 1 {
-    let power = (i - 4) * 64 + 256
-    reduce_term(acc, s[i], power)
+  // Iteratively reduce every limb at position >= 2^256. Each reduction folds the
+  // term into lower limbs, possibly spilling bits back into the >= 2^256 region, so
+  // we repeat until no such limb is left. Coefficients are < 2^64, so each pass
+  // shifts them down by 32 bits and the loop converges in a few iterations.
+  let mut again = true
+  while again {
+    again = false
+    for i = 4; i < 9; i = i + 1 {
+      if acc[i] != 0UL {
+        let c = acc[i]
+        acc[i] = 0UL
+        let power = (i - 4) * 64 + 256
+        reduce_term(acc, c, power)
+        again = true
+      }
+    }
   }
 
   let p = p_limbs()
@@ -345,6 +360,9 @@ pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Schoolbook multiplication: r (8 limbs) = a (4 limbs) × b (4 limbs)
+/// The 128-bit product of each limb pair (hi*2^64 + lo) is placed at limbs
+/// (i+j) and (i+j+1). `acc_add_at` propagates carries correctly across all
+/// limbs, including the rare case where `hi + carry == 2^64`.
 pub fn bn_mul(r : FixedArray[UInt64], a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
   for i = 0; i < 8; i = i + 1 {
     r[i] = 0UL
@@ -362,18 +380,8 @@ pub fn bn_mul(r : FixedArray[UInt64], a : FixedArray[UInt64], b : FixedArray[UIn
       }
       let (hi, lo) = mul_128(ai, bj)
       let idx = i + j
-      let sum = r[idx] + lo
-      let carry : UInt64 = if sum < r[idx] { 1UL } else { 0UL }
-      r[idx] = sum
-      let mut k = idx + 1
-      let mut val = hi + carry
-      while val != 0UL && k < 8 {
-        let s2 = r[k] + val
-        let c2 : UInt64 = if s2 < r[k] { 1UL } else { 0UL }
-        r[k] = s2
-        val = c2
-        k = k + 1
-      }
+      acc_add_at(r, idx, lo)
+      acc_add_at(r, idx + 1, hi)
     }
   }
 }
@@ -428,14 +436,16 @@ pub fn bn_sub(
 ) -> UInt {
   let mut borrow : UInt64 = 0UL
   for i = 0; i < 4; i = i + 1 {
-    let bv = b[i] + borrow
-    if a[i] >= bv {
-      r[i] = a[i] - bv
-      borrow = 0UL
-    } else {
-      r[i] = a[i] + (0xFFFFFFFFFFFFFFFFUL - bv) + 1UL
-      borrow = 1UL
-    }
+    let ai = a[i]
+    let bi = b[i]
+    // d1 = ai - bi, then d2 = d1 - borrow; track each step's borrow separately
+    // to avoid the overflow bug when bi == 2^64-1 and borrow == 1.
+    let d1 = ai - bi
+    let borrow1 : UInt64 = if ai < bi { 1UL } else { 0UL }
+    let d2 = d1 - borrow
+    let borrow2 : UInt64 = if d1 < borrow { 1UL } else { 0UL }
+    r[i] = d2
+    borrow = borrow1 + borrow2
   }
   borrow.to_uint()
 }
@@ -517,20 +527,14 @@ pub fn bn_exp_mod_p(
 }
 
 ///|
-/// Modular reduction modulo n (curve order) using 2^256 mod n approach
+/// Modular reduction modulo n (curve order).
+/// Since n > 2^255, we have 2^256 = n + t with t = 2^256 mod n (t ≈ 2^224).
+/// Write the value as hi*2^256 + lo ≡ hi*t + lo (mod n). Each folding step
+/// decreases the value by hi*n > 0, so iterating until the high half is zero
+/// terminates (each step shrinks the value by roughly 2^32 bits of headroom).
+/// A final conditional subtraction of n yields the canonical result.
 pub fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   let n = n_limbs()
-
-  let lo : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { a[i] })
-  let hi : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { a[i + 4] })
-
-  if bn_is_zero(hi) {
-    bn_copy(r, lo)
-    if !bn_lt(r, n) {
-      bn_sub(r, r, n) |> ignore
-    }
-    return
-  }
 
   // t = 2^256 mod n
   let t : FixedArray[UInt64] = FixedArray::makei(4, fn(i) {
@@ -543,60 +547,40 @@ pub fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
     }
   })
 
-  // hi * t (mod ...)
-  let hi_t : FixedArray[UInt64] = FixedArray::makei(8, fn(_) { 0UL })
-  bn_mul(hi_t, hi, t)
+  let work : FixedArray[UInt64] = FixedArray::makei(8, fn(i) { a[i] })
+  while (work[4] | work[5] | work[6] | work[7]) != 0UL {
+    let hi : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { work[i + 4] })
+    let lo : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { work[i] })
+    bn_mul(work, hi, t)
+    add_8(work, lo)
+  }
 
-  // sum = hi_t + lo
-  let sum : FixedArray[UInt64] = FixedArray::makei(8, fn(i) { hi_t[i] })
+  let rr : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { work[i] })
+  while !bn_lt(rr, n) {
+    bn_sub(rr, rr, n) |> ignore
+  }
+  for i = 0; i < 4; i = i + 1 {
+    r[i] = rr[i]
+  }
+}
+
+/// Add the low 4 limbs of `b` into the 8-limb accumulator `a` (with carry).
+fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
   let mut carry : UInt64 = 0UL
   for i = 0; i < 4; i = i + 1 {
-    let s = sum[i] + lo[i] + carry
-    let new_c : UInt64 = if s < lo[i] || (carry != 0UL && s == lo[i] + carry) { 1UL } else { 0UL }
-    sum[i] = s
-    carry = new_c
+    let s1 = a[i] + b[i]
+    let c1 : UInt64 = if s1 < a[i] { 1UL } else { 0UL }
+    let s2 = s1 + carry
+    let c2 : UInt64 = if s2 < s1 { 1UL } else { 0UL }
+    a[i] = s2
+    carry = c1 + c2
   }
   let mut i = 4
   while carry != 0UL && i < 8 {
-    let s = sum[i] + carry
+    let s = a[i] + carry
     carry = if s < carry { 1UL } else { 0UL }
-    sum[i] = s
+    a[i] = s
     i = i + 1
-  }
-
-  // Copy to r, then conditionally subtract n
-  for i = 0; i < 4; i = i + 1 {
-    r[i] = sum[i]
-  }
-
-  let hi2 : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { sum[i + 4] })
-  if !bn_is_zero(hi2) {
-    let hi2_t : FixedArray[UInt64] = FixedArray::makei(8, fn(_) { 0UL })
-    bn_mul(hi2_t, hi2, t)
-    carry = 0UL
-    for i = 0; i < 4; i = i + 1 {
-      let s2 = r[i] + hi2_t[i] + carry
-      let new_c2 : UInt64 = if s2 < hi2_t[i] || (carry != 0UL && s2 == hi2_t[i] + carry) { 1UL } else { 0UL }
-      r[i] = s2
-      carry = new_c2
-    }
-    let hi3 : FixedArray[UInt64] = FixedArray::makei(4, fn(j) { hi2_t[j + 4] })
-    let has_carry = carry != 0UL || !bn_is_zero(hi3)
-    if has_carry {
-      let big : FixedArray[UInt64] = FixedArray::makei(8, fn(j) {
-        if j < 4 {
-          if carry != 0UL && j == 0 { r[j] + 1UL } else { r[j] }
-        } else {
-          hi2_t[j]
-        }
-      })
-      bn_mod_n(r, big)
-      return
-    }
-  }
-
-  while !bn_lt(r, n) {
-    bn_sub(r, r, n) |> ignore
   }
 }
 

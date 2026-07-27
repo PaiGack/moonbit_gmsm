@@ -11,7 +11,8 @@ test "sbox_known_values" {
   assert_eq(sbox[0x01], b'\x90')
   assert_eq(sbox[0x10], b'\x2b')
   assert_eq(sbox[0x20], b'\x9c')
-  assert_eq(sbox[0x7F], b'\x87')
+  assert_eq(sbox[0x6F], b'\x87')
+  assert_eq(sbox[0x7F], b'\x9e')
   assert_eq(sbox[0x80], b'\xea')
 }
 

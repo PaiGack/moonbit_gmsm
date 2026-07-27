@@ -1,5 +1,1 @@
-// import {
-//   "paigack/gmsm" @lib,
-// }
-
 pkgtype(kind: "executable")

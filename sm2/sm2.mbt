@@ -94,9 +94,12 @@ pub fn default_uid() -> Bytes { b"1234567812345678" }
 fn add_to_8(r : FixedArray[UInt64], a : Bn) -> Unit {
   let mut carry : UInt64 = 0UL
   for i = 0; i < 4; i = i + 1 {
-    let sum = r[i] + a[i] + carry
-    carry = if sum < a[i] || (carry != 0UL && sum == a[i] + carry) { 1UL } else { 0UL }
-    r[i] = sum
+    let s1 = r[i] + a[i]
+    let c1 : UInt64 = if s1 < r[i] { 1UL } else { 0UL }
+    let s2 = s1 + carry
+    let c2 : UInt64 = if s2 < s1 { 1UL } else { 0UL }
+    r[i] = s2
+    carry = c1 + c2
   }
   r[4] = r[4] + carry
 }
@@ -165,15 +168,12 @@ pub fn sm2_sign(private_key : SM2PrivateKey, msg : Bytes, uid : Bytes, _random :
     let rd : Bn = FixedArray::makei(4, fn(_) { 0UL })
     bn_mod_n(rd, rd8)
 
-    let kmrd8 : FixedArray[UInt64] = FixedArray::makei(8, fn(i) { if i < 4 { k[i] } else { 0UL } })
-    let mut borrow : UInt64 = 0UL
-    for i = 0; i < 4; i = i + 1 {
-      let rd_i = rd[i] + borrow
-      if kmrd8[i] >= rd_i { kmrd8[i] = kmrd8[i] - rd_i; borrow = 0UL }
-      else { kmrd8[i] = kmrd8[i] + (0xFFFFFFFFFFFFFFFFUL - rd_i) + 1UL; borrow = 1UL }
-    }
+    // t = (k - r*d) mod n; k < n and rd < n, so on borrow add n back.
     let t : Bn = FixedArray::makei(4, fn(_) { 0UL })
-    bn_mod_n(t, kmrd8)
+    let borrow = bn_sub(t, k, rd)
+    if borrow != 0U {
+      bn_add(t, t, n) |> ignore
+    }
     let s : Bn = FixedArray::makei(4, fn(_) { 0UL })
     bn_modmul_n(s, inv, t, n)
     if bn_is_zero(s) { continue }
@@ -193,13 +193,7 @@ pub fn sm2_verify(public_key : SM2PublicKey, msg : Bytes, uid : Bytes, r : Bytes
   if bn_is_zero(sv) || !bn_lt(sv, n) { return false }
 
   let rps8 : FixedArray[UInt64] = FixedArray::makei(8, fn(i) { if i < 4 { rv[i] } else { 0UL } })
-  let mut carry : UInt64 = 0UL
-  for i = 0; i < 4; i = i + 1 {
-    let sum = rps8[i] + sv[i] + carry
-    carry = if sum < sv[i] || (carry != 0UL && sum == sv[i] + carry) { 1UL } else { 0UL }
-    rps8[i] = sum
-  }
-  rps8[4] = rps8[4] + carry
+  add_to_8(rps8, sv)
   let t : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_mod_n(t, rps8)
   if bn_is_zero(t) { return false }
@@ -246,6 +240,17 @@ fn decode_asn1_length(data : Bytes, off : Int) -> (Int, Int) {
 fn pad_left(data : Bytes, target : Int) -> Bytes {
   if data.length() >= target { return data }
   Bytes::makei(target, fn(i) { let o = target - data.length(); if i < o { b'\x00' } else { data[i - o] } })
+}
+
+/// Normalize an ASN.1 INTEGER content to exactly 32 bytes:
+/// strip leading zero bytes (sign padding), then left-pad with zeros.
+fn normalize_32(data : Bytes) -> Bytes {
+  let mut start = 0
+  while start < data.length() - 1 && data[start] == b'\x00' && data.length() - start > 32 {
+    start = start + 1
+  }
+  if data.length() - start > 32 { abort("integer too large") }
+  pad_left(data[start:].to_owned(), 32)
 }
 
 fn encode_asn1_integer(bytes : Bytes) -> Bytes {
@@ -303,11 +308,11 @@ fn sign_digit_to_sign_data(der : Bytes) -> Result[(Bytes, Bytes), String] {
   if der[off] != b'\x02' { return Err("expected INTEGER") }
   off = off + 1
   let (rl, rls) = decode_asn1_length(der, off); off = off + rls
-  let rv = pad_left(der[off:off + rl].to_owned(), 32); off = off + rl
+  let rv = normalize_32(der[off:off + rl].to_owned()); off = off + rl
   if der[off] != b'\x02' { return Err("expected INTEGER") }
   off = off + 1
   let (sl2, sls) = decode_asn1_length(der, off); off = off + sls
-  let sv = pad_left(der[off:off + sl2].to_owned(), 32)
+  let sv = normalize_32(der[off:off + sl2].to_owned())
   Ok((rv, sv))
 }
 
@@ -402,11 +407,11 @@ pub fn cipher_unmarshal(der : Bytes) -> Bytes {
 
   if der[off] != b'\x02' { abort("expected INTEGER") }; off = off + 1
   let (xl, xls) = decode_asn1_length(der, off); off = off + xls
-  let xv = pad_left(der[off:off + xl].to_owned(), 32); off = off + xl
+  let xv = normalize_32(der[off:off + xl].to_owned()); off = off + xl
 
   if der[off] != b'\x02' { abort("expected INTEGER") }; off = off + 1
   let (yl, yls) = decode_asn1_length(der, off); off = off + yls
-  let yv = pad_left(der[off:off + yl].to_owned(), 32); off = off + yl
+  let yv = normalize_32(der[off:off + yl].to_owned()); off = off + yl
 
   if der[off] != b'\x04' { abort("expected OCTET STRING") }; off = off + 1
   let (c3l, c3ls) = decode_asn1_length(der, off); off = off + c3ls
@@ -507,14 +512,15 @@ pub fn decompress_point(b : Bytes) -> SM2PublicKey {
   let x2 : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_modsqr_p(x2, x)
   let x3 : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_modmul_p(x3, x2, x)
 
-  let three_x : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_add(three_x, x, x) |> ignore
-  let tmp : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_copy(tmp, three_x); bn_add(three_x, tmp, x) |> ignore
-  if !bn_lt(three_x, curve.p) { bn_sub(three_x, three_x, curve.p) |> ignore }
+  let three_x : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  bn_addmod_p(three_x, x, x)
+  bn_addmod_p(three_x, three_x, x)
   let ax : Bn = FixedArray::makei(4, fn(_) { 0UL })
   if bn_is_zero(three_x) { bn_zero(ax) } else { bn_sub(ax, curve.p, three_x) |> ignore }
 
   let y2 : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_addmod_p(y2, x3, ax); bn_addmod_p(y2, y2, curve.b)
-  let exp : Bn = FixedArray::makei(4, fn(i) { match i { 0 => 0xFFFFFFFFFFFFFFFFUL; 1 => 0xFFFFFFFFC0000000UL; 2 => 0xFFFFFFFFFFFFFFFFUL; 3 => 0xFFFFFFFBFFFFFFFFUL; _ => abort("unreachable") } })
+  // exp = (p+1)/4, used to compute the modular square root y = (y^2)^((p+1)/4)
+  let exp : Bn = FixedArray::makei(4, fn(i) { match i { 0 => 0x4000000000000000UL; 1 => 0xFFFFFFFFC0000000UL; 2 => 0xFFFFFFFFFFFFFFFFUL; 3 => 0x3FFFFFFFBFFFFFFFUL; _ => abort("unreachable") } })
   let y : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_exp_mod_p(y, y2, exp)
 
   let exp_par = if b[0] == b'\x02' { 0UL } else { 1UL }
