@@ -15,3 +15,5 @@ moon.pkg.json.bak
 .vscode/
 .idea/
 
+gmsm/
+*.txt
