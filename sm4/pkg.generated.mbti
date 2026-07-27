@@ -8,19 +8,21 @@ import {
 // Values
 pub fn pkcs7_pad(Bytes, Int) -> Bytes
 
-pub fn pkcs7_unpad(Bytes) -> Bytes
+pub fn pkcs7_unpad(Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_decrypt_block(Bytes, Bytes) -> Bytes
+pub fn sm4_decrypt_block(Bytes, Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_decrypt_cbc(Bytes, Bytes, Bytes) -> Bytes
+pub fn sm4_decrypt_cbc(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_decrypt_ecb(Bytes, Bytes) -> Bytes
+pub fn sm4_decrypt_ecb(Bytes, Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_encrypt_block(Bytes, Bytes) -> Bytes
+pub fn sm4_encrypt_block(Bytes, Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_encrypt_cbc(Bytes, Bytes, Bytes) -> Bytes
+pub fn sm4_encrypt_cbc(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_encrypt_ecb(Bytes, Bytes) -> Bytes
+pub fn sm4_encrypt_ecb(Bytes, Bytes) -> Bytes raise SM4Error
+
+pub fn sm4_error_decrypt_failed() -> SM4Error
 
 // Errors
 pub suberror SM4Error {

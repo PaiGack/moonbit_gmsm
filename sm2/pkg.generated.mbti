@@ -51,11 +51,13 @@ pub fn bn_zero(FixedArray[UInt64]) -> Unit
 
 pub fn cipher_marshal(Bytes) -> Bytes
 
+pub fn cipher_mode_c1c2c3() -> CipherMode
+
 pub fn cipher_unmarshal(Bytes) -> Bytes
 
 pub fn compress_point(SM2PublicKey) -> Bytes
 
-pub fn decompress_point(Bytes) -> SM2PublicKey
+pub fn decompress_point(Bytes) -> SM2PublicKey raise Sm2Error
 
 pub fn default_uid() -> Bytes
 
@@ -99,21 +101,23 @@ pub fn point_set_infinity(SM2Point) -> Unit
 
 pub fn point_to_affine(SM2Point) -> (FixedArray[UInt64], FixedArray[UInt64])
 
-pub fn private_key_from_bytes(SM2Curve, Bytes) -> SM2PrivateKey
+pub fn private_key_from_bytes(SM2Curve, Bytes) -> SM2PrivateKey raise Sm2Error
 
-pub fn public_key_from_xy(SM2Curve, Bytes, Bytes) -> SM2PublicKey
+pub fn public_key_from_xy(SM2Curve, Bytes, Bytes) -> SM2PublicKey raise Sm2Error
 
 pub fn scalar_base_mult(SM2Point, FixedArray[UInt64]) -> Unit
 
 pub fn scalar_mult(SM2Point, FixedArray[UInt64], SM2Point) -> Unit
 
-pub fn sm2_decrypt(SM2PrivateKey, Bytes, CipherMode) -> Bytes
+pub fn sm2_decrypt(SM2PrivateKey, Bytes, CipherMode) -> Bytes raise Sm2Error
 
-pub fn sm2_decrypt_asn1(SM2PrivateKey, Bytes) -> Bytes
+pub fn sm2_decrypt_asn1(SM2PrivateKey, Bytes) -> Bytes raise Sm2Error
 
-pub fn sm2_encrypt(SM2PublicKey, Bytes, @random.Rand?, CipherMode) -> Bytes
+pub fn sm2_encrypt(SM2PublicKey, Bytes, @random.Rand?, CipherMode) -> Bytes raise Sm2Error
 
-pub fn sm2_encrypt_asn1(SM2PublicKey, Bytes, @random.Rand?) -> Bytes
+pub fn sm2_encrypt_asn1(SM2PublicKey, Bytes, @random.Rand?) -> Bytes raise Sm2Error
+
+pub fn sm2_error_zero_random() -> Sm2Error
 
 pub fn sm2_p256() -> SM2Curve
 
@@ -121,9 +125,9 @@ pub fn sm2_sign(SM2PrivateKey, Bytes, Bytes, @random.Rand?) -> (Bytes, Bytes)
 
 pub fn sm2_sign_der(SM2PrivateKey, Bytes, Bytes, @random.Rand?) -> Bytes
 
-pub fn sm2_verify(SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool
+pub fn sm2_verify(SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool raise Sm2Error
 
-pub fn sm2_verify_der(SM2PublicKey, Bytes, Bytes, Bytes) -> Bool
+pub fn sm2_verify_der(SM2PublicKey, Bytes, Bytes, Bytes) -> Bool raise Sm2Error
 
 pub fn za(FixedArray[UInt64], FixedArray[UInt64], Bytes) -> Bytes
 
