@@ -91,6 +91,23 @@ test "process_block_encrypt_decrypt" {
 }
 
 ///|
+/// Key expansion: invalid key length must raise SM4Error::InvalidKey.
+test "key_expansion_invalid_key" {
+  let bad_key = Bytes::makei(15, fn(i) { i.to_byte() }) // wrong length
+  let r : Result[FixedArray[UInt], SM4Error] = try {
+    let rk = sm4_expand_key(bad_key)
+    Ok(rk)
+  } catch {
+    e => Err(e)
+  }
+  match r {
+    Ok(_) => abort("expected SM4Error::InvalidKey from sm4_expand_key")
+    Err(SM4Error::InvalidKey) => ()
+    Err(_) => abort("expected SM4Error::InvalidKey")
+  }
+}
+
+///|
 test "sm4_error_variants_constructible" {
   // Ensure all SM4Error variants are constructed (suppresses unused_constructor warning)
   let e0 = SM4Error::InvalidKey

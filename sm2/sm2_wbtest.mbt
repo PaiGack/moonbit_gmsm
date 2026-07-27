@@ -641,3 +641,108 @@ test "sm2_verify_t_zero_returns_false" {
   // t = (r + s) mod n = (1 + n - 1) mod n = 0 -> returns false
   assert_false(sm2_verify(public_key, b"m", uid, r_b, s_b))
 }
+
+///|
+/// `sign_digit_to_sign_data` with a DER shorter than 4 bytes -> Err("too short") (line 550).
+test "sign_digit_to_sign_data_too_short" {
+  match sign_digit_to_sign_data(b"abc") {
+    Err(_) => ()
+    Ok(_) => abort("expected Err (too short)")
+  }
+}
+
+///|
+/// `sign_digit_to_sign_data` after SEQUENCE but first element is not INTEGER (line 558).
+test "sign_digit_to_sign_data_bad_first_tag" {
+  // SEQUENCE (0x30), length 3, then a byte that is not 0x02 (INTEGER).
+  let der = Bytes::from_array([b'\x30', b'\x03', b'\xAA', b'\xBB', b'\xCC'])
+  match sign_digit_to_sign_data(der) {
+    Err(_) => ()
+    Ok(_) => abort("expected Err (bad first tag)")
+  }
+}
+
+///|
+/// `sign_digit_to_sign_data` first INTEGER ok, second element not INTEGER (line 566).
+test "sign_digit_to_sign_data_bad_second_tag" {
+  // SEQUENCE, length 4, INTEGER 0x02 0x01 0x00, then 0x03 (not INTEGER).
+  let der = Bytes::from_array([b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03'])
+  match sign_digit_to_sign_data(der) {
+    Err(_) => ()
+    Ok(_) => abort("expected Err (bad second tag)")
+  }
+}
+
+///|
+/// Tampering C3 of a valid cipher makes the SM3 check fail -> InvalidCipher (line 724).
+test "sm2_decrypt_tampered_c3" {
+  let private_key = generate_key(None)
+  let public_key = derive_public_key(private_key)
+  let msg = b"tamper me please!!!"
+  let cipher = sm2_encrypt(public_key, msg, None, C1C3C2)
+  // Flip a byte inside the C3 region (offset 65..96).
+  let tampered = Bytes::makei(cipher.length(), fn(i) {
+    if i == 70 {
+      (cipher[i].to_int() ^ 0xFF).to_byte()
+    } else {
+      cipher[i]
+    }
+  })
+  let r : Result[Unit, Sm2Error] = try {
+    ignore(sm2_decrypt(private_key, tampered, C1C3C2))
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  match r {
+    Err(InvalidCipher) => ()
+    _ => abort("expected InvalidCipher (tampered c3)")
+  }
+}
+
+///|
+/// `compress_point` must emit prefix 0x03 for an odd-y public key (line 982).
+test "compress_point_odd_y" {
+  let curve = sm2_p256()
+  let odd_y : FixedArray[UInt64] = FixedArray::makei(4, fn(i) {
+    if i == 0 { 1UL } else { 0UL }
+  })
+  let pk = SM2PublicKey::{ curve, x: curve.gx, y: odd_y }
+  let comp = compress_point(pk)
+  assert_eq(comp[0], b'\x03')
+}
+
+///|
+/// `decompress_point` with x = 0 reaches the `bn_zero(ax)` branch (line 1009).
+/// (0,*) is generally not on the curve, so decompress raises — either way line 1009 ran.
+test "decompress_point_x_zero_bn_zero_branch" {
+  let b = Bytes::makei(33, fn(i) {
+    if i == 0 { b'\x02' } else { b'\x00' }
+  })
+  let r : Result[Unit, Sm2Error] = try {
+    ignore(decompress_point(b))
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  ignore(r)
+}
+
+///|
+/// `decompress_point` parity-flip branch (line 1032): decompress the negated base
+/// point (odd y, prefix 0x03). The modular sqrt yields an even root, so the flip
+/// must execute to recover the odd y.
+test "decompress_point_flip_parity" {
+  let curve = sm2_p256()
+  let y_odd : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
+  bn_sub(y_odd, curve.p, curve.gy) |> ignore
+  assert_true((y_odd[0] & 1UL) == 1UL)
+  let pk = SM2PublicKey::{ curve, x: curve.gx, y: y_odd }
+  let comp = compress_point(pk)
+  assert_eq(comp[0], b'\x03')
+  let dec = decompress_point(comp)
+  assert_true(is_on_curve(dec))
+  for i = 0; i < 4; i = i + 1 {
+    assert_eq(dec.y[i], y_odd[i])
+  }
+}
