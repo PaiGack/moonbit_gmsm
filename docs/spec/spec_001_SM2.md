@@ -1,6 +1,6 @@
 # SM2 MoonBit 移植规范
 
-> 本文件描述 `paigack/gmsm/sm2` 包的实现规划、API 契约、测试数据与测试方案。
+> 本文件描述 `PaiGack/gmsm/sm2` 包的实现规划、API 契约、测试数据与测试方案。
 > 实现目标：与 Go 生态中的 [`tjfoc/gmsm`](https://github.com/tjfoc/gmsm)（Apache-2.0）按
 > `gmsm/sm2/sm2.go`、`gmsm/sm2/p256.go`、`gmsm/sm2/utils.go`、`gmsm/sm2/sm2_test.go`
 > 在功能与测试向量上对齐。

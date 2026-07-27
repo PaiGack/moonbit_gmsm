@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "paigack/gmsm/sm3"
+package "PaiGack/gmsm/sm3"
 
 // Values
 pub fn new() -> SM3

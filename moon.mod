@@ -9,13 +9,13 @@
 //   "moonbitlang/x@0.4.6",
 // }
 
-name = "paigack/gmsm"
+name = "PaiGack/gmsm"
 
 version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = "https://github.com/paigack/moonbit_gmsm.git"
+repository = "https://github.com/PaiGack/moonbit_gmsm.git"
 
 license = "Apache-2.0"
 

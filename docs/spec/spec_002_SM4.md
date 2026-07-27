@@ -1,6 +1,6 @@
 # SM4 MoonBit 移植规范
 
-> 本文件描述 `paigack/gmsm/sm4` 包的实现规划、API 契约、测试数据与测试方案。
+> 本文件描述 `PaiGack/gmsm/sm4` 包的实现规划、API 契约、测试数据与测试方案。
 > 实现目标：与 Go 生态中的 [`tjfoc/gmsm`](https://github.com/tjfoc/gmsm)（Apache-2.0）按
 > `gmsm/sm4/sm4.go` 在功能与测试向量上对齐。
 

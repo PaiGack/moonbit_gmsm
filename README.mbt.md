@@ -1,4 +1,4 @@
-# paigack/gmsm
+# PaiGack/gmsm
 
 国密算法库的 MoonBit 移植。
 
