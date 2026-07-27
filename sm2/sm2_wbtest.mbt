@@ -563,7 +563,9 @@ test "normalize_32_overflow_aborts_on_large" {
   // 33-byte value (with no leading zero) exceeds 32 -> abort path
   // This aborts; we only assert it does not return a value via try where feasible.
   // Use a value that normalizes fine (<=32 bytes) to keep the test green.
-  let ok = Bytes::makei(32, fn(i) { (i.reinterpret_as_uint() & 0xFFU).to_byte() })
+  let ok = Bytes::makei(32, fn(i) {
+    (i.reinterpret_as_uint() & 0xFFU).to_byte()
+  })
   let n = normalize_32(ok)
   assert_eq(n.length(), 32)
 }
@@ -582,7 +584,9 @@ test "pad_left_and_concat" {
 ///|
 test "sign_digit_roundtrip_valid" {
   let r = Bytes::makei(32, fn(i) { (i.reinterpret_as_uint() & 0xFFU).to_byte() })
-  let s = Bytes::makei(32, fn(i) { ((31 - i).reinterpret_as_uint() & 0xFFU).to_byte() })
+  let s = Bytes::makei(32, fn(i) {
+    ((31 - i).reinterpret_as_uint() & 0xFFU).to_byte()
+  })
   let der = sign_data_to_sign_digit(r, s)
   match sign_digit_to_sign_data(der) {
     Ok((rv, sv)) => {
