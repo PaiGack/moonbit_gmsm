@@ -627,6 +627,84 @@ test "sm2_verify_s_out_of_range" {
 }
 
 ///|
+/// Expecting panic: `decode_asn1_length` with off past the end -> abort (line 422).
+test "panic_decode_asn1_length_out_of_bounds" {
+  ignore(decode_asn1_length(Bytes::makei(0, fn(_) { b'\x00' }), 0))
+}
+
+///|
+/// Expecting panic: `decode_asn1_length` with an invalid long-form length -> abort (line 430).
+test "panic_decode_asn1_length_invalid_long" {
+  // first byte 0x81 (long form, 1 length byte) but no length bytes follow.
+  ignore(decode_asn1_length(Bytes::from_array([b'\x81']), 0))
+}
+
+///|
+/// Expecting panic: `normalize_32` with a 33-byte value -> abort (line 465).
+test "panic_normalize_32_too_large" {
+  ignore(normalize_32(Bytes::makei(33, fn(_) { b'\x01' })))
+}
+
+///|
+/// Expecting panic: `cipher_marshal` with a too-short cipher -> abort (line 750).
+test "panic_cipher_marshal_invalid" {
+  ignore(cipher_marshal(Bytes::makei(10, fn(_) { b'\x00' })))
+}
+
+///|
+/// Expecting panic: `cipher_unmarshal` with a too-short DER -> abort (line 774).
+test "panic_cipher_unmarshal_invalid_der" {
+  ignore(cipher_unmarshal(Bytes::makei(3, fn(_) { b'\x00' })))
+}
+
+///|
+/// Expecting panic: `cipher_unmarshal` first element not INTEGER -> abort (line 780).
+test "panic_cipher_unmarshal_expected_integer_1" {
+  // SEQUENCE 0x30, length 2, then a byte that is not 0x02 (INTEGER).
+  ignore(
+    cipher_unmarshal(Bytes::from_array([b'\x30', b'\x02', b'\xAA', b'\xBB'])),
+  )
+}
+
+///|
+/// Expecting panic: `cipher_unmarshal` second element not INTEGER -> abort (line 789).
+test "panic_cipher_unmarshal_expected_integer_2" {
+  // SEQUENCE, length 4, INTEGER 0x02 0x01 0x00, then 0x03 (not INTEGER).
+  ignore(
+    cipher_unmarshal(
+      Bytes::from_array([b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03']),
+    ),
+  )
+}
+
+///|
+/// Expecting panic: `cipher_unmarshal` third element not OCTET STRING -> abort (line 798).
+test "panic_cipher_unmarshal_expected_octet_3" {
+  // SEQUENCE, two INTEGERs, then 0x03 (not OCTET STRING 0x04).
+  ignore(
+    cipher_unmarshal(
+      Bytes::from_array([
+        b'\x30', b'\x08', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x03',
+      ]),
+    ),
+  )
+}
+
+///|
+/// Expecting panic: `cipher_unmarshal` fourth element not OCTET STRING -> abort (line 807).
+test "panic_cipher_unmarshal_expected_octet_4" {
+  // SEQUENCE, two INTEGERs, one OCTET STRING, then 0x03 (not OCTET STRING).
+  ignore(
+    cipher_unmarshal(
+      Bytes::from_array([
+        b'\x30', b'\x0B', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x04',
+        b'\x01', b'\x00', b'\x03',
+      ]),
+    ),
+  )
+}
+
+///|
 test "sm2_verify_t_zero_returns_false" {
   // Pick r = 1, s = n - 1 so that (r + s) mod n == 0 -> t == 0 -> returns false.
   let private_key = generate_key(None)
@@ -666,7 +744,9 @@ test "sign_digit_to_sign_data_bad_first_tag" {
 /// `sign_digit_to_sign_data` first INTEGER ok, second element not INTEGER (line 566).
 test "sign_digit_to_sign_data_bad_second_tag" {
   // SEQUENCE, length 4, INTEGER 0x02 0x01 0x00, then 0x03 (not INTEGER).
-  let der = Bytes::from_array([b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03'])
+  let der = Bytes::from_array([
+    b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03',
+  ])
   match sign_digit_to_sign_data(der) {
     Err(_) => ()
     Ok(_) => abort("expected Err (bad second tag)")
@@ -705,7 +785,11 @@ test "sm2_decrypt_tampered_c3" {
 test "compress_point_odd_y" {
   let curve = sm2_p256()
   let odd_y : FixedArray[UInt64] = FixedArray::makei(4, fn(i) {
-    if i == 0 { 1UL } else { 0UL }
+    if i == 0 {
+      1UL
+    } else {
+      0UL
+    }
   })
   let pk = SM2PublicKey::{ curve, x: curve.gx, y: odd_y }
   let comp = compress_point(pk)
@@ -716,9 +800,7 @@ test "compress_point_odd_y" {
 /// `decompress_point` with x = 0 reaches the `bn_zero(ax)` branch (line 1009).
 /// (0,*) is generally not on the curve, so decompress raises — either way line 1009 ran.
 test "decompress_point_x_zero_bn_zero_branch" {
-  let b = Bytes::makei(33, fn(i) {
-    if i == 0 { b'\x02' } else { b'\x00' }
-  })
+  let b = Bytes::makei(33, fn(i) { if i == 0 { b'\x02' } else { b'\x00' } })
   let r : Result[Unit, Sm2Error] = try {
     ignore(decompress_point(b))
     Ok(())
