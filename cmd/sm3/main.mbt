@@ -59,7 +59,7 @@ fn main {
 
   for i = 0; i < cases.length(); i = i + 1 {
     let (name, data, expected) = cases[i]
-    let hash = @sm3.sm3_sum(data)
+    let hash = @gmsm_sm3.sm3_sum(data)
     let got = bytes_to_hex(hash)
     let ok = got == expected
     println(
@@ -68,11 +68,11 @@ fn main {
   }
 
   // Streaming hash example: feed "abc" then "def" should equal sm3_sum("abcdef")
-  let ctx = @sm3.new()
+  let ctx = @gmsm_sm3.new()
   let ctx = ctx.write(b"abc")
   let ctx = ctx.write(b"def")
   let stream_hash = ctx.finish()
-  let direct_hash = @sm3.sm3_sum(b"abcdef")
+  let direct_hash = @gmsm_sm3.sm3_sum(b"abcdef")
   let stream_ok = bytes_eq(stream_hash, direct_hash)
   let stream_msg = "Streaming sm3(\"abcdef\"): " +
     bytes_to_hex(stream_hash) +

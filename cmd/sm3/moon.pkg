@@ -1,5 +1,5 @@
 import {
-  "PaiGack/gmsm/sm3",
+  "PaiGack/gmsm/sm3" @gmsm_sm3,
 }
 
 pkgtype(kind: "executable")

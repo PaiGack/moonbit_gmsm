@@ -54,61 +54,61 @@ fn main {
     println("========== SM2 Demo (GM/T 0003-2012) ==========")
 
     // 1. Key generation
-    let pri = @sm2.generate_key(None)
-    let pubk = @sm2.derive_public_key(pri)
-    println("Private key d : " + bytes_to_hex(@sm2.bn_to_bytes(pri.d)))
-    println("Public key  X : " + bytes_to_hex(@sm2.bn_to_bytes(pubk.x)))
-    println("Public key  Y : " + bytes_to_hex(@sm2.bn_to_bytes(pubk.y)))
-    println("Point on curve: " + bstr(@sm2.is_on_curve(pubk)))
+    let pri = @gmsm_sm2.generate_key(None)
+    let pubk = @gmsm_sm2.derive_public_key(pri)
+    println("Private key d : " + bytes_to_hex(@gmsm_sm2.bn_to_bytes(pri.d)))
+    println("Public key  X : " + bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.x)))
+    println("Public key  Y : " + bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.y)))
+    println("Point on curve: " + bstr(@gmsm_sm2.is_on_curve(pubk)))
 
     // 2. Signature / verify
-    let uid = @sm2.default_uid()
+    let uid = @gmsm_sm2.default_uid()
     let msg = b"Hello SM2! This is a demo."
-    let (r, s) = @sm2.sm2_sign(pri, msg, uid, None)
-    let verified = @sm2.sm2_verify(pubk, msg, uid, r, s)
+    let (r, s) = @gmsm_sm2.sm2_sign(pri, msg, uid, None)
+    let verified = @gmsm_sm2.sm2_verify(pubk, msg, uid, r, s)
     println("")
     println("Signature r   : " + bytes_to_hex(r))
     println("Signature s   : " + bytes_to_hex(s))
     println("Verify        : " + bstr(verified))
 
     // 3. ASN.1 DER signature
-    let der = @sm2.sm2_sign_der(pri, msg, uid, None)
-    let der_ok = @sm2.sm2_verify_der(pubk, msg, uid, der)
+    let der = @gmsm_sm2.sm2_sign_der(pri, msg, uid, None)
+    let der_ok = @gmsm_sm2.sm2_verify_der(pubk, msg, uid, der)
     println("DER sign len  : " + der.length().to_string())
     println("DER verify    : " + bstr(der_ok))
 
     // 4. Encrypt / decrypt (C1C2C3 mode)
     let plain = b"Secret message over SM2."
-    let cipher = @sm2.sm2_encrypt(pubk, plain, None, @sm2.cipher_mode_c1c2c3())
-    let dec = @sm2.sm2_decrypt(pri, cipher, @sm2.cipher_mode_c1c2c3())
+    let cipher = @gmsm_sm2.sm2_encrypt(pubk, plain, None, @gmsm_sm2.cipher_mode_c1c2c3())
+    let dec = @gmsm_sm2.sm2_decrypt(pri, cipher, @gmsm_sm2.cipher_mode_c1c2c3())
     println("")
     println("Cipher(C1C2C3): " + bytes_to_hex(cipher))
     println("Decrypted     : " + dec.to_string())
     println("Decrypt OK    : " + bstr(bytes_eq(dec, plain)))
 
     // 5. ASN.1 (C1C3C2) marshal / unmarshal
-    let der_cipher = @sm2.sm2_encrypt_asn1(pubk, plain, None)
-    let der_dec = @sm2.sm2_decrypt_asn1(pri, der_cipher)
+    let der_cipher = @gmsm_sm2.sm2_encrypt_asn1(pubk, plain, None)
+    let der_dec = @gmsm_sm2.sm2_decrypt_asn1(pri, der_cipher)
     println("ASN.1 decrypt OK: " + bstr(bytes_eq(der_dec, plain)))
 
     // 6. Point compression / decompression
-    let comp = @sm2.compress_point(pubk)
-    let decomp = @sm2.decompress_point(comp)
+    let comp = @gmsm_sm2.compress_point(pubk)
+    let decomp = @gmsm_sm2.decompress_point(comp)
     println("")
     println("Compressed    : " + bytes_to_hex(comp))
-    println("Decompress on curve: " + bstr(@sm2.is_on_curve(decomp)))
+    println("Decompress on curve: " + bstr(@gmsm_sm2.is_on_curve(decomp)))
 
     // 7. Key exchange (A and B derive the same shared key)
-    let rpriA = @sm2.generate_key(None)
-    let rpubA = @sm2.derive_public_key(rpriA)
-    let privB = @sm2.generate_key(None)
-    let pubB = @sm2.derive_public_key(privB)
-    let rprivB = @sm2.generate_key(None)
-    let rpubB = @sm2.derive_public_key(rprivB)
+    let rpriA = @gmsm_sm2.generate_key(None)
+    let rpubA = @gmsm_sm2.derive_public_key(rpriA)
+    let privB = @gmsm_sm2.generate_key(None)
+    let pubB = @gmsm_sm2.derive_public_key(privB)
+    let rprivB = @gmsm_sm2.generate_key(None)
+    let rpubB = @gmsm_sm2.derive_public_key(rprivB)
     let ida = b"alice1234567890"
     let idb = b"bob1234567890"
-    let (ka, _, _) = @sm2.key_exchange_a(16, ida, idb, pri, pubB, rpriA, rpubB)
-    let (kb, _, _) = @sm2.key_exchange_b(
+    let (ka, _, _) = @gmsm_sm2.key_exchange_a(16, ida, idb, pri, pubB, rpriA, rpubB)
+    let (kb, _, _) = @gmsm_sm2.key_exchange_b(
       16, ida, idb, privB, pubk, rprivB, rpubA,
     )
     println("")
