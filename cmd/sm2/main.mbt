@@ -79,7 +79,12 @@ fn main {
 
     // 4. Encrypt / decrypt (C1C2C3 mode)
     let plain = b"Secret message over SM2."
-    let cipher = @gmsm_sm2.sm2_encrypt(pubk, plain, None, @gmsm_sm2.cipher_mode_c1c2c3())
+    let cipher = @gmsm_sm2.sm2_encrypt(
+      pubk,
+      plain,
+      None,
+      @gmsm_sm2.cipher_mode_c1c2c3(),
+    )
     let dec = @gmsm_sm2.sm2_decrypt(pri, cipher, @gmsm_sm2.cipher_mode_c1c2c3())
     println("")
     println("Cipher(C1C2C3): " + bytes_to_hex(cipher))
@@ -107,7 +112,9 @@ fn main {
     let rpubB = @gmsm_sm2.derive_public_key(rprivB)
     let ida = b"alice1234567890"
     let idb = b"bob1234567890"
-    let (ka, _, _) = @gmsm_sm2.key_exchange_a(16, ida, idb, pri, pubB, rpriA, rpubB)
+    let (ka, _, _) = @gmsm_sm2.key_exchange_a(
+      16, ida, idb, pri, pubB, rpriA, rpubB,
+    )
     let (kb, _, _) = @gmsm_sm2.key_exchange_b(
       16, ida, idb, privB, pubk, rprivB, rpubA,
     )
