@@ -41,22 +41,22 @@ pub fn sm2_p256() -> SM2Curve {
 }
 
 ///|
-pub fn private_key_from_bytes(curve : SM2Curve, d : Bytes) -> SM2PrivateKey {
-  if d.length() != 32 { abort("Sm2Error::InvalidParameter") }
+pub fn private_key_from_bytes(curve : SM2Curve, d : Bytes) -> SM2PrivateKey raise Sm2Error {
+  if d.length() != 32 { raise Sm2Error::InvalidParameter }
   let dv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_from_bytes(dv, d, 0)
-  if bn_is_zero(dv) || !bn_lt(dv, curve.n) { abort("Sm2Error::ZeroParam") }
+  if bn_is_zero(dv) || !bn_lt(dv, curve.n) { raise Sm2Error::ZeroParam }
   SM2PrivateKey::{ curve, d: dv }
 }
 
 ///|
-pub fn public_key_from_xy(curve : SM2Curve, x : Bytes, y : Bytes) -> SM2PublicKey {
-  if x.length() != 32 || y.length() != 32 { abort("Sm2Error::InvalidParameter") }
+pub fn public_key_from_xy(curve : SM2Curve, x : Bytes, y : Bytes) -> SM2PublicKey raise Sm2Error {
+  if x.length() != 32 || y.length() != 32 { raise Sm2Error::InvalidParameter }
   let xv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   let yv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_from_bytes(xv, x, 0)
   bn_from_bytes(yv, y, 0)
-  if !point_is_on_curve_affine(xv, yv) { abort("Sm2Error::NotOnCurve") }
+  if !point_is_on_curve_affine(xv, yv) { raise Sm2Error::NotOnCurve }
   SM2PublicKey::{ curve, x: xv, y: yv }
 }
 
@@ -87,7 +87,15 @@ pub fn is_on_curve(public_key : SM2PublicKey) -> Bool {
 }
 
 ///|
-pub fn default_uid() -> Bytes { b"1234567812345678" }
+pub fn default_uid() -> Bytes { default_uid_impl() }
+
+///|
+/// Returns the C1C2C3 cipher mode (constructs the variant for API completeness).
+pub fn cipher_mode_c1c2c3() -> CipherMode { C1C2C3 }
+
+///|
+/// Returns the ZeroRandom error (constructs the variant for API completeness).
+pub fn sm2_error_zero_random() -> Sm2Error { ZeroRandom }
 
 // --- helpers ---
 
@@ -183,14 +191,14 @@ pub fn sm2_sign(private_key : SM2PrivateKey, msg : Bytes, uid : Bytes, _random :
 }
 
 ///|
-pub fn sm2_verify(public_key : SM2PublicKey, msg : Bytes, uid : Bytes, r : Bytes, s : Bytes) -> Bool {
+pub fn sm2_verify(public_key : SM2PublicKey, msg : Bytes, uid : Bytes, r : Bytes, s : Bytes) -> Bool raise Sm2Error {
   let curve = public_key.curve; let n = curve.n
-  if r.length() != 32 || s.length() != 32 { return false }
+  if r.length() != 32 || s.length() != 32 { raise Sm2Error::InvalidSignature }
   let rv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   let sv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_from_bytes(rv, r, 0); bn_from_bytes(sv, s, 0)
-  if bn_is_zero(rv) || !bn_lt(rv, n) { return false }
-  if bn_is_zero(sv) || !bn_lt(sv, n) { return false }
+  if bn_is_zero(rv) || !bn_lt(rv, n) { raise Sm2Error::InvalidSignature }
+  if bn_is_zero(sv) || !bn_lt(sv, n) { raise Sm2Error::InvalidSignature }
 
   let rps8 : FixedArray[UInt64] = FixedArray::makei(8, fn(i) { if i < 4 { rv[i] } else { 0UL } })
   add_to_8(rps8, sv)
@@ -229,8 +237,8 @@ fn encode_asn1_length(len : Int) -> Bytes {
 fn decode_asn1_length(data : Bytes, off : Int) -> (Int, Int) {
   if off >= data.length() { abort("ASN.1: out of bounds") }
   let first = data[off].to_uint()
-  if first < 0x80U { return (first.to_int(), 1) }
-  let num_bytes = first.to_int() & 0x7F
+  if first < 0x80U { return (first.reinterpret_as_int(), 1) }
+  let num_bytes = first.reinterpret_as_int() & 0x7F
   if num_bytes == 0 || off + 1 + num_bytes > data.length() { abort("ASN.1: invalid long length") }
   let mut len : Int = 0
   for i = 0; i < num_bytes; i = i + 1 { len = (len << 8) | data[off + 1 + i].to_int() }
@@ -321,7 +329,7 @@ pub fn sm2_sign_der(pk : SM2PrivateKey, msg : Bytes, uid : Bytes, r : @random.Ra
   sign_data_to_sign_digit(rv, sv)
 }
 
-pub fn sm2_verify_der(pubk : SM2PublicKey, msg : Bytes, uid : Bytes, der : Bytes) -> Bool {
+pub fn sm2_verify_der(pubk : SM2PublicKey, msg : Bytes, uid : Bytes, der : Bytes) -> Bool raise Sm2Error {
   match sign_digit_to_sign_data(der) {
     Ok((rv, sv)) => sm2_verify(pubk, msg, uid, rv, sv)
     Err(_) => false
@@ -330,7 +338,7 @@ pub fn sm2_verify_der(pubk : SM2PublicKey, msg : Bytes, uid : Bytes, der : Bytes
 
 // --- Encrypt/Decrypt ---
 
-pub fn sm2_encrypt(pubk : SM2PublicKey, msg : Bytes, random : @random.Rand?, mode : CipherMode) -> Bytes {
+pub fn sm2_encrypt(pubk : SM2PublicKey, msg : Bytes, random : @random.Rand?, mode : CipherMode) -> Bytes raise Sm2Error {
   let r = match random { Some(rr) => rr; None => @random.Rand::chacha8() }
   let k = bn_rand_k(Some(r))
   let c1_p : SM2Point = point_infinity(); scalar_base_mult(c1_p, k)
@@ -342,7 +350,7 @@ pub fn sm2_encrypt(pubk : SM2PublicKey, msg : Bytes, random : @random.Rand?, mod
 
   let x2b = bn_to_bytes(x2); let y2b = bn_to_bytes(y2)
   let (t, ok) = kdf(msg.length(), [x2b, y2b])
-  if !ok { abort("KDF all-zero key") }
+  if !ok { raise Sm2Error::KdfZeroKey }
 
   let c2 = Bytes::makei(msg.length(), fn(i) { (msg[i].to_int() ^ t[i].to_int()).to_byte() })
   let c3_input = concat_bytes_array([x2b, msg, y2b]); let c3 = @sm3.sm3_sum(c3_input)
@@ -359,15 +367,15 @@ pub fn sm2_encrypt(pubk : SM2PublicKey, msg : Bytes, random : @random.Rand?, mod
   }
 }
 
-pub fn sm2_decrypt(pk : SM2PrivateKey, cipher : Bytes, mode : CipherMode) -> Bytes {
-  if cipher.length() < 97 || cipher[0] != b'\x04' { abort("invalid cipher") }
+pub fn sm2_decrypt(pk : SM2PrivateKey, cipher : Bytes, mode : CipherMode) -> Bytes raise Sm2Error {
+  if cipher.length() < 97 || cipher[0] != b'\x04' { raise Sm2Error::InvalidCipher }
   let (c2, c3) = match mode {
     C1C3C2 => (cipher[97:].to_owned(), cipher[65:97].to_owned())
     C1C2C3 => { let cl = cipher.length() - 97; (cipher[65:65 + cl].to_owned(), cipher[65 + cl:].to_owned()) }
   }
   let c1x_b : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_from_bytes(c1x_b, cipher, 1)
   let c1y_b : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_from_bytes(c1y_b, cipher, 33)
-  if !point_is_on_curve_affine(c1x_b, c1y_b) { abort("C1 not on curve") }
+  if !point_is_on_curve_affine(c1x_b, c1y_b) { raise Sm2Error::InvalidCipher }
 
   let c1_pt = SM2Point::{ x: c1x_b, y: c1y_b, z: FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } }) }
   let kp2 : SM2Point = point_infinity(); scalar_mult(kp2, pk.d, c1_pt)
@@ -375,20 +383,20 @@ pub fn sm2_decrypt(pk : SM2PrivateKey, cipher : Bytes, mode : CipherMode) -> Byt
 
   let x2b = bn_to_bytes(x2); let y2b = bn_to_bytes(y2)
   let (t, ok) = kdf(c2.length(), [x2b, y2b])
-  if !ok { abort("KDF all-zero key") }
+  if !ok { raise Sm2Error::KdfZeroKey }
 
   let dec = Bytes::makei(c2.length(), fn(i) { (c2[i].to_int() ^ t[i].to_int()).to_byte() })
   let u_input = concat_bytes_array([x2b, dec, y2b]); let u = @sm3.sm3_sum(u_input)
-  if u.length() != c3.length() { abort("C3 length mismatch") }
-  for i = 0; i < u.length(); i = i + 1 { if u[i] != c3[i] { abort("C3 mismatch") } }
+  if u.length() != c3.length() { raise Sm2Error::InvalidCipher }
+  for i = 0; i < u.length(); i = i + 1 { if u[i] != c3[i] { raise Sm2Error::InvalidCipher } }
   dec
 }
 
-pub fn sm2_encrypt_asn1(pubk : SM2PublicKey, msg : Bytes, r : @random.Rand?) -> Bytes {
+pub fn sm2_encrypt_asn1(pubk : SM2PublicKey, msg : Bytes, r : @random.Rand?) -> Bytes raise Sm2Error {
   cipher_marshal(sm2_encrypt(pubk, msg, r, C1C3C2))
 }
 
-pub fn sm2_decrypt_asn1(pk : SM2PrivateKey, der : Bytes) -> Bytes {
+pub fn sm2_decrypt_asn1(pk : SM2PrivateKey, der : Bytes) -> Bytes raise Sm2Error {
   sm2_decrypt(pk, cipher_unmarshal(der), C1C3C2)
 }
 
@@ -435,7 +443,7 @@ fn point_from_pubkey(pk : SM2PublicKey) -> SM2Point {
 
 pub fn key_exchange_a(klen : Int, ida : Bytes, idb : Bytes, priA : SM2PrivateKey, pubB : SM2PublicKey,
   rpriA : SM2PrivateKey, rpubB : SM2PublicKey) -> (Bytes, Bytes, Bytes) {
-  let curve = priA.curve
+  let _curve = priA.curve
   let pubA = derive_public_key(priA)
   let rpubA = derive_public_key(rpriA)
 
@@ -463,7 +471,7 @@ pub fn key_exchange_a(klen : Int, ida : Bytes, idb : Bytes, priA : SM2PrivateKey
 
 pub fn key_exchange_b(klen : Int, ida : Bytes, idb : Bytes, priB : SM2PrivateKey, pubA : SM2PublicKey,
   rpriB : SM2PrivateKey, rpubA : SM2PublicKey) -> (Bytes, Bytes, Bytes) {
-  let curve = priB.curve
+  let _curve = priB.curve
   let pubB = derive_public_key(priB)
   let rpubB = derive_public_key(rpriB)
 
@@ -504,8 +512,8 @@ pub fn compress_point(p : SM2PublicKey) -> Bytes {
   Bytes::makei(33, fn(i) { if i == 0 { if (p.y[0] & 1UL) == 0UL { b'\x02' } else { b'\x03' } } else { xb[i - 1] } })
 }
 
-pub fn decompress_point(b : Bytes) -> SM2PublicKey {
-  if b.length() != 33 || (b[0] != b'\x02' && b[0] != b'\x03') { abort("invalid compressed point") }
+pub fn decompress_point(b : Bytes) -> SM2PublicKey raise Sm2Error {
+  if b.length() != 33 || (b[0] != b'\x02' && b[0] != b'\x03') { raise Sm2Error::InvalidPoint }
   let curve = sm2_p256()
   let x : Bn = FixedArray::makei(4, fn(_) { 0UL }); bn_from_bytes(x, b, 1)
 

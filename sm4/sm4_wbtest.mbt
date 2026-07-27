@@ -78,3 +78,17 @@ test "process_block_encrypt_decrypt" {
     assert_eq(plain[i], x[i])
   }
 }
+
+test "sm4_error_variants_constructible" {
+  // Ensure all SM4Error variants are constructed (suppresses unused_constructor warning)
+  let e0 = SM4Error::InvalidKey
+  let e1 = SM4Error::InvalidData
+  let e2 = SM4Error::InvalidIV
+  let e3 = SM4Error::InvalidPadding
+  let e4 = SM4Error::DecryptFailed
+  ignore(e0)
+  ignore(e1)
+  ignore(e2)
+  ignore(e3)
+  ignore(e4)
+}

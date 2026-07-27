@@ -53,10 +53,10 @@ let fk : FixedArray[UInt] = [
 /// ck[i][j] = (4i + j) × 7 mod 256
 let ck : FixedArray[UInt] = FixedArray::makei(32, fn(i) {
   let base = (i * 4).reinterpret_as_uint()
-  ((base * 7U) & 0xFFU) << 24 |
-  (((base + 1U) * 7U) & 0xFFU) << 16 |
-  (((base + 2U) * 7U) & 0xFFU) << 8 |
-  ((base + 3U) * 7U) & 0xFFU
+  (((base * 7U) & 0xFFU) << 24) |
+  ((((base + 1U) * 7U) & 0xFFU) << 16) |
+  ((((base + 2U) * 7U) & 0xFFU) << 8) |
+  (((base + 3U) * 7U) & 0xFFU)
 })
 
 ///|
@@ -67,6 +67,10 @@ pub suberror SM4Error {
   InvalidPadding   // PKCS7 unpadding: padding value invalid
   DecryptFailed    // CBC decrypt failed
 } derive(Debug, Eq)
+
+///|
+/// Returns the DecryptFailed error (constructs the variant for API completeness).
+pub fn sm4_error_decrypt_failed() -> SM4Error { DecryptFailed }
 
 ///|
 /// 32-bit left rotation.
@@ -122,9 +126,9 @@ fn sm4_T_prime(a : UInt) -> UInt {
 ///|
 /// Key expansion: derive 32 round keys from 16-byte key.
 /// Returns round keys in encryption order.
-fn sm4_expand_key(key : Bytes) -> FixedArray[UInt] {
+fn sm4_expand_key(key : Bytes) -> FixedArray[UInt] raise SM4Error {
   if key.length() != 16 {
-    abort("SM4Error::InvalidKey")
+    raise SM4Error::InvalidKey
   }
 
   let mk : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
@@ -165,9 +169,9 @@ fn sm4_process_block(x : FixedArray[UInt], rk : FixedArray[UInt]) -> FixedArray[
 ///|
 /// Single block encryption: key and data must each be 16 bytes.
 /// Returns 16-byte ciphertext.
-pub fn sm4_encrypt_block(key : Bytes, data : Bytes) -> Bytes {
-  if key.length() != 16 { abort("SM4Error::InvalidKey") }
-  if data.length() != 16 { abort("SM4Error::InvalidData") }
+pub fn sm4_encrypt_block(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 { raise SM4Error::InvalidKey }
+  if data.length() != 16 { raise SM4Error::InvalidData }
 
   let rk = sm4_expand_key(key)
   let x : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
@@ -185,9 +189,9 @@ pub fn sm4_encrypt_block(key : Bytes, data : Bytes) -> Bytes {
 ///|
 /// Single block decryption: key and data must each be 16 bytes.
 /// Returns 16-byte plaintext.
-pub fn sm4_decrypt_block(key : Bytes, data : Bytes) -> Bytes {
-  if key.length() != 16 { abort("SM4Error::InvalidKey") }
-  if data.length() != 16 { abort("SM4Error::InvalidData") }
+pub fn sm4_decrypt_block(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 { raise SM4Error::InvalidKey }
+  if data.length() != 16 { raise SM4Error::InvalidData }
 
   let rk = sm4_expand_key(key)
 
@@ -208,9 +212,9 @@ pub fn sm4_decrypt_block(key : Bytes, data : Bytes) -> Bytes {
 
 ///|
 /// ECB mode encryption: data length must be a multiple of 16.
-pub fn sm4_encrypt_ecb(key : Bytes, data : Bytes) -> Bytes {
-  if key.length() != 16 { abort("SM4Error::InvalidKey") }
-  if data.length() % 16 != 0 { abort("SM4Error::InvalidData") }
+pub fn sm4_encrypt_ecb(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 { raise SM4Error::InvalidKey }
+  if data.length() % 16 != 0 { raise SM4Error::InvalidData }
 
   let rk = sm4_expand_key(key)
   let n_blocks = data.length() / 16
@@ -235,9 +239,9 @@ pub fn sm4_encrypt_ecb(key : Bytes, data : Bytes) -> Bytes {
 
 ///|
 /// ECB mode decryption: data length must be a multiple of 16.
-pub fn sm4_decrypt_ecb(key : Bytes, data : Bytes) -> Bytes {
-  if key.length() != 16 { abort("SM4Error::InvalidKey") }
-  if data.length() % 16 != 0 { abort("SM4Error::InvalidData") }
+pub fn sm4_decrypt_ecb(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 { raise SM4Error::InvalidKey }
+  if data.length() % 16 != 0 { raise SM4Error::InvalidData }
 
   let rk = sm4_expand_key(key)
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
@@ -262,10 +266,10 @@ pub fn sm4_decrypt_ecb(key : Bytes, data : Bytes) -> Bytes {
 
 ///|
 /// CBC mode encryption. IV must be 16 bytes.
-pub fn sm4_encrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes {
-  if key.length() != 16 { abort("SM4Error::InvalidKey") }
-  if iv.length() != 16 { abort("SM4Error::InvalidIV") }
-  if data.length() % 16 != 0 { abort("SM4Error::InvalidData") }
+pub fn sm4_encrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 { raise SM4Error::InvalidKey }
+  if iv.length() != 16 { raise SM4Error::InvalidIV }
+  if data.length() % 16 != 0 { raise SM4Error::InvalidData }
 
   let rk = sm4_expand_key(key)
   let n_blocks = data.length() / 16
@@ -298,10 +302,10 @@ pub fn sm4_encrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes {
 
 ///|
 /// CBC mode decryption. IV must be 16 bytes. Data length must be a multiple of 16.
-pub fn sm4_decrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes {
-  if key.length() != 16 { abort("SM4Error::InvalidKey") }
-  if iv.length() != 16 { abort("SM4Error::InvalidIV") }
-  if data.length() % 16 != 0 { abort("SM4Error::InvalidData") }
+pub fn sm4_decrypt_cbc(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 { raise SM4Error::InvalidKey }
+  if iv.length() != 16 { raise SM4Error::InvalidIV }
+  if data.length() % 16 != 0 { raise SM4Error::InvalidData }
 
   let rk = sm4_expand_key(key)
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
@@ -344,15 +348,15 @@ pub fn pkcs7_pad(data : Bytes, block_size : Int) -> Bytes {
 
 ///|
 /// PKCS7 unpadding. Removes the padding and returns the original data.
-pub fn pkcs7_unpad(data : Bytes) -> Bytes {
-  if data.length() == 0 { abort("SM4Error::InvalidPadding") }
+pub fn pkcs7_unpad(data : Bytes) -> Bytes raise SM4Error {
+  if data.length() == 0 { raise SM4Error::InvalidPadding }
   let pad_len = data[data.length() - 1].to_int()
-  if pad_len < 1 || pad_len > 16 { abort("SM4Error::InvalidPadding") }
-  if pad_len > data.length() { abort("SM4Error::InvalidPadding") }
+  if pad_len < 1 || pad_len > 16 { raise SM4Error::InvalidPadding }
+  if pad_len > data.length() { raise SM4Error::InvalidPadding }
 
   // Verify all padding bytes are correct
   for i = data.length() - pad_len; i < data.length(); i = i + 1 {
-    if data[i].to_int() != pad_len { abort("SM4Error::InvalidPadding") }
+    if data[i].to_int() != pad_len { raise SM4Error::InvalidPadding }
   }
 
   data[0:data.length() - pad_len].to_owned()
