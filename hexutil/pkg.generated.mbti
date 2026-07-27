@@ -1,0 +1,26 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "PaiGack/gmsm/hexutil"
+
+// Values
+pub fn bstr(Bool) -> String
+
+pub fn byte_to_hex(Byte) -> String
+
+pub fn bytes_eq(Bytes, Bytes) -> Bool
+
+pub fn bytes_to_hex(Bytes) -> String
+
+pub fn hex_nibble(UInt16) -> Int
+
+pub fn hex_to_bytes(String) -> Bytes
+
+pub fn nibble_to_char(Int) -> Char
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+
