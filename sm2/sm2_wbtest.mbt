@@ -828,3 +828,30 @@ test "decompress_point_flip_parity" {
     assert_eq(dec.y[i], y_odd[i])
   }
 }
+
+///|
+/// `point_add_affine` of a point with itself (affine coords equal) takes the
+/// `point_double` branch (line 292).
+test "point_add_affine_same_point_doubles" {
+  let curve = sm2_p256()
+  let one = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
+  let two = FixedArray::makei(4, fn(i) { if i == 0 { 2UL } else { 0UL } })
+  let p = point_infinity()
+  scalar_base_mult(p, one) // p = G (Jacobian, z = 1) -> affine (Gx, Gy)
+  // Add the affine point (Gx, Gy); since p's affine == q's, t1 == t2 == 0.
+  point_add_affine(p, curve.gx, curve.gy)
+  let r = point_infinity()
+  scalar_base_mult(r, two) // r = 2G
+  let (px, py) = point_to_affine(p)
+  let (rx, ry) = point_to_affine(r)
+  assert_true(bn_eq(px, rx))
+  assert_true(bn_eq(py, ry))
+}
+
+///|
+/// Expecting panic: `za` with an over-long uid (>= 8192 bytes) -> abort (line 99).
+test "panic_za_uid_too_long" {
+  let curve = sm2_p256()
+  let long_uid = Bytes::makei(8192, fn(_) { b'\x00' })
+  ignore(za(curve.gx, curve.gy, long_uid))
+}

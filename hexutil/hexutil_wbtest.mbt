@@ -57,3 +57,15 @@ test "hex_to_bytes_roundtrip" {
   )
   assert_eq(bytes_to_hex(b), "0123456789abcdef")
 }
+
+///|
+/// Expecting panic: `hex_nibble` with a non-hex character -> abort (line 59).
+test "panic_hex_nibble_invalid_char" {
+  ignore(hex_nibble(71)) // 'G' is not a hex digit
+}
+
+///|
+/// Expecting panic: `hex_to_bytes` with an odd-length string -> abort (line 67).
+test "panic_hex_to_bytes_odd_length" {
+  ignore(hex_to_bytes("abc"))
+}
