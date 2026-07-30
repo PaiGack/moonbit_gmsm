@@ -361,6 +361,57 @@ fn bn_sqr(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
 }
 
 ///|
+/// True if the 256-bit value is odd.
+fn bn_is_odd(a : FixedArray[UInt64]) -> Bool {
+  (a[0] & 1UL) != 0UL
+}
+
+///|
+/// Right shift a 256-bit value by one bit (safe in place: processes high→low).
+fn bn_shr_1(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
+  let mut carry : UInt64 = 0UL
+  for i = 3; i >= 0; i = i - 1 {
+    let v = a[i]
+    r[i] = (v >> 1) | (carry << 63)
+    carry = v & 1UL
+  }
+}
+
+///|
+/// Low `w` bits of a 256-bit value as an Int (w <= 8).
+fn bn_low_bits(a : FixedArray[UInt64], w : Int) -> Int {
+  let mask : UInt64 = (1UL << w) - 1UL
+  (a[0] & mask).to_int()
+}
+
+///|
+/// Add a small signed integer `d` (|d| < 2^31) to a 256-bit value.
+/// Used by the wNAF digit loop (k = (k - digit) / 2).
+fn bn_add_int(r : FixedArray[UInt64], a : FixedArray[UInt64], d : Int) -> Unit {
+  if d >= 0 {
+    let add = d.to_uint64()
+    let s0 = a[0] + add
+    r[0] = s0
+    let mut c : UInt64 = if s0 < a[0] { 1UL } else { 0UL }
+    for i in 1..<4 {
+      let s = a[i] + c
+      r[i] = s
+      c = if s < a[i] { 1UL } else { 0UL }
+    }
+  } else {
+    let sub = (-d).to_uint64()
+    let s0 = a[0] - sub
+    r[0] = s0
+    let mut borrow : UInt64 = if a[0] < sub { 1UL } else { 0UL }
+    for i in 1..<4 {
+      let s = a[i] - borrow
+      r[i] = s
+      borrow = if a[i] < borrow { 1UL } else { 0UL }
+    }
+  }
+}
+
+///|
 /// Modular multiplication modulo p: r = (a * b) mod p
 fn bn_modmul_p(
   r : FixedArray[UInt64],
@@ -374,8 +425,12 @@ fn bn_modmul_p(
 
 ///|
 /// Modular squaring modulo p: r = a² mod p
+/// Uses the plain 256-bit square `bn_sqr` followed by reduction, mirroring
+/// tjfoc/gmsm's `sm2P256Square` + reduce.
 fn bn_modsqr_p(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
-  bn_modmul_p(r, a, a)
+  let s : FixedArray[UInt64] = FixedArray::makei(8, fn(_) { 0UL })
+  bn_sqr(s, a)
+  bn_mod_p(r, s)
 }
 
 ///|

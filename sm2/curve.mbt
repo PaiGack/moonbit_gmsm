@@ -176,6 +176,13 @@ fn point_add(p : SM2Point, q : SM2Point) -> Unit {
     return
   }
 
+  // p == q: double instead of add. Mirrors tjfoc/gmsm's affine-equality
+  // shortcut inside point_add; consumes the otherwise-unused `point_eq`.
+  if point_eq(p, q) {
+    point_double(p)
+    return
+  }
+
   let u1 : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let u2 : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let s1 : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
@@ -204,10 +211,7 @@ fn point_add(p : SM2Point, q : SM2Point) -> Unit {
   bn_submod_p(r_val, s2, s1)
 
   if bn_is_zero(h) {
-    if bn_is_zero(r_val) {
-      point_double(p)
-      return
-    }
+    // p == -q (distinct points): sum is the point at infinity.
     point_set_infinity(p)
     return
   }
@@ -302,29 +306,79 @@ fn point_add_affine(
 }
 
 ///|
-/// Scalar multiplication: result = k * point, using double-and-add
+/// Scalar multiplication: result = k * point, using width-4 wNAF
+/// signed-digit recoding. Mirrors tjfoc/gmsm's `sm2P256ScalarMult`: a
+/// precomputed affine odd-multiple table is added via the mixed
+/// `point_add_affine` (z = 1) and negative digits via `point_neg`.
 fn scalar_mult(result : SM2Point, k : FixedArray[UInt64], p : SM2Point) -> Unit {
+  // 1. Reduce k modulo n if needed (mirrors sm2P256GetScalar's n.Cmp(N) >= 0),
+  //    which also consumes the otherwise-unused `bn_gt`.
+  let n = n_limbs()
+  let kk : FixedArray[UInt64] = FixedArray::makei(4, fn(i) { k[i] })
+  if bn_gt(kk, n) {
+    bn_mod_n(kk, kk)
+  }
+
+  // 2. Generate the width-4 wNAF digits of kk (index 0 = least significant).
+  let digits : Array[Int] = []
+  while !bn_is_zero(kk) {
+    if bn_is_odd(kk) {
+      let u = bn_low_bits(kk, 4)
+      let e = if u >= 8 { u - 16 } else { u }
+      digits.push(e)
+      bn_add_int(kk, kk, -e)
+    } else {
+      digits.push(0)
+    }
+    bn_shr_1(kk, kk)
+  }
+
+  // 3. Build the affine odd-multiple table T[1,3,5,7]·p and its negation.
+  let two_p : SM2Point = point_infinity()
+  point_copy(two_p, p)
+  point_double(two_p)
+
+  let prex : FixedArray[FixedArray[UInt64]] =
+    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
+  let prey : FixedArray[FixedArray[UInt64]] =
+    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
+  let negx : FixedArray[FixedArray[UInt64]] =
+    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
+  let negy : FixedArray[FixedArray[UInt64]] =
+    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
+
+  let cur : SM2Point = point_infinity()
+  point_copy(cur, p)
+  for i in 0..<4 {
+    let (ax, ay) = point_to_affine(cur)
+    bn_copy(prex[i], ax)
+    bn_copy(prey[i], ay)
+    // negation of the affine point (y = -y mod p)
+    let npt : SM2Point = SM2Point::{
+      x: FixedArray::makei(4, fn(j) { ax[j] }),
+      y: FixedArray::makei(4, fn(j) { ay[j] }),
+      z: FixedArray::makei(4, fn(j) { if j == 0 { 1UL } else { 0UL } }),
+    }
+    point_neg(npt)
+    bn_copy(negx[i], npt.x)
+    bn_copy(negy[i], npt.y)
+    if i < 3 {
+      point_add(cur, two_p)
+    }
+  }
+
+  // 4. wNAF evaluation, most-significant digit first.
   point_set_infinity(result)
-
-  let other : SM2Point = point_infinity()
-  point_copy(other, p)
-
-  for limb_idx = 3; limb_idx >= 0; limb_idx = limb_idx - 1 {
-    let mut k_val = k[limb_idx]
-    for _bit in 0..<64 {
-      if !point_is_infinity(result) {
-        point_double(result)
-      }
-
-      let bit_val = (k_val >> 63) & 1UL
-      k_val = k_val << 1
-
-      if bit_val == 1UL {
-        if point_is_infinity(result) {
-          point_copy(result, other)
-        } else {
-          point_add(result, other)
-        }
+  for i = digits.length() - 1; i >= 0; i = i - 1 {
+    point_double(result)
+    let e = digits[i]
+    if e != 0 {
+      let mag = if e > 0 { e } else { -e }
+      let idx = (mag - 1) / 2
+      if e > 0 {
+        point_add_affine(result, prex[idx], prey[idx])
+      } else {
+        point_add_affine(result, negx[idx], negy[idx])
       }
     }
   }
