@@ -2,7 +2,7 @@
 
 国密算法库的 MoonBit 移植。
 
-本项目把 Go 生态里成熟的国密算法库 [`tjfoc/gmsm`](https://github.com/tjfoc/gmsm)（Apache-2.0）按 GM/T 0003-2012、GM/T 0004-2012、GM/T 0002-2012 重新实现到 [MoonBit](https://www.moonbitlang.com/) 生态。
+本项目把 Go 生态里的国密算法库 [`tjfoc/gmsm`](https://github.com/tjfoc/gmsm)（Apache-2.0）按 GM/T 0003-2012、GM/T 0004-2012、GM/T 0002-2012 重新实现到 [MoonBit](https://www.moonbitlang.com/) 生态。
 
 ## 主要功能
 
@@ -27,7 +27,15 @@
 
 ## 快速上手
 
-下面的示例都是可执行的文档测试，`moon test` 会直接运行它们。
+项目在 `cmd/` 下提供了三组命令行示例：
+
+- `moon run cmd/sm2` —— 密钥生成、签名/验签、DER 签名、加密/解密（C1C2C3 与 ASN.1）、
+  公钥压缩/解压、密钥协商；
+- `moon run cmd/sm3` —— 一次性摘要与流式摘要，并对照 GM/T 0004-2012 标准测试向量校验；
+- `moon run cmd/sm4` —— 单块加解密（对照 GM/T 0002-2012 附录 A 测试向量）、ECB/CBC 模式
+  及 PKCS7 填充的往返验证。
+
+以下示例为文档测试，可通过 `moon test` 运行：
 
 ### SM3 摘要
 
@@ -167,21 +175,10 @@ test "sm2 key exchange" {
   let (kb, s1b, s2b) = @sm2.key_exchange_b(
     16, ida, idb, priv_b, pub_a, rpriv_b, rpub_a,
   )
-  assert_true(@hexutil.bytes_eq(ka, kb)) // 协商出同一把 16 字节会话密钥
+  assert_true(@hexutil.bytes_eq(ka, kb)) // 协商出相同的 16 字节会话密钥
   assert_true(@hexutil.bytes_eq(s1a, s1b) && @hexutil.bytes_eq(s2a, s2b)) // 密钥确认值一致
 }
 ```
-
-## 当前实现状态
-
-SM2 / SM3 / SM4 均已完成实现，并在 `cmd/` 下提供可运行的命令行 demo：
-
-- `moon run cmd/sm2` —— 密钥生成、签名/验签、DER 签名、加密/解密（C1C2C3 与 ASN.1）、
-  公钥压缩/解压、密钥协商；
-- `moon run cmd/sm3` —— 一次性摘要与流式摘要，并对照 GM/T 0004-2012 标准测试向量校验；
-- `moon run cmd/sm4` —— 单块加解密（对照 GM/T 0002-2012 附录 A 测试向量）、ECB/CBC 模式
-  及 PKCS7 填充的往返验证。
-
 
 ## 构建与测试
 
