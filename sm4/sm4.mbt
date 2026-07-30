@@ -70,22 +70,6 @@ pub fn sm4_error_decrypt_failed() -> SM4Error {
 }
 
 ///|
-/// 32-bit left rotation.
-fn rotl(x : UInt, n : Int) -> UInt {
-  let n = n % 32
-  (x << n) | (x >> (32 - n))
-}
-
-///|
-/// Read a 32-bit unsigned integer from `buf` at `offset` in big-endian byte order.
-fn get_u32_be(buf : Bytes, offset : Int) -> UInt {
-  (buf[offset].to_uint() << 24) |
-  (buf[offset + 1].to_uint() << 16) |
-  (buf[offset + 2].to_uint() << 8) |
-  buf[offset + 3].to_uint()
-}
-
-///|
 /// Non-linear transformation τ: substitute each byte via S-Box.
 fn sm4_tau(a : UInt) -> UInt {
   let a0 = ((a >> 24) & 0xFFU).reinterpret_as_int()
@@ -101,13 +85,17 @@ fn sm4_tau(a : UInt) -> UInt {
 ///|
 /// Linear transformation L (used in round function).
 fn sm4_L(b : UInt) -> UInt {
-  b ^ rotl(b, 2) ^ rotl(b, 10) ^ rotl(b, 18) ^ rotl(b, 24)
+  b ^
+  @byteutil.rotl(b, 2) ^
+  @byteutil.rotl(b, 10) ^
+  @byteutil.rotl(b, 18) ^
+  @byteutil.rotl(b, 24)
 }
 
 ///|
 /// Linear transformation L' (used in key expansion).
 fn sm4_L_prime(b : UInt) -> UInt {
-  b ^ rotl(b, 13) ^ rotl(b, 23)
+  b ^ @byteutil.rotl(b, 13) ^ @byteutil.rotl(b, 23)
 }
 
 ///|
@@ -131,7 +119,7 @@ fn sm4_expand_key(key : Bytes) -> FixedArray[UInt] raise SM4Error {
   }
 
   let mk : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
-    get_u32_be(key, i * 4)
+    @byteutil.get_u32_be(key, i * 4)
   })
 
   // K[0..3] = MK[i] ⊕ fk[i]
@@ -188,7 +176,7 @@ pub fn sm4_encrypt_block(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
 
   let rk = sm4_expand_key(key)
   let x : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
-    get_u32_be(data, i * 4)
+    @byteutil.get_u32_be(data, i * 4)
   })
 
   let y = sm4_process_block(x, rk)
@@ -216,7 +204,7 @@ pub fn sm4_decrypt_block(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
 
   let x : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
-    get_u32_be(data, i * 4)
+    @byteutil.get_u32_be(data, i * 4)
   })
 
   let y = sm4_process_block(x, rk_rev)
@@ -239,25 +227,18 @@ pub fn sm4_encrypt_ecb(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
 
   let rk = sm4_expand_key(key)
   let n_blocks = data.length() / 16
-  // Pre-compute all result blocks as flat array of 32-bit words
-  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
-    0U
+  let out : FixedArray[Byte] = FixedArray::makei(data.length(), fn(_) {
+    b'\x00'
   })
   for b in 0..<n_blocks {
-    let x : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
-      get_u32_be(data, b * 16 + j * 4)
-    })
-    let encrypted = sm4_process_block(x, rk)
-    for j in 0..<4 {
-      result_words[b * 4 + j] = encrypted[j]
+    let encrypted = words_to_block(
+      sm4_process_block(block_to_words(data[b * 16:b * 16 + 16].to_owned()), rk),
+    )
+    for j in 0..<16 {
+      out[b * 16 + j] = encrypted[j]
     }
   }
-  Bytes::makei(data.length(), fn(i) {
-    let word_idx = i / 4
-    let word = result_words[word_idx]
-    let shift = 24 - i % 4 * 8
-    ((word >> shift) & 0xFFU).to_byte()
-  })
+  Bytes::makei(data.length(), fn(i) { out[i] })
 }
 
 ///|
@@ -273,24 +254,21 @@ pub fn sm4_decrypt_ecb(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
   let rk = sm4_expand_key(key)
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
   let n_blocks = data.length() / 16
-  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
-    0U
+  let out : FixedArray[Byte] = FixedArray::makei(data.length(), fn(_) {
+    b'\x00'
   })
   for b in 0..<n_blocks {
-    let x : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
-      get_u32_be(data, b * 16 + j * 4)
-    })
-    let decrypted = sm4_process_block(x, rk_rev)
-    for j in 0..<4 {
-      result_words[b * 4 + j] = decrypted[j]
+    let decrypted = words_to_block(
+      sm4_process_block(
+        block_to_words(data[b * 16:b * 16 + 16].to_owned()),
+        rk_rev,
+      ),
+    )
+    for j in 0..<16 {
+      out[b * 16 + j] = decrypted[j]
     }
   }
-  Bytes::makei(data.length(), fn(i) {
-    let word_idx = i / 4
-    let word = result_words[word_idx]
-    let shift = 24 - i % 4 * 8
-    ((word >> shift) & 0xFFU).to_byte()
-  })
+  Bytes::makei(data.length(), fn(i) { out[i] })
 }
 
 ///|
@@ -312,35 +290,22 @@ pub fn sm4_encrypt_cbc(
 
   let rk = sm4_expand_key(key)
   let n_blocks = data.length() / 16
-  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
-    0U
+  let out : FixedArray[Byte] = FixedArray::makei(data.length(), fn(_) {
+    b'\x00'
   })
+  let mut prev : FixedArray[UInt] = block_to_words(iv)
   for b in 0..<n_blocks {
-    // Compute plaintext block
-    let plain : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
-      get_u32_be(data, b * 16 + j * 4)
-    })
-    // Previous ciphertext (or IV for block 0)
-    let prev : FixedArray[UInt] = if b == 0 {
-      FixedArray::makei(4, fn(j) { get_u32_be(iv, j * 4) })
-    } else {
-      FixedArray::makei(4, fn(j) { result_words[(b - 1) * 4 + j] })
-    }
-    // XOR and encrypt
+    let plain = block_to_words(data[b * 16:b * 16 + 16].to_owned())
     let xored : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       plain[j] ^ prev[j]
     })
-    let encrypted = sm4_process_block(xored, rk)
-    for j in 0..<4 {
-      result_words[b * 4 + j] = encrypted[j]
+    let blk = words_to_block(sm4_process_block(xored, rk))
+    for j in 0..<16 {
+      out[b * 16 + j] = blk[j]
     }
+    prev = block_to_words(blk)
   }
-  Bytes::makei(data.length(), fn(i) {
-    let word_idx = i / 4
-    let word = result_words[word_idx]
-    let shift = 24 - i % 4 * 8
-    ((word >> shift) & 0xFFU).to_byte()
-  })
+  Bytes::makei(data.length(), fn(i) { out[i] })
 }
 
 ///|
@@ -363,32 +328,23 @@ pub fn sm4_decrypt_cbc(
   let rk = sm4_expand_key(key)
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
   let n_blocks = data.length() / 16
-  let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
-    0U
+  let out : FixedArray[Byte] = FixedArray::makei(data.length(), fn(_) {
+    b'\x00'
   })
+  let mut prev : FixedArray[UInt] = block_to_words(iv)
   for b in 0..<n_blocks {
-    // Decrypt ciphertext block
-    let cipher : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
-      get_u32_be(data, b * 16 + j * 4)
-    })
+    let cipher = block_to_words(data[b * 16:b * 16 + 16].to_owned())
     let decrypted = sm4_process_block(cipher, rk_rev)
-    // Previous ciphertext (or IV for block 0)
-    let prev : FixedArray[UInt] = if b == 0 {
-      FixedArray::makei(4, fn(j) { get_u32_be(iv, j * 4) })
-    } else {
-      FixedArray::makei(4, fn(j) { get_u32_be(data, (b - 1) * 16 + j * 4) })
+    let plain_words : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
+      decrypted[j] ^ prev[j]
+    })
+    let blk = words_to_block(plain_words)
+    for j in 0..<16 {
+      out[b * 16 + j] = blk[j]
     }
-    // XOR to get plaintext
-    for j in 0..<4 {
-      result_words[b * 4 + j] = decrypted[j] ^ prev[j]
-    }
+    prev = cipher
   }
-  Bytes::makei(data.length(), fn(i) {
-    let word_idx = i / 4
-    let word = result_words[word_idx]
-    let shift = 24 - i % 4 * 8
-    ((word >> shift) & 0xFFU).to_byte()
-  })
+  Bytes::makei(data.length(), fn(i) { out[i] })
 }
 
 ///|
@@ -432,7 +388,7 @@ pub fn pkcs7_unpad(data : Bytes) -> Bytes raise SM4Error {
 ///|
 /// Convert a 16-byte block (Bytes) into 4 big-endian 32-bit words.
 fn block_to_words(b : Bytes) -> FixedArray[UInt] {
-  FixedArray::makei(4, fn(i) { get_u32_be(b, i * 4) })
+  FixedArray::makei(4, fn(i) { @byteutil.get_u32_be(b, i * 4) })
 }
 
 ///|

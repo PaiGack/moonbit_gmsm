@@ -22,7 +22,7 @@ fn main {
   for i = 0; i < cases.length(); i = i + 1 {
     let (name, data, expected) = cases[i]
     let hash = @gmsm_sm3.sm3_sum(data)
-    let got = @hexutil.bytes_to_hex(hash)
+    let got = @byteutil.bytes_to_hex(hash)
     let ok = got == expected
     println(
       name + " -> " + got + "  [" + (if ok { "OK" } else { "FAIL" }) + "]",
@@ -35,9 +35,9 @@ fn main {
   let ctx = ctx.write(b"def")
   let stream_hash = ctx.finish()
   let direct_hash = @gmsm_sm3.sm3_sum(b"abcdef")
-  let stream_ok = @hexutil.bytes_eq(stream_hash, direct_hash)
+  let stream_ok = @byteutil.bytes_eq(stream_hash, direct_hash)
   let stream_msg = "Streaming sm3(\"abcdef\"): " +
-    @hexutil.bytes_to_hex(stream_hash) +
+    @byteutil.bytes_to_hex(stream_hash) +
     "  [" +
     (if stream_ok { "OK" } else { "FAIL" }) +
     "]"

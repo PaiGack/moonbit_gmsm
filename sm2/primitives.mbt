@@ -9,38 +9,22 @@ fn default_uid_impl() -> Bytes {
 ///|
 // Curve constants as 32-byte strings
 fn a_bytes() -> Bytes {
-  bn_to_bytes(
-    FixedArray::from_array([
-      0xFFFFFFFFFFFFFFFCUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
-    ]),
-  )
+  bn_to_bytes(sm2_p256().a)
 }
 
 ///|
 fn b_bytes() -> Bytes {
-  bn_to_bytes(
-    FixedArray::from_array([
-      0xDDBCBD414D940E93UL, 0xF39789F515AB8F92UL, 0x4D5A9E4BCF6509A7UL, 0x28E9FA9E9D9F5E34UL,
-    ]),
-  )
+  bn_to_bytes(sm2_p256().b)
 }
 
 ///|
 fn gx_bytes() -> Bytes {
-  bn_to_bytes(
-    FixedArray::from_array([
-      0x715A4589334C74C7UL, 0x8FE30BBFF2660BE1UL, 0x5F9904466A39C994UL, 0x32C4AE2C1F198119UL,
-    ]),
-  )
+  bn_to_bytes(sm2_p256().gx)
 }
 
 ///|
 fn gy_bytes() -> Bytes {
-  bn_to_bytes(
-    FixedArray::from_array([
-      0x02DF32E52139F0A0UL, 0xD0A9877CC62A4740UL, 0x59BDCEE36B692153UL, 0xBC3736A2F4F6779CUL,
-    ]),
-  )
+  bn_to_bytes(sm2_p256().gy)
 }
 
 ///|

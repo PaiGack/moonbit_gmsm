@@ -51,9 +51,7 @@ pub suberror Sm2Error {
 ///|
 pub fn sm2_p256() -> SM2Curve {
   SM2Curve::{
-    p: FixedArray::from_array([
-      0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
-    ]),
+    p: p_limbs(),
     a: FixedArray::from_array([
       0xFFFFFFFFFFFFFFFCUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
     ]),

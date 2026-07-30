@@ -1,4 +1,4 @@
-//| Whitebox tests for the shared hex / byte helpers.
+//| Whitebox tests for the shared byte / hex helpers.
 
 ///|
 test "nibble_to_char_branches" {

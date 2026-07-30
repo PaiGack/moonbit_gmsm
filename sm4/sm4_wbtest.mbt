@@ -35,10 +35,10 @@ test "tau_transform" {
 test "L_transform" {
   let input = 0x01234567U
   let expected = input ^
-    rotl(input, 2) ^
-    rotl(input, 10) ^
-    rotl(input, 18) ^
-    rotl(input, 24)
+    @byteutil.rotl(input, 2) ^
+    @byteutil.rotl(input, 10) ^
+    @byteutil.rotl(input, 18) ^
+    @byteutil.rotl(input, 24)
   assert_eq(sm4_L(input), expected)
 }
 
@@ -46,7 +46,7 @@ test "L_transform" {
 /// L' transformation: verify formula.
 test "L_prime_transform" {
   let input = 0x01234567U
-  let expected = input ^ rotl(input, 13) ^ rotl(input, 23)
+  let expected = input ^ @byteutil.rotl(input, 13) ^ @byteutil.rotl(input, 23)
   assert_eq(sm4_L_prime(input), expected)
 }
 
@@ -80,7 +80,7 @@ test "process_block_encrypt_decrypt" {
   let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
 
   let x : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
-    get_u32_be(data, i * 4)
+    @byteutil.get_u32_be(data, i * 4)
   })
   let cipher = sm4_process_block(x, rk)
   let plain = sm4_process_block(cipher, rk_rev)

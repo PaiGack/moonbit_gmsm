@@ -1,7 +1,7 @@
 import {
   "moonbitlang/core/random",
   "PaiGack/gmsm/sm4" @gmsm_sm4,
-  "PaiGack/gmsm/hexutil",
+  "PaiGack/gmsm/byteutil",
 }
 
 pkgtype(kind: "executable")

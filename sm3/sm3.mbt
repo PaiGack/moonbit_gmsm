@@ -184,28 +184,12 @@ fn finalize(
 }
 
 ///|
-/// Read a 32-bit unsigned integer from `buf` at `offset` in big-endian byte order.
-fn get_u32_be(buf : Bytes, offset : Int) -> UInt {
-  (buf[offset].to_uint().land(0xffU) << 24) |
-  (buf[offset + 1].to_uint().land(0xffU) << 16) |
-  (buf[offset + 2].to_uint().land(0xffU) << 8) |
-  buf[offset + 3].to_uint().land(0xffU)
-}
-
-///|
 /// Read a 32-bit unsigned integer from a FixedArray[Byte] at the given offset.
 fn get_u32_be_fa(buf : FixedArray[Byte], offset : Int) -> UInt {
   (buf[offset].to_uint().land(0xffU) << 24) |
   (buf[offset + 1].to_uint().land(0xffU) << 16) |
   (buf[offset + 2].to_uint().land(0xffU) << 8) |
   buf[offset + 3].to_uint().land(0xffU)
-}
-
-///|
-/// Left-rotate a 32-bit unsigned integer by `n` bits.
-fn rotl(x : UInt, n : Int) -> UInt {
-  let n = n % 32
-  (x << n) | (x >> (32 - n))
 }
 
 ///|
@@ -241,13 +225,13 @@ fn gg(j : Int, x : UInt, y : UInt, z : UInt) -> UInt {
 ///|
 /// SM3 permutation function P_0.
 fn p0(x : UInt) -> UInt {
-  x ^ rotl(x, 9) ^ rotl(x, 17)
+  x ^ @byteutil.rotl(x, 9) ^ @byteutil.rotl(x, 17)
 }
 
 ///|
 /// SM3 permutation function P_1.
 fn p1(x : UInt) -> UInt {
-  x ^ rotl(x, 15) ^ rotl(x, 23)
+  x ^ @byteutil.rotl(x, 15) ^ @byteutil.rotl(x, 23)
 }
 
 ///|
@@ -259,12 +243,12 @@ fn compress(state : FixedArray[UInt], block : Bytes, offset? : Int = 0) -> Unit 
   let w1 : FixedArray[UInt] = FixedArray::makei(64, fn(_i) { 0U })
 
   for j in 0..<16 {
-    w[j] = get_u32_be(block, offset + j * 4)
+    w[j] = @byteutil.get_u32_be(block, offset + j * 4)
   }
 
   for j in 16..<68 {
-    w[j] = p1(w[j - 16] ^ w[j - 9] ^ rotl(w[j - 3], 15)) ^
-      rotl(w[j - 13], 7) ^
+    w[j] = p1(w[j - 16] ^ w[j - 9] ^ @byteutil.rotl(w[j - 3], 15)) ^
+      @byteutil.rotl(w[j - 13], 7) ^
       w[j - 6]
   }
 
@@ -292,8 +276,8 @@ fn compress_fixed(
   }
 
   for j in 16..<68 {
-    w[j] = p1(w[j - 16] ^ w[j - 9] ^ rotl(w[j - 3], 15)) ^
-      rotl(w[j - 13], 7) ^
+    w[j] = p1(w[j - 16] ^ w[j - 9] ^ @byteutil.rotl(w[j - 3], 15)) ^
+      @byteutil.rotl(w[j - 13], 7) ^
       w[j - 6]
   }
 
@@ -321,16 +305,19 @@ fn compress_rounds(
   let mut h = state[7]
 
   for j in 0..<64 {
-    let ss1 = rotl(rotl(a, 12) + e + rotl(tj(j), j), 7)
-    let ss2 = ss1 ^ rotl(a, 12)
+    let ss1 = @byteutil.rotl(
+      @byteutil.rotl(a, 12) + e + @byteutil.rotl(tj(j), j),
+      7,
+    )
+    let ss2 = ss1 ^ @byteutil.rotl(a, 12)
     let tt1 = ff(j, a, b, c) + d + ss2 + w1[j]
     let tt2 = gg(j, e, f, g) + h + ss1 + w[j]
     d = c
-    c = rotl(b, 9)
+    c = @byteutil.rotl(b, 9)
     b = a
     a = tt1
     h = g
-    g = rotl(f, 19)
+    g = @byteutil.rotl(f, 19)
     f = e
     e = p0(tt2)
   }

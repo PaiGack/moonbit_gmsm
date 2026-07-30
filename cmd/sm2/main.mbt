@@ -10,15 +10,15 @@ fn main {
     let pri = @gmsm_sm2.generate_key(None)
     let pubk = @gmsm_sm2.derive_public_key(pri)
     println(
-      "Private key d : " + @hexutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pri.d)),
+      "Private key d : " + @byteutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pri.d)),
     )
     println(
-      "Public key  X : " + @hexutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.x)),
+      "Public key  X : " + @byteutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.x)),
     )
     println(
-      "Public key  Y : " + @hexutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.y)),
+      "Public key  Y : " + @byteutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.y)),
     )
-    println("Point on curve: " + @hexutil.bstr(@gmsm_sm2.is_on_curve(pubk)))
+    println("Point on curve: " + @byteutil.bstr(@gmsm_sm2.is_on_curve(pubk)))
 
     // 2. Signature / verify
     let uid = @gmsm_sm2.default_uid()
@@ -26,15 +26,15 @@ fn main {
     let (r, s) = @gmsm_sm2.sm2_sign(pri, msg, uid, None)
     let verified = @gmsm_sm2.sm2_verify(pubk, msg, uid, r, s)
     println("")
-    println("Signature r   : " + @hexutil.bytes_to_hex(r))
-    println("Signature s   : " + @hexutil.bytes_to_hex(s))
-    println("Verify        : " + @hexutil.bstr(verified))
+    println("Signature r   : " + @byteutil.bytes_to_hex(r))
+    println("Signature s   : " + @byteutil.bytes_to_hex(s))
+    println("Verify        : " + @byteutil.bstr(verified))
 
     // 3. ASN.1 DER signature
     let der = @gmsm_sm2.sm2_sign_der(pri, msg, uid, None)
     let der_ok = @gmsm_sm2.sm2_verify_der(pubk, msg, uid, der)
     println("DER sign len  : " + der.length().to_string())
-    println("DER verify    : " + @hexutil.bstr(der_ok))
+    println("DER verify    : " + @byteutil.bstr(der_ok))
 
     // 4. Encrypt / decrypt (C1C2C3 mode)
     let plain = b"Secret message over SM2."
@@ -46,24 +46,24 @@ fn main {
     )
     let dec = @gmsm_sm2.sm2_decrypt(pri, cipher, @gmsm_sm2.cipher_mode_c1c2c3())
     println("")
-    println("Cipher(C1C2C3): " + @hexutil.bytes_to_hex(cipher))
+    println("Cipher(C1C2C3): " + @byteutil.bytes_to_hex(cipher))
     println("Decrypted     : " + dec.to_string())
-    println("Decrypt OK    : " + @hexutil.bstr(@hexutil.bytes_eq(dec, plain)))
+    println("Decrypt OK    : " + @byteutil.bstr(@byteutil.bytes_eq(dec, plain)))
 
     // 5. ASN.1 (C1C3C2) marshal / unmarshal
     let der_cipher = @gmsm_sm2.sm2_encrypt_asn1(pubk, plain, None)
     let der_dec = @gmsm_sm2.sm2_decrypt_asn1(pri, der_cipher)
     println(
-      "ASN.1 decrypt OK: " + @hexutil.bstr(@hexutil.bytes_eq(der_dec, plain)),
+      "ASN.1 decrypt OK: " + @byteutil.bstr(@byteutil.bytes_eq(der_dec, plain)),
     )
 
     // 6. Point compression / decompression
     let comp = @gmsm_sm2.compress_point(pubk)
     let decomp = @gmsm_sm2.decompress_point(comp)
     println("")
-    println("Compressed    : " + @hexutil.bytes_to_hex(comp))
+    println("Compressed    : " + @byteutil.bytes_to_hex(comp))
     println(
-      "Decompress on curve: " + @hexutil.bstr(@gmsm_sm2.is_on_curve(decomp)),
+      "Decompress on curve: " + @byteutil.bstr(@gmsm_sm2.is_on_curve(decomp)),
     )
 
     // 7. Key exchange (A and B derive the same shared key)
@@ -82,8 +82,10 @@ fn main {
       16, ida, idb, privB, pubk, rprivB, rpubA,
     )
     println("")
-    println("Key exchange equal : " + @hexutil.bstr(@hexutil.bytes_eq(ka, kb)))
-    println("Shared key (hex)   : " + @hexutil.bytes_to_hex(ka))
+    println(
+      "Key exchange equal : " + @byteutil.bstr(@byteutil.bytes_eq(ka, kb)),
+    )
+    println("Shared key (hex)   : " + @byteutil.bytes_to_hex(ka))
 
     println("========== SM2 Demo Done ==========")
   } catch {

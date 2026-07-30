@@ -86,9 +86,7 @@ fn point_is_on_curve_affine(
   bn_addmod_p(three_x, x, x)
   bn_addmod_p(three_x, three_x, x)
 
-  let p = FixedArray::from_array([
-    0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
-  ])
+  let p = p_limbs()
   let ax : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   if bn_is_zero(three_x) {
     bn_zero(ax)
@@ -353,9 +351,7 @@ fn point_neg(p : SM2Point) -> Unit {
   if point_is_infinity(p) {
     return
   }
-  let pp = FixedArray::from_array([
-    0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
-  ])
+  let pp = p_limbs()
   let neg_y : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_sub(neg_y, pp, p.y) |> ignore
   bn_copy(p.y, neg_y)

@@ -1,4 +1,23 @@
-/// Shared hex / byte helpers for the command-line demos and tests.
+/// Shared low-level bit/byte helpers and hex / byte utilities, reused by the
+/// `sm2`, `sm3`, `sm4` packages and the command-line demos to avoid
+/// duplicating the same pure functions in each.
+
+///|
+/// 32-bit left rotation.
+pub fn rotl(x : UInt, n : Int) -> UInt {
+  let n = n % 32
+  (x << n) | (x >> (32 - n))
+}
+
+///|
+/// Read a 32-bit unsigned integer from `buf` at `offset` in big-endian byte
+/// order.
+pub fn get_u32_be(buf : Bytes, offset : Int) -> UInt {
+  (buf[offset].to_uint().land(0xffU) << 24) |
+  (buf[offset + 1].to_uint().land(0xffU) << 16) |
+  (buf[offset + 2].to_uint().land(0xffU) << 8) |
+  buf[offset + 3].to_uint().land(0xffU)
+}
 
 ///|
 pub fn nibble_to_char(n : Int) -> Char {

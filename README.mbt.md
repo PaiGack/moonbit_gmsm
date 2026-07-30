@@ -45,23 +45,23 @@ test "sm3 digest" {
   // 一次性摘要
   let digest = @sm3.sm3_sum(b"abc")
   assert_eq(
-    @hexutil.bytes_to_hex(digest),
+    @byteutil.bytes_to_hex(digest),
     "66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0",
   )
   // 多段拼接摘要，等价于把各段连接后再计算
   assert_eq(
-    @hexutil.bytes_to_hex(@sm3.sm3_sum_multi([b"a", b"b", b"c"])),
-    @hexutil.bytes_to_hex(digest),
+    @byteutil.bytes_to_hex(@sm3.sm3_sum_multi([b"a", b"b", b"c"])),
+    @byteutil.bytes_to_hex(digest),
   )
   // 流式接口，对齐 Go 的 hash.Hash（write 返回新的上下文，链式调用）
   let h = @sm3.new().write(b"a").write(b"bc")
   assert_eq(h.size(), 32)
   assert_eq(h.block_size(), 64)
-  assert_eq(@hexutil.bytes_to_hex(h.sum()), @hexutil.bytes_to_hex(digest))
+  assert_eq(@byteutil.bytes_to_hex(h.sum()), @byteutil.bytes_to_hex(digest))
   // reset 之后可以复用
   assert_eq(
-    @hexutil.bytes_to_hex(h.reset().write(b"abc").sum()),
-    @hexutil.bytes_to_hex(digest),
+    @byteutil.bytes_to_hex(h.reset().write(b"abc").sum()),
+    @byteutil.bytes_to_hex(digest),
   )
 }
 ```
@@ -71,44 +71,44 @@ test "sm3 digest" {
 ```mbt check
 ///|
 test "sm4 block and modes" {
-  let key = @hexutil.hex_to_bytes("0123456789abcdeffedcba9876543210")
+  let key = @byteutil.hex_to_bytes("0123456789abcdeffedcba9876543210")
   // GM/T 0002-2012 附录 A 标准向量
   let block = @sm4.new_cipher(key)
   assert_eq(block.block_size(), 16)
   let ct = block.encrypt(key)
-  assert_eq(@hexutil.bytes_to_hex(ct), "681edf34d206965e86b3e94f536e4246")
+  assert_eq(@byteutil.bytes_to_hex(ct), "681edf34d206965e86b3e94f536e4246")
   assert_eq(
-    @hexutil.bytes_to_hex(block.decrypt(ct)),
-    @hexutil.bytes_to_hex(key),
+    @byteutil.bytes_to_hex(block.decrypt(ct)),
+    @byteutil.bytes_to_hex(key),
   )
 
   // ECB / CBC 模式 + PKCS7 填充
   let msg = b"hello sm4, moonbit!"
-  let iv = @hexutil.hex_to_bytes("000102030405060708090a0b0c0d0e0f")
+  let iv = @byteutil.hex_to_bytes("000102030405060708090a0b0c0d0e0f")
   let padded = @sm4.pkcs7_pad(msg, 16)
   let ecb = @sm4.sm4_encrypt_ecb(key, padded)
   assert_true(
-    @hexutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_ecb(key, ecb)), msg),
+    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_ecb(key, ecb)), msg),
   )
   let cbc = @sm4.sm4_encrypt_cbc(key, iv, padded)
   assert_true(
-    @hexutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_cbc(key, iv, cbc)), msg),
+    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_cbc(key, iv, cbc)), msg),
   )
   // CFB / OFB（128 位反馈，同样按整块处理）
   let cfb = @sm4.sm4_encrypt_cfb(key, iv, padded)
   assert_true(
-    @hexutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_cfb(key, iv, cfb)), msg),
+    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_cfb(key, iv, cfb)), msg),
   )
   let ofb = @sm4.sm4_encrypt_ofb(key, iv, padded)
   assert_true(
-    @hexutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_ofb(key, iv, ofb)), msg),
+    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_ofb(key, iv, ofb)), msg),
   )
   // GCM 认证加密
-  let nonce = @hexutil.hex_to_bytes("000102030405060708090a0b")
+  let nonce = @byteutil.hex_to_bytes("000102030405060708090a0b")
   let aad = b"header"
   let (gcm_ct, tag) = @sm4.sm4_gcm_encrypt(key, nonce, msg, aad)
   let (plain, tag2) = @sm4.sm4_gcm_decrypt(key, nonce, gcm_ct, aad)
-  assert_true(@hexutil.bytes_eq(plain, msg) && @hexutil.bytes_eq(tag, tag2))
+  assert_true(@byteutil.bytes_eq(plain, msg) && @byteutil.bytes_eq(tag, tag2))
 }
 ```
 
@@ -127,7 +127,7 @@ test "sm2 sign and encrypt" {
   assert_true(@sm2.sm2_verify(pub_key, msg, uid, r, s))
   let der = @sm2.sign_digit_to_sign_data(r, s)
   let (r2, s2) = @sm2.sign_data_to_sign_digit(der)
-  assert_true(@hexutil.bytes_eq(r, r2) && @hexutil.bytes_eq(s, s2))
+  assert_true(@byteutil.bytes_eq(r, r2) && @byteutil.bytes_eq(s, s2))
   assert_true(
     @sm2.sm2_verify_der(
       pub_key,
@@ -140,10 +140,10 @@ test "sm2 sign and encrypt" {
   // C1C3C2 / C1C2C3 两种密文排布与 ASN.1 密文
   let ct = @sm2.sm2_encrypt(pub_key, msg, None, @sm2.cipher_mode_c1c3c2())
   assert_true(
-    @hexutil.bytes_eq(@sm2.sm2_decrypt(sk, ct, @sm2.cipher_mode_c1c3c2()), msg),
+    @byteutil.bytes_eq(@sm2.sm2_decrypt(sk, ct, @sm2.cipher_mode_c1c3c2()), msg),
   )
   assert_true(
-    @hexutil.bytes_eq(
+    @byteutil.bytes_eq(
       @sm2.sm2_decrypt_asn1(sk, @sm2.sm2_encrypt_asn1(pub_key, msg, None)),
       msg,
     ),
@@ -175,8 +175,8 @@ test "sm2 key exchange" {
   let (kb, s1b, s2b) = @sm2.key_exchange_b(
     16, ida, idb, priv_b, pub_a, rpriv_b, rpub_a,
   )
-  assert_true(@hexutil.bytes_eq(ka, kb)) // 协商出相同的 16 字节会话密钥
-  assert_true(@hexutil.bytes_eq(s1a, s1b) && @hexutil.bytes_eq(s2a, s2b)) // 密钥确认值一致
+  assert_true(@byteutil.bytes_eq(ka, kb)) // 协商出相同的 16 字节会话密钥
+  assert_true(@byteutil.bytes_eq(s1a, s1b) && @byteutil.bytes_eq(s2a, s2b)) // 密钥确认值一致
 }
 ```
 

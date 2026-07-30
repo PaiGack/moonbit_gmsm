@@ -6,8 +6,8 @@
 ///|
 /// Internal helper coverage: `rotl` wraps around the 32-bit boundary.
 test "wb_rotl" {
-  assert_eq(rotl(0x80000000U, 1), 0x00000001U)
-  assert_eq(rotl(0x00000001U, 31), 0x80000000U)
+  assert_eq(@byteutil.rotl(0x80000000U, 1), 0x00000001U)
+  assert_eq(@byteutil.rotl(0x00000001U, 31), 0x80000000U)
 }
 
 ///|
@@ -25,8 +25,8 @@ test "wb_ff_gg_p0_p1" {
   assert_eq(ff(16, 1U, 2U, 4U), (1U & 2U) | (1U & 4U) | (2U & 4U))
   assert_eq(gg(16, 1U, 2U, 4U), (1U & 2U) | (1U.lnot() & 4U))
   let x = 0x12345678U
-  assert_eq(p0(x), x ^ rotl(x, 9) ^ rotl(x, 17))
-  assert_eq(p1(x), x ^ rotl(x, 15) ^ rotl(x, 23))
+  assert_eq(p0(x), x ^ @byteutil.rotl(x, 9) ^ @byteutil.rotl(x, 17))
+  assert_eq(p1(x), x ^ @byteutil.rotl(x, 15) ^ @byteutil.rotl(x, 23))
 }
 
 ///|

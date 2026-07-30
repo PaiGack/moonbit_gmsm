@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "PaiGack/gmsm/hexutil"
+package "PaiGack/gmsm/byteutil"
 
 // Values
 pub fn bstr(Bool) -> String
@@ -10,11 +10,15 @@ pub fn bytes_eq(Bytes, Bytes) -> Bool
 
 pub fn bytes_to_hex(Bytes) -> String
 
+pub fn get_u32_be(Bytes, Int) -> UInt
+
 pub fn hex_nibble(UInt16) -> Int
 
 pub fn hex_to_bytes(String) -> Bytes
 
 pub fn nibble_to_char(Int) -> Char
+
+pub fn rotl(UInt, Int) -> UInt
 
 // Errors
 

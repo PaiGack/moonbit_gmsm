@@ -2,7 +2,7 @@ import {
   "PaiGack/gmsm/sm2",
   "PaiGack/gmsm/sm3",
   "PaiGack/gmsm/sm4",
-  "PaiGack/gmsm/hexutil",
+  "PaiGack/gmsm/byteutil",
 }
 
 // The imports above are only used by the runnable examples in `README.mbt.md`.
