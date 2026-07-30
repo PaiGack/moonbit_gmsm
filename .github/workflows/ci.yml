@@ -49,5 +49,11 @@ jobs:
           moon build --target wasm-gc --release
           moon build --target native --release
 
+      - name: moon run cmd
+        run: |
+          moon run cmd/sm2
+          moon run cmd/sm3
+          moon run cmd/sm4
+
       - name: Tokei
         run: docker run --rm -v $(pwd):/src ghcr.io/xampprocky/tokei:latest .
