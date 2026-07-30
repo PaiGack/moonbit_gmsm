@@ -388,25 +388,32 @@ fn bn_low_bits(a : FixedArray[UInt64], w : Int) -> Int {
 /// Add a small signed integer `d` (|d| < 2^31) to a 256-bit value.
 /// Used by the wNAF digit loop (k = (k - digit) / 2).
 fn bn_add_int(r : FixedArray[UInt64], a : FixedArray[UInt64], d : Int) -> Unit {
+  // NOTE: carry/borrow must be computed BEFORE writing to r[i], because the
+  // wNAF digit loop calls this in-place (r === a). Writing first would clobber
+  // the source value and produce wrong carry propagation.
   if d >= 0 {
     let add = d.to_uint64()
     let s0 = a[0] + add
+    let c0 : UInt64 = if s0 < a[0] { 1UL } else { 0UL }
     r[0] = s0
-    let mut c : UInt64 = if s0 < a[0] { 1UL } else { 0UL }
+    let mut c = c0
     for i in 1..<4 {
       let s = a[i] + c
+      let new_c : UInt64 = if s < a[i] { 1UL } else { 0UL }
       r[i] = s
-      c = if s < a[i] { 1UL } else { 0UL }
+      c = new_c
     }
   } else {
     let sub = (-d).to_uint64()
     let s0 = a[0] - sub
+    let borrow0 : UInt64 = if a[0] < sub { 1UL } else { 0UL }
     r[0] = s0
-    let mut borrow : UInt64 = if a[0] < sub { 1UL } else { 0UL }
+    let mut borrow = borrow0
     for i in 1..<4 {
       let s = a[i] - borrow
+      let new_borrow : UInt64 = if a[i] < borrow { 1UL } else { 0UL }
       r[i] = s
-      borrow = if a[i] < borrow { 1UL } else { 0UL }
+      borrow = new_borrow
     }
   }
 }
