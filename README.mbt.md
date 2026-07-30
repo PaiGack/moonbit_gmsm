@@ -92,16 +92,25 @@ test "sm4 block and modes" {
   )
   let cbc = @sm4.sm4_encrypt_cbc(key, iv, padded)
   assert_true(
-    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_cbc(key, iv, cbc)), msg),
+    @byteutil.bytes_eq(
+      @sm4.pkcs7_unpad(@sm4.sm4_decrypt_cbc(key, iv, cbc)),
+      msg,
+    ),
   )
   // CFB / OFB（128 位反馈，同样按整块处理）
   let cfb = @sm4.sm4_encrypt_cfb(key, iv, padded)
   assert_true(
-    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_cfb(key, iv, cfb)), msg),
+    @byteutil.bytes_eq(
+      @sm4.pkcs7_unpad(@sm4.sm4_decrypt_cfb(key, iv, cfb)),
+      msg,
+    ),
   )
   let ofb = @sm4.sm4_encrypt_ofb(key, iv, padded)
   assert_true(
-    @byteutil.bytes_eq(@sm4.pkcs7_unpad(@sm4.sm4_decrypt_ofb(key, iv, ofb)), msg),
+    @byteutil.bytes_eq(
+      @sm4.pkcs7_unpad(@sm4.sm4_decrypt_ofb(key, iv, ofb)),
+      msg,
+    ),
   )
   // GCM 认证加密
   let nonce = @byteutil.hex_to_bytes("000102030405060708090a0b")
