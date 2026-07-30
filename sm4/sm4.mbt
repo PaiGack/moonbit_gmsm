@@ -429,3 +429,365 @@ pub fn pkcs7_unpad(data : Bytes) -> Bytes raise SM4Error {
 
   data[0:data.length() - pad_len].to_owned()
 }
+
+///|
+/// Convert a 16-byte block (Bytes) into 4 big-endian 32-bit words.
+fn block_to_words(b : Bytes) -> FixedArray[UInt] {
+  FixedArray::makei(4, fn(i) { get_u32_be(b, i * 4) })
+}
+
+///|
+/// Convert 4 big-endian 32-bit words back into a 16-byte block.
+fn words_to_block(w : FixedArray[UInt]) -> Bytes {
+  Bytes::makei(16, fn(i) {
+    let word = w[i / 4]
+    let shift = 24 - i % 4 * 8
+    ((word >> shift) & 0xFFU).to_byte()
+  })
+}
+
+///|
+/// Encrypt a single 16-byte block using pre-expanded round keys (forward).
+fn sm4_block(rk : FixedArray[UInt], block : Bytes) -> Bytes {
+  words_to_block(sm4_process_block(block_to_words(block), rk))
+}
+
+///|
+/// CFB mode (128-bit feedback). `encrypt = true` for encryption, `false` for
+/// decryption. Data length must be a multiple of 16 (raw mode, no padding).
+/// Mirrors tjfoc/gmsm `sm4.Sm4CFB` but with an explicit `iv` parameter and
+/// without the internal PKCS7 padding (consistent with this package's
+/// ECB/CBC API, which also requires block-aligned input).
+fn sm4_cfb(
+  key : Bytes,
+  iv : Bytes,
+  data : Bytes,
+  encrypt : Bool,
+) -> Bytes raise SM4Error {
+  if key.length() != 16 {
+    raise SM4Error::InvalidKey
+  }
+  if iv.length() != 16 {
+    raise SM4Error::InvalidIV
+  }
+  if data.length() % 16 != 0 {
+    raise SM4Error::InvalidData
+  }
+  let rk = sm4_expand_key(key)
+  let n = data.length() / 16
+  let out : FixedArray[Byte] = FixedArray::makei(data.length(), fn(_) {
+    b'\x00'
+  })
+  let mut reg : Bytes = iv
+  for b = 0; b < n; b = b + 1 {
+    let ks = sm4_block(rk, reg)
+    let base = b * 16
+    for j = 0; j < 16; j = j + 1 {
+      out[base + j] = (ks[j].to_uint() ^ data[base + j].to_uint()).to_byte()
+    }
+    if encrypt {
+      reg = Bytes::makei(16, fn(j) { out[base + j] })
+    } else {
+      reg = Bytes::makei(16, fn(j) { data[base + j] })
+    }
+  }
+  Bytes::makei(data.length(), fn(i) { out[i] })
+}
+
+///|
+/// CFB mode encryption (128-bit feedback). `data` length must be a multiple of 16.
+pub fn sm4_encrypt_cfb(
+  key : Bytes,
+  iv : Bytes,
+  data : Bytes,
+) -> Bytes raise SM4Error {
+  sm4_cfb(key, iv, data, true)
+}
+
+///|
+/// CFB mode decryption (128-bit feedback). `data` length must be a multiple of 16.
+pub fn sm4_decrypt_cfb(
+  key : Bytes,
+  iv : Bytes,
+  data : Bytes,
+) -> Bytes raise SM4Error {
+  sm4_cfb(key, iv, data, false)
+}
+
+///|
+/// OFB mode (128-bit feedback). Encryption and decryption are identical.
+/// Data length must be a multiple of 16 (raw mode, no padding). Mirrors
+/// tjfoc/gmsm `sm4.Sm4OFB` with an explicit `iv` parameter.
+fn sm4_ofb(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
+  if key.length() != 16 {
+    raise SM4Error::InvalidKey
+  }
+  if iv.length() != 16 {
+    raise SM4Error::InvalidIV
+  }
+  if data.length() % 16 != 0 {
+    raise SM4Error::InvalidData
+  }
+  let rk = sm4_expand_key(key)
+  let n = data.length() / 16
+  let out : FixedArray[Byte] = FixedArray::makei(data.length(), fn(_) {
+    b'\x00'
+  })
+  let mut reg : Bytes = iv
+  for b = 0; b < n; b = b + 1 {
+    let ks = sm4_block(rk, reg)
+    let base = b * 16
+    for j = 0; j < 16; j = j + 1 {
+      out[base + j] = (ks[j].to_uint() ^ data[base + j].to_uint()).to_byte()
+    }
+    reg = ks
+  }
+  Bytes::makei(data.length(), fn(i) { out[i] })
+}
+
+///|
+/// OFB mode encryption (128-bit feedback). `data` length must be a multiple of 16.
+pub fn sm4_encrypt_ofb(
+  key : Bytes,
+  iv : Bytes,
+  data : Bytes,
+) -> Bytes raise SM4Error {
+  sm4_ofb(key, iv, data)
+}
+
+///|
+/// OFB mode decryption (128-bit feedback). `data` length must be a multiple of 16.
+pub fn sm4_decrypt_ofb(
+  key : Bytes,
+  iv : Bytes,
+  data : Bytes,
+) -> Bytes raise SM4Error {
+  sm4_ofb(key, iv, data)
+}
+
+///|
+/// GF(2^128) multiplication (used by GHASH). `x` and `y` are 16-byte blocks.
+/// R = 0xe1 || 0^120 (the GCM reduction constant).
+fn gf_mult_arr(x : FixedArray[Byte], y : Bytes) -> FixedArray[Byte] {
+  let r : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
+    if i == 0 {
+      b'\xe1'
+    } else {
+      b'\x00'
+    }
+  })
+  let z : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
+  let v : FixedArray[Byte] = FixedArray::makei(16, fn(i) { x[i] })
+  for i = 0; i < 128; i = i + 1 {
+    let yi = (y[i / 8].to_uint() >> (7 - i % 8)) & 1U
+    if yi == 1U {
+      for k = 0; k < 16; k = k + 1 {
+        z[k] = (z[k].to_uint() ^ v[k].to_uint()).to_byte()
+      }
+    }
+    let lsb = v[15].to_uint() & 1U
+    for k = 15; k >= 0; k = k - 1 {
+      let shifted = v[k].to_uint() >> 1
+      if k > 0 {
+        let carry = (v[k - 1].to_uint() & 1U) << 7
+        v[k] = (shifted ^ carry).to_byte()
+      } else {
+        v[k] = shifted.to_byte()
+      }
+    }
+    if lsb == 1U {
+      for k = 0; k < 16; k = k + 1 {
+        v[k] = (v[k].to_uint() ^ r[k].to_uint()).to_byte()
+      }
+    }
+  }
+  z
+}
+
+///|
+/// GHASH over additional data `a` and ciphertext `c` (both arbitrary length,
+/// zero-padded to 16-byte blocks). `h` is the GHASH subkey E_K(0^128).
+fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
+  let mut x : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
+  let a_blocks = (a.length() + 15) / 16
+  for i = 0; i < a_blocks; i = i + 1 {
+    for k = 0; k < 16; k = k + 1 {
+      let idx = i * 16 + k
+      let bk = if idx < a.length() { a[idx] } else { b'\x00' }
+      x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
+    }
+    x = gf_mult_arr(x, h)
+  }
+  let c_blocks = (c.length() + 15) / 16
+  for i = 0; i < c_blocks; i = i + 1 {
+    for k = 0; k < 16; k = k + 1 {
+      let idx = i * 16 + k
+      let bk = if idx < c.length() { c[idx] } else { b'\x00' }
+      x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
+    }
+    x = gf_mult_arr(x, h)
+  }
+  // length block: 64-bit length of A || 64-bit length of C.
+  // NOTE: mirrors tjfoc/gmsm `GHASH`, which uses *byte* lengths here (not the
+  // bit lengths required by the GCM specification).
+  let a_len = a.length().reinterpret_as_uint()
+  let c_len = c.length().reinterpret_as_uint()
+  for k = 0; k < 8; k = k + 1 {
+    let bk = ((a_len >> (56 - k * 8)) & 0xFFU).to_byte()
+    x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
+  }
+  for k = 0; k < 8; k = k + 1 {
+    let bk = ((c_len >> (56 - k * 8)) & 0xFFU).to_byte()
+    x[8 + k] = (x[8 + k].to_uint() ^ bk.to_uint()).to_byte()
+  }
+  x = gf_mult_arr(x, h)
+  Bytes::makei(16, fn(i) { x[i] })
+}
+
+///|
+/// Initial counter block J0. For a 96-bit IV: J0 = IV || 0x00000001.
+/// Otherwise: J0 = GHASH(H, "", IV).
+fn gcm_get_y0(h : Bytes, iv : Bytes) -> Bytes {
+  if iv.length() * 8 == 96 {
+    let y0 : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
+      if i < iv.length() {
+        iv[i]
+      } else if i == 15 {
+        b'\x01'
+      } else {
+        b'\x00'
+      }
+    })
+    Bytes::makei(16, fn(i) { y0[i] })
+  } else {
+    ghash(h, Bytes::makei(0, fn(_) { b'\x00' }), iv)
+  }
+}
+
+///|
+/// Increment the 128-bit counter block by 1. Mirrors tjfoc/gmsm `addYone`
+/// (used by `incr`): a byte equal to `0xff` with no incoming carry is
+/// treated as overflowing and is set to `0x00` (carrying 1), instead of
+/// staying `0xff`. This quirk is required so the generated counter blocks
+/// match `sm4.Sm4GCM`'s output byte-for-byte.
+fn gcm_inc(y : Bytes) -> Bytes {
+  let out : FixedArray[Byte] = FixedArray::makei(16, fn(i) { y[i] })
+  let mut rc : UInt = 0U
+  for k = 15; k >= 0; k = k - 1 {
+    if k == 15 {
+      if out[15].to_uint() < 0xFFU {
+        out[15] = (out[15].to_uint() + 1U).to_byte()
+        rc = 0U
+      } else {
+        out[15] = b'\x00'
+        rc = 1U
+      }
+    } else {
+      if out[k].to_uint() + rc < 0xFFU {
+        out[k] = (out[k].to_uint() + rc).to_byte()
+        rc = 0U
+      } else {
+        out[k] = b'\x00'
+        rc = 1U
+      }
+    }
+  }
+  Bytes::makei(16, fn(i) { out[i] })
+}
+
+///|
+/// SM4 GCM authenticated encryption. Returns `(ciphertext, tag)`.
+/// `iv` may be any length (96-bit IV uses the standard J0 form); `plaintext`
+/// and `aad` are arbitrary length (no padding). Mirrors tjfoc/gmsm
+/// `sm4.Sm4GCM` / `GCMEncrypt` (tag length 16 bytes / 128 bits).
+pub fn sm4_gcm_encrypt(
+  key : Bytes,
+  iv : Bytes,
+  plaintext : Bytes,
+  aad : Bytes,
+) -> (Bytes, Bytes) raise SM4Error {
+  if key.length() != 16 {
+    raise SM4Error::InvalidKey
+  }
+  let rk = sm4_expand_key(key)
+  let h = sm4_block(rk, Bytes::makei(16, fn(_) { b'\x00' }))
+  let y0 = gcm_get_y0(h, iv)
+  let l = plaintext.length()
+  let n = if l == 0 { 1 } else { (l + 15) / 16 }
+  let yblocks : FixedArray[Bytes] = FixedArray::makei(n + 1, fn(_) {
+    Bytes::makei(16, fn(_) { b'\x00' })
+  })
+  yblocks[0] = y0
+  for i = 1; i <= n; i = i + 1 {
+    yblocks[i] = gcm_inc(yblocks[i - 1])
+  }
+  let cipher : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
+  for i = 1; i <= n - 1; i = i + 1 {
+    let ek = sm4_block(rk, yblocks[i])
+    let base = (i - 1) * 16
+    for j = 0; j < 16; j = j + 1 {
+      cipher[base + j] = (ek[j].to_uint() ^ plaintext[base + j].to_uint()).to_byte()
+    }
+  }
+  let ek = sm4_block(rk, yblocks[n])
+  let nb = if l == 0 { 0 } else { l - (n - 1) * 16 }
+  let base = (n - 1) * 16
+  for j = 0; j < nb; j = j + 1 {
+    cipher[base + j] = (ek[j].to_uint() ^ plaintext[base + j].to_uint()).to_byte()
+  }
+  let c = Bytes::makei(l, fn(i) { cipher[i] })
+  let ey0 = sm4_block(rk, y0)
+  let s = ghash(h, aad, c)
+  let tag : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
+    (ey0[i].to_uint() ^ s[i].to_uint()).to_byte()
+  })
+  (c, Bytes::makei(16, fn(i) { tag[i] }))
+}
+
+///|
+/// SM4 GCM decryption. Returns `(plaintext, tag)`. Note: like tjfoc/gmsm
+/// `sm4.Sm4GCM` / `GCMDecrypt`, this does **not** verify the tag — the caller
+/// must compare the returned `tag` against the expected value (preferably in
+/// constant time) before trusting `plaintext`.
+pub fn sm4_gcm_decrypt(
+  key : Bytes,
+  iv : Bytes,
+  ciphertext : Bytes,
+  aad : Bytes,
+) -> (Bytes, Bytes) raise SM4Error {
+  if key.length() != 16 {
+    raise SM4Error::InvalidKey
+  }
+  let rk = sm4_expand_key(key)
+  let h = sm4_block(rk, Bytes::makei(16, fn(_) { b'\x00' }))
+  let y0 = gcm_get_y0(h, iv)
+  let l = ciphertext.length()
+  let n = if l == 0 { 1 } else { (l + 15) / 16 }
+  let yblocks : FixedArray[Bytes] = FixedArray::makei(n + 1, fn(_) {
+    Bytes::makei(16, fn(_) { b'\x00' })
+  })
+  yblocks[0] = y0
+  for i = 1; i <= n; i = i + 1 {
+    yblocks[i] = gcm_inc(yblocks[i - 1])
+  }
+  let ey0 = sm4_block(rk, y0)
+  let s = ghash(h, aad, ciphertext)
+  let tag : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
+    (ey0[i].to_uint() ^ s[i].to_uint()).to_byte()
+  })
+  let plain : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
+  for i = 1; i <= n - 1; i = i + 1 {
+    let ek = sm4_block(rk, yblocks[i])
+    let base = (i - 1) * 16
+    for j = 0; j < 16; j = j + 1 {
+      plain[base + j] = (ek[j].to_uint() ^ ciphertext[base + j].to_uint()).to_byte()
+    }
+  }
+  let nb = if l == 0 { 0 } else { l - (n - 1) * 16 }
+  let base = (n - 1) * 16
+  let ek = sm4_block(rk, yblocks[n])
+  for j = 0; j < nb; j = j + 1 {
+    plain[base + j] = (ek[j].to_uint() ^ ciphertext[base + j].to_uint()).to_byte()
+  }
+  (Bytes::makei(l, fn(i) { plain[i] }), Bytes::makei(16, fn(i) { tag[i] }))
+}
