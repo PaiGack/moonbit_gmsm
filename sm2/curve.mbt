@@ -338,14 +338,18 @@ fn scalar_mult(result : SM2Point, k : FixedArray[UInt64], p : SM2Point) -> Unit 
   point_copy(two_p, p)
   point_double(two_p)
 
-  let prex : FixedArray[FixedArray[UInt64]] =
-    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
-  let prey : FixedArray[FixedArray[UInt64]] =
-    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
-  let negx : FixedArray[FixedArray[UInt64]] =
-    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
-  let negy : FixedArray[FixedArray[UInt64]] =
-    FixedArray::makei(4, fn(_) { FixedArray::makei(4, fn(_) { 0UL }) })
+  let prex : FixedArray[FixedArray[UInt64]] = FixedArray::makei(4, fn(_) {
+    FixedArray::makei(4, fn(_) { 0UL })
+  })
+  let prey : FixedArray[FixedArray[UInt64]] = FixedArray::makei(4, fn(_) {
+    FixedArray::makei(4, fn(_) { 0UL })
+  })
+  let negx : FixedArray[FixedArray[UInt64]] = FixedArray::makei(4, fn(_) {
+    FixedArray::makei(4, fn(_) { 0UL })
+  })
+  let negy : FixedArray[FixedArray[UInt64]] = FixedArray::makei(4, fn(_) {
+    FixedArray::makei(4, fn(_) { 0UL })
+  })
 
   let cur : SM2Point = point_infinity()
   point_copy(cur, p)
