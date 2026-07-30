@@ -5,7 +5,7 @@
 /// Helper: convert bytes to hex string (lowercase).
 fn bytes_to_hex(b : Bytes) -> String {
   let buf = StringBuilder::new()
-  for i = 0; i < b.length(); i = i + 1 {
+  for i in 0..<b.length() {
     buf.write_string(byte_to_hex(b[i]))
   }
   buf.to_string()
@@ -93,7 +93,7 @@ test "sm3_streaming_large" {
 test "sm3_byte_by_byte" {
   let msg = b"1234567890abcdef"
   let mut ctx = @sm3.new()
-  for i = 0; i < msg.length(); i = i + 1 {
+  for i in 0..<msg.length() {
     ctx = ctx.write(msg[i:i + 1].to_owned())
   }
   let hash = ctx.finish()
@@ -187,7 +187,7 @@ test "sm3_output_length" {
     b"hello world",
     Bytes::makei(128, fn(_i) { b'x' }),
   ]
-  for i = 0; i < test_cases.length(); i = i + 1 {
+  for i in 0..<test_cases.length() {
     let hash = @sm3.sm3_sum(test_cases[i])
     assert_eq(hash.length(), 32)
   }

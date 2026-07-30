@@ -51,60 +51,24 @@ pub suberror Sm2Error {
 ///|
 pub fn sm2_p256() -> SM2Curve {
   SM2Curve::{
-    p: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0xFFFFFFFFFFFFFFFFUL
-        1 => 0xFFFFFFFF00000000UL
-        2 => 0xFFFFFFFFFFFFFFFFUL
-        3 => 0xFFFFFFFEFFFFFFFFUL
-        _ => abort("unreachable")
-      }
-    }),
-    a: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0xFFFFFFFFFFFFFFFCUL
-        1 => 0xFFFFFFFF00000000UL
-        2 => 0xFFFFFFFFFFFFFFFFUL
-        3 => 0xFFFFFFFEFFFFFFFFUL
-        _ => abort("unreachable")
-      }
-    }),
-    b: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0xDDBCBD414D940E93UL
-        1 => 0xF39789F515AB8F92UL
-        2 => 0x4D5A9E4BCF6509A7UL
-        3 => 0x28E9FA9E9D9F5E34UL
-        _ => abort("unreachable")
-      }
-    }),
-    n: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0x53BBF40939D54123UL
-        1 => 0x7203DF6B21C6052BUL
-        2 => 0xFFFFFFFFFFFFFFFFUL
-        3 => 0xFFFFFFFEFFFFFFFFUL
-        _ => abort("unreachable")
-      }
-    }),
-    gx: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0x715A4589334C74C7UL
-        1 => 0x8FE30BBFF2660BE1UL
-        2 => 0x5F9904466A39C994UL
-        3 => 0x32C4AE2C1F198119UL
-        _ => abort("unreachable")
-      }
-    }),
-    gy: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0x02DF32E52139F0A0UL
-        1 => 0xD0A9877CC62A4740UL
-        2 => 0x59BDCEE36B692153UL
-        3 => 0xBC3736A2F4F6779CUL
-        _ => abort("unreachable")
-      }
-    }),
+    p: FixedArray::from_array([
+      0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+    ]),
+    a: FixedArray::from_array([
+      0xFFFFFFFFFFFFFFFCUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+    ]),
+    b: FixedArray::from_array([
+      0xDDBCBD414D940E93UL, 0xF39789F515AB8F92UL, 0x4D5A9E4BCF6509A7UL, 0x28E9FA9E9D9F5E34UL,
+    ]),
+    n: FixedArray::from_array([
+      0x53BBF40939D54123UL, 0x7203DF6B21C6052BUL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+    ]),
+    gx: FixedArray::from_array([
+      0x715A4589334C74C7UL, 0x8FE30BBFF2660BE1UL, 0x5F9904466A39C994UL, 0x32C4AE2C1F198119UL,
+    ]),
+    gy: FixedArray::from_array([
+      0x02DF32E52139F0A0UL, 0xD0A9877CC62A4740UL, 0x59BDCEE36B692153UL, 0xBC3736A2F4F6779CUL,
+    ]),
   }
 }
 
@@ -180,30 +144,9 @@ pub fn default_uid() -> Bytes {
 }
 
 ///|
-/// Returns the C1C2C3 cipher mode (constructs the variant for API completeness).
-pub fn cipher_mode_c1c2c3() -> CipherMode {
-  C1C2C3
-}
-
-///|
-/// Returns the default C1C3C2 cipher mode (the layout produced by gmsm's
-/// `Encrypt` with `mode = C1C3C2`).
-pub fn cipher_mode_c1c3c2() -> CipherMode {
-  C1C3C2
-}
-
-///|
-/// Returns the ZeroRandom error (constructs the variant for API completeness).
-pub fn sm2_error_zero_random() -> Sm2Error {
-  ZeroRandom
-}
-
-// --- helpers ---
-
-///|
 fn add_to_8(r : FixedArray[UInt64], a : Bn) -> Unit {
   let mut carry : UInt64 = 0UL
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     let s1 = r[i] + a[i]
     let c1 : UInt64 = if s1 < r[i] { 1UL } else { 0UL }
     let s2 = s1 + carry
@@ -231,7 +174,7 @@ fn bn_modinv_n(r : Bn, a : Bn, n : Bn) -> Unit {
   bn_copy(base, a)
   for limb_idx = 3; limb_idx >= 0; limb_idx = limb_idx - 1 {
     let mut e = n_minus_2[limb_idx]
-    for _bit = 0; _bit < 64; _bit = _bit + 1 {
+    for _bit in 0..<64 {
       let bit_val = (e >> 63) & 1UL
       e = e << 1
       bn_modsqr_n(r, r, n)
@@ -404,8 +347,6 @@ pub fn sm2_verify(
   bn_eq(r_res, rv)
 }
 
-// --- ASN.1 DER ---
-
 ///|
 fn encode_asn1_length(len : Int) -> Bytes {
   if len < 128 {
@@ -440,7 +381,7 @@ fn decode_asn1_length(data : Bytes, off : Int) -> (Int, Int) {
     abort("ASN.1: invalid long length")
   }
   let mut len : Int = 0
-  for i = 0; i < num_bytes; i = i + 1 {
+  for i in 0..<num_bytes {
     len = (len << 8) | data[off + 1 + i].to_int()
   }
   (len, 1 + num_bytes)
@@ -526,33 +467,13 @@ fn encode_asn1_octet_string(data : Bytes) -> Bytes {
 }
 
 ///|
-fn concat_bytes_array(segments : Array[Bytes]) -> Bytes {
-  let mut total : Int = 0
-  for j = 0; j < segments.length(); j = j + 1 {
-    total = total + segments[j].length()
-  }
-  Bytes::makei(total, fn(idx) {
-    let mut pos = idx
-    for j = 0; j < segments.length(); j = j + 1 {
-      let seg = segments[j]
-      let sl = seg.length()
-      if pos < sl {
-        return seg[pos]
-      }
-      pos = pos - sl
-    }
-    abort("unreachable")
-  })
-}
-
-///|
 /// DER-encode the signature pair `(r, s)` as `SEQUENCE { INTEGER, INTEGER }`.
 fn asn1_encode_signature(r : Bytes, s : Bytes) -> Bytes {
   let rd = encode_asn1_integer(r)
   let sd = encode_asn1_integer(s)
   let cl = rd.length() + sd.length()
   let sl = encode_asn1_length(cl)
-  concat_bytes_array([Bytes::from_array([b'\x30']), sl, rd, sd])
+  concat_bytes([Bytes::from_array([b'\x30']), sl, rd, sd])
 }
 
 ///|
@@ -628,8 +549,6 @@ pub fn sm2_verify_der(
   }
 }
 
-// --- Encrypt/Decrypt ---
-
 ///|
 pub fn sm2_encrypt(
   pubk : SM2PublicKey,
@@ -665,7 +584,7 @@ pub fn sm2_encrypt(
   let c2 = Bytes::makei(msg.length(), fn(i) {
     (msg[i].to_int() ^ t[i].to_int()).to_byte()
   })
-  let c3_input = concat_bytes_array([x2b, msg, y2b])
+  let c3_input = concat_bytes([x2b, msg, y2b])
   let c3 = @sm3.sm3_sum(c3_input)
   let c1x_b = bn_to_bytes(c1x)
   let c1y_b = bn_to_bytes(c1y)
@@ -746,12 +665,12 @@ pub fn sm2_decrypt(
   let dec = Bytes::makei(c2.length(), fn(i) {
     (c2[i].to_int() ^ t[i].to_int()).to_byte()
   })
-  let u_input = concat_bytes_array([x2b, dec, y2b])
+  let u_input = concat_bytes([x2b, dec, y2b])
   let u = @sm3.sm3_sum(u_input)
   if u.length() != c3.length() {
     raise Sm2Error::InvalidCipher
   }
-  for i = 0; i < u.length(); i = i + 1 {
+  for i in 0..<u.length() {
     if u[i] != c3[i] {
       raise Sm2Error::InvalidCipher
     }
@@ -785,7 +704,7 @@ pub fn cipher_marshal(cipher : Bytes) -> Bytes {
   let y = cipher[33:65].to_owned()
   let c3 = cipher[65:97].to_owned()
   let c2 = cipher[97:].to_owned()
-  concat_bytes_array([
+  concat_bytes([
     Bytes::from_array([b'\x30']),
     encode_asn1_length(
       encode_asn1_integer(x).length() +
@@ -858,8 +777,6 @@ pub fn cipher_unmarshal(der : Bytes) -> Bytes {
   })
 }
 
-// --- Key Exchange ---
-
 ///|
 fn point_from_pubkey(pk : SM2PublicKey) -> SM2Point {
   SM2Point::{
@@ -879,7 +796,6 @@ pub fn key_exchange_a(
   rpriA : SM2PrivateKey,
   rpubB : SM2PublicKey,
 ) -> (Bytes, Bytes, Bytes) {
-  let _curve = priA.curve
   let pubA = derive_public_key(priA)
   let rpubA = derive_public_key(rpriA)
 
@@ -945,7 +861,6 @@ pub fn key_exchange_b(
   rpriB : SM2PrivateKey,
   rpubA : SM2PublicKey,
 ) -> (Bytes, Bytes, Bytes) {
-  let _curve = priB.curve
   let pubB = derive_public_key(priB)
   let rpubB = derive_public_key(rpriB)
 
@@ -1011,7 +926,7 @@ fn compute_ke_inner(
   y2 : Bn,
 ) -> Bytes {
   @sm3.sm3_sum(
-    concat_bytes_array([
+    concat_bytes([
       x2b,
       za,
       zb,
@@ -1025,10 +940,8 @@ fn compute_ke_inner(
 
 ///|
 fn compute_ke_s(prefix : Bytes, y2 : Bytes, inner : Bytes) -> Bytes {
-  @sm3.sm3_sum(concat_bytes_array([prefix, y2, inner]))
+  @sm3.sm3_sum(concat_bytes([prefix, y2, inner]))
 }
-
-// --- Compression ---
 
 ///|
 pub fn compress_point(p : SM2PublicKey) -> Bytes {
@@ -1074,15 +987,9 @@ pub fn decompress_point(b : Bytes) -> SM2PublicKey raise Sm2Error {
   bn_addmod_p(y2, x3, ax)
   bn_addmod_p(y2, y2, curve.b)
   // exp = (p+1)/4, used to compute the modular square root y = (y^2)^((p+1)/4)
-  let exp : Bn = FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0x4000000000000000UL
-      1 => 0xFFFFFFFFC0000000UL
-      2 => 0xFFFFFFFFFFFFFFFFUL
-      3 => 0x3FFFFFFFBFFFFFFFUL
-      _ => abort("unreachable")
-    }
-  })
+  let exp : Bn = FixedArray::from_array([
+    0x4000000000000000UL, 0xFFFFFFFFC0000000UL, 0xFFFFFFFFFFFFFFFFUL, 0x3FFFFFFFBFFFFFFFUL,
+  ])
   let y : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_exp_mod_p(y, y2, exp)
 

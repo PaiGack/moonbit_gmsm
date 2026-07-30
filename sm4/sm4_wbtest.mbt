@@ -57,7 +57,7 @@ test "key_expansion_count" {
   let rk = sm4_expand_key(key)
   // Just verify we get 32 round keys (don't check specific values here,
   // the correctness is verified via the block encrypt/decrypt KAT test)
-  for i = 0; i < 32; i = i + 1 {
+  for i in 0..<32 {
     // Each round key should be non-trivial (not all zero, though it could be)
     // Just verify the function runs without error
     let _ = rk[i]
@@ -85,7 +85,7 @@ test "process_block_encrypt_decrypt" {
   let cipher = sm4_process_block(x, rk)
   let plain = sm4_process_block(cipher, rk_rev)
 
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     assert_eq(plain[i], x[i])
   }
 }

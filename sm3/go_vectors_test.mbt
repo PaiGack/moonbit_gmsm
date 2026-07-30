@@ -49,7 +49,7 @@ fn go_byte_to_hex(b : Byte) -> String {
 ///|
 fn go_bytes_to_hex(b : Bytes) -> String {
   let buf = StringBuilder::new()
-  for i = 0; i < b.length(); i = i + 1 {
+  for i in 0..<b.length() {
     buf.write_string(go_byte_to_hex(b[i]))
   }
   buf.to_string()

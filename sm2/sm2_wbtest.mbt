@@ -5,7 +5,7 @@ test "bn_from_to_bytes" {
   let bytes = Bytes::makei(32, fn(i) { (i % 256).to_byte() })
   bn_from_bytes(r, bytes, 0)
   let out = bn_to_bytes(r)
-  for i = 0; i < 32; i = i + 1 {
+  for i in 0..<32 {
     assert_eq(out[i], bytes[i])
   }
 }
@@ -215,7 +215,7 @@ fn do_sm2_encrypt_decrypt_c1c3c2() -> Unit raise Error {
   assert_eq(cipher[0], b'\x04')
   let decrypted = sm2_decrypt(private_key, cipher, C1C3C2)
   assert_eq(decrypted.length(), msg.length())
-  for i = 0; i < msg.length(); i = i + 1 {
+  for i in 0..<msg.length() {
     assert_eq(decrypted[i], msg[i])
   }
 }
@@ -235,7 +235,7 @@ fn do_sm2_encrypt_decrypt_c1c2c3() -> Unit raise Error {
   let cipher = sm2_encrypt(public_key, msg, None, C1C2C3)
   assert_eq(cipher[0], b'\x04')
   let decrypted = sm2_decrypt(private_key, cipher, C1C2C3)
-  for i = 0; i < msg.length(); i = i + 1 {
+  for i in 0..<msg.length() {
     assert_eq(decrypted[i], msg[i])
   }
 }
@@ -318,7 +318,7 @@ test "sm2_encrypt_with_provided_rand" {
   let msg = b"deterministic rand"
   let cipher = sm2_encrypt(public_key, msg, Some(r), C1C3C2)
   let decrypted = sm2_decrypt(private_key, cipher, C1C3C2)
-  for i = 0; i < msg.length(); i = i + 1 {
+  for i in 0..<msg.length() {
     assert_eq(decrypted[i], msg[i])
   }
 }
@@ -577,7 +577,7 @@ test "pad_left_and_concat" {
   assert_eq(padded.length(), 5)
   assert_eq(padded[0], b'\x00')
   assert_eq(padded[3], b'A')
-  let cat = concat_bytes_array([b"XY", b"Z"])
+  let cat = concat_bytes([b"XY", b"Z"])
   assert_eq(cat, b"XYZ")
 }
 
@@ -824,7 +824,7 @@ test "decompress_point_flip_parity" {
   assert_eq(comp[0], b'\x03')
   let dec = decompress_point(comp)
   assert_true(is_on_curve(dec))
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     assert_eq(dec.y[i], y_odd[i])
   }
 }

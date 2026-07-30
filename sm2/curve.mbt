@@ -11,7 +11,7 @@ pub(all) struct SM2Point {
 
 ///|
 /// Create a new point (0, 0, 0) — the point at infinity
-pub fn point_infinity() -> SM2Point {
+fn point_infinity() -> SM2Point {
   SM2Point::{
     x: FixedArray::makei(4, fn(_) { 0UL }),
     y: FixedArray::makei(4, fn(_) { 0UL }),
@@ -21,13 +21,13 @@ pub fn point_infinity() -> SM2Point {
 
 ///|
 /// Check if point is at infinity (z == 0)
-pub fn point_is_infinity(p : SM2Point) -> Bool {
+fn point_is_infinity(p : SM2Point) -> Bool {
   bn_is_zero(p.z)
 }
 
 ///|
 /// Set point to infinity
-pub fn point_set_infinity(p : SM2Point) -> Unit {
+fn point_set_infinity(p : SM2Point) -> Unit {
   bn_zero(p.x)
   bn_zero(p.y)
   bn_zero(p.z)
@@ -35,7 +35,7 @@ pub fn point_set_infinity(p : SM2Point) -> Unit {
 
 ///|
 /// Copy src to dst
-pub fn point_copy(dst : SM2Point, src : SM2Point) -> Unit {
+fn point_copy(dst : SM2Point, src : SM2Point) -> Unit {
   bn_copy(dst.x, src.x)
   bn_copy(dst.y, src.y)
   bn_copy(dst.z, src.z)
@@ -43,9 +43,7 @@ pub fn point_copy(dst : SM2Point, src : SM2Point) -> Unit {
 
 ///|
 /// Convert Jacobian point to affine coordinates
-pub fn point_to_affine(
-  p : SM2Point,
-) -> (FixedArray[UInt64], FixedArray[UInt64]) {
+fn point_to_affine(p : SM2Point) -> (FixedArray[UInt64], FixedArray[UInt64]) {
   let x : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let y : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
 
@@ -69,7 +67,7 @@ pub fn point_to_affine(
 
 ///|
 /// Check if affine point (x, y) is on the curve: y^2 ≡ x^3 + a*x + b (mod p)
-pub fn point_is_on_curve_affine(
+fn point_is_on_curve_affine(
   x : FixedArray[UInt64],
   y : FixedArray[UInt64],
 ) -> Bool {
@@ -88,15 +86,9 @@ pub fn point_is_on_curve_affine(
   bn_addmod_p(three_x, x, x)
   bn_addmod_p(three_x, three_x, x)
 
-  let p = FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xFFFFFFFFFFFFFFFFUL
-      1 => 0xFFFFFFFF00000000UL
-      2 => 0xFFFFFFFFFFFFFFFFUL
-      3 => 0xFFFFFFFEFFFFFFFFUL
-      _ => abort("unreachable")
-    }
-  })
+  let p = FixedArray::from_array([
+    0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+  ])
   let ax : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   if bn_is_zero(three_x) {
     bn_zero(ax)
@@ -107,15 +99,9 @@ pub fn point_is_on_curve_affine(
   let rhs : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_addmod_p(rhs, x3, ax)
 
-  let b_limbs = FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xDDBCBD414D940E93UL
-      1 => 0xF39789F515AB8F92UL
-      2 => 0x4D5A9E4BCF6509A7UL
-      3 => 0x28E9FA9E9D9F5E34UL
-      _ => abort("unreachable")
-    }
-  })
+  let b_limbs = FixedArray::from_array([
+    0xDDBCBD414D940E93UL, 0xF39789F515AB8F92UL, 0x4D5A9E4BCF6509A7UL, 0x28E9FA9E9D9F5E34UL,
+  ])
   bn_addmod_p(rhs, rhs, b_limbs)
 
   bn_eq(y2, rhs)
@@ -123,7 +109,7 @@ pub fn point_is_on_curve_affine(
 
 ///|
 /// Point doubling: p = 2 * p (in place, Jacobian coordinates)
-pub fn point_double(p : SM2Point) -> Unit {
+fn point_double(p : SM2Point) -> Unit {
   if point_is_infinity(p) {
     return
   }
@@ -183,7 +169,7 @@ pub fn point_double(p : SM2Point) -> Unit {
 
 ///|
 /// Point addition: p = p + q (both in Jacobian coordinates, full J+J)
-pub fn point_add(p : SM2Point, q : SM2Point) -> Unit {
+fn point_add(p : SM2Point, q : SM2Point) -> Unit {
   if point_is_infinity(q) {
     return
   }
@@ -262,7 +248,7 @@ pub fn point_add(p : SM2Point, q : SM2Point) -> Unit {
 
 ///|
 /// Point addition where q has z=1 (affine or mixed addition) — optimized
-pub fn point_add_affine(
+fn point_add_affine(
   p : SM2Point,
   qx : FixedArray[UInt64],
   qy : FixedArray[UInt64],
@@ -319,11 +305,7 @@ pub fn point_add_affine(
 
 ///|
 /// Scalar multiplication: result = k * point, using double-and-add
-pub fn scalar_mult(
-  result : SM2Point,
-  k : FixedArray[UInt64],
-  p : SM2Point,
-) -> Unit {
+fn scalar_mult(result : SM2Point, k : FixedArray[UInt64], p : SM2Point) -> Unit {
   point_set_infinity(result)
 
   let other : SM2Point = point_infinity()
@@ -331,7 +313,7 @@ pub fn scalar_mult(
 
   for limb_idx = 3; limb_idx >= 0; limb_idx = limb_idx - 1 {
     let mut k_val = k[limb_idx]
-    for _bit = 0; _bit < 64; _bit = _bit + 1 {
+    for _bit in 0..<64 {
       if !point_is_infinity(result) {
         point_double(result)
       }
@@ -352,26 +334,14 @@ pub fn scalar_mult(
 
 ///|
 /// Scalar multiplication with base point G
-pub fn scalar_base_mult(result : SM2Point, k : FixedArray[UInt64]) -> Unit {
+fn scalar_base_mult(result : SM2Point, k : FixedArray[UInt64]) -> Unit {
   let g = SM2Point::{
-    x: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0x715A4589334C74C7UL
-        1 => 0x8FE30BBFF2660BE1UL
-        2 => 0x5F9904466A39C994UL
-        3 => 0x32C4AE2C1F198119UL
-        _ => abort("unreachable")
-      }
-    }),
-    y: FixedArray::makei(4, fn(i) {
-      match i {
-        0 => 0x02DF32E52139F0A0UL
-        1 => 0xD0A9877CC62A4740UL
-        2 => 0x59BDCEE36B692153UL
-        3 => 0xBC3736A2F4F6779CUL
-        _ => abort("unreachable")
-      }
-    }),
+    x: FixedArray::from_array([
+      0x715A4589334C74C7UL, 0x8FE30BBFF2660BE1UL, 0x5F9904466A39C994UL, 0x32C4AE2C1F198119UL,
+    ]),
+    y: FixedArray::from_array([
+      0x02DF32E52139F0A0UL, 0xD0A9877CC62A4740UL, 0x59BDCEE36B692153UL, 0xBC3736A2F4F6779CUL,
+    ]),
     z: FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } }),
   }
   scalar_mult(result, k, g)
@@ -379,19 +349,13 @@ pub fn scalar_base_mult(result : SM2Point, k : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Negate a point: y = -y mod p
-pub fn point_neg(p : SM2Point) -> Unit {
+fn point_neg(p : SM2Point) -> Unit {
   if point_is_infinity(p) {
     return
   }
-  let pp = FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xFFFFFFFFFFFFFFFFUL
-      1 => 0xFFFFFFFF00000000UL
-      2 => 0xFFFFFFFFFFFFFFFFUL
-      3 => 0xFFFFFFFEFFFFFFFFUL
-      _ => abort("unreachable")
-    }
-  })
+  let pp = FixedArray::from_array([
+    0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+  ])
   let neg_y : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_sub(neg_y, pp, p.y) |> ignore
   bn_copy(p.y, neg_y)
@@ -399,7 +363,7 @@ pub fn point_neg(p : SM2Point) -> Unit {
 
 ///|
 /// Compare two points for equality (in affine)
-pub fn point_eq(a : SM2Point, b : SM2Point) -> Bool {
+fn point_eq(a : SM2Point, b : SM2Point) -> Bool {
   let (ax, ay) = point_to_affine(a)
   let (bx, by) = point_to_affine(b)
   bn_eq(ax, bx) && bn_eq(ay, by)

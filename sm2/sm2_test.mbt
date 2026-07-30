@@ -90,13 +90,13 @@ test "sm2_key_exchange" {
   assert_false(bn_equal(rpriv_a.d, rpriv_b.d))
   assert_false(bn_equal(priv_a.d, rpriv_a.d))
   assert_eq(ka.length(), klen)
-  for i = 0; i < klen; i = i + 1 {
+  for i in 0..<klen {
     assert_eq(ka[i], kb[i])
   }
   // the key-confirmation words must agree as well
   assert_eq(s1a.length(), 32)
   assert_eq(s2a.length(), 32)
-  for i = 0; i < 32; i = i + 1 {
+  for i in 0..<32 {
     assert_eq(s1a[i], s1b[i])
     assert_eq(s2a[i], s2b[i])
   }
@@ -110,7 +110,7 @@ fn bytes_same(a : Bytes, b : Bytes) -> Bool {
   if a.length() != b.length() {
     return false
   }
-  for i = 0; i < a.length(); i = i + 1 {
+  for i in 0..<a.length() {
     if a[i] != b[i] {
       return false
     }
@@ -121,7 +121,7 @@ fn bytes_same(a : Bytes, b : Bytes) -> Bool {
 ///|
 /// Helper: compare two 4-limb scalars.
 fn bn_equal(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     if a[i] != b[i] {
       return false
     }
@@ -136,7 +136,7 @@ test "sm2_cipher_marshal_unmarshal" {
   let msg = b"asn1 test"
   let der = @sm2.sm2_encrypt_asn1(public_key, msg, None)
   let decrypted = @sm2.sm2_decrypt_asn1(private_key, der)
-  for i = 0; i < msg.length(); i = i + 1 {
+  for i in 0..<msg.length() {
     assert_eq(decrypted[i], msg[i])
   }
 }

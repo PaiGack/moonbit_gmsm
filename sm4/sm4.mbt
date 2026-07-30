@@ -146,7 +146,7 @@ fn sm4_expand_key(key : Bytes) -> FixedArray[UInt] raise SM4Error {
   // rk[0..31]
   let rk : FixedArray[UInt] = FixedArray::makei(32, fn(_i) { 0U })
 
-  for i = 0; i < 32; i = i + 1 {
+  for i in 0..<32 {
     k[i + 4] = k[i] ^ sm4_T_prime(k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ ck[i])
     rk[i] = k[i + 4]
   }
@@ -160,17 +160,16 @@ fn sm4_process_block(
   x : FixedArray[UInt],
   rk : FixedArray[UInt],
 ) -> FixedArray[UInt] {
-  let n = 4
   let xv : FixedArray[UInt] = FixedArray::makei(36, fn(i) {
-    if i < n {
+    if i < 4 {
       x[i]
     } else {
       0U
     }
   })
 
-  for i = 0; i < 32; i = i + 1 {
-    xv[i + n] = sm4_F(xv[i], xv[i + 1], xv[i + 2], xv[i + 3], rk[i])
+  for i in 0..<32 {
+    xv[i + 4] = sm4_F(xv[i], xv[i + 1], xv[i + 2], xv[i + 3], rk[i])
   }
 
   FixedArray::makei(4, fn(i) { xv[35 - i] })
@@ -244,12 +243,12 @@ pub fn sm4_encrypt_ecb(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
   let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
     0U
   })
-  for b = 0; b < n_blocks; b = b + 1 {
+  for b in 0..<n_blocks {
     let x : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       get_u32_be(data, b * 16 + j * 4)
     })
     let encrypted = sm4_process_block(x, rk)
-    for j = 0; j < 4; j = j + 1 {
+    for j in 0..<4 {
       result_words[b * 4 + j] = encrypted[j]
     }
   }
@@ -277,12 +276,12 @@ pub fn sm4_decrypt_ecb(key : Bytes, data : Bytes) -> Bytes raise SM4Error {
   let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
     0U
   })
-  for b = 0; b < n_blocks; b = b + 1 {
+  for b in 0..<n_blocks {
     let x : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       get_u32_be(data, b * 16 + j * 4)
     })
     let decrypted = sm4_process_block(x, rk_rev)
-    for j = 0; j < 4; j = j + 1 {
+    for j in 0..<4 {
       result_words[b * 4 + j] = decrypted[j]
     }
   }
@@ -316,7 +315,7 @@ pub fn sm4_encrypt_cbc(
   let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
     0U
   })
-  for b = 0; b < n_blocks; b = b + 1 {
+  for b in 0..<n_blocks {
     // Compute plaintext block
     let plain : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       get_u32_be(data, b * 16 + j * 4)
@@ -332,7 +331,7 @@ pub fn sm4_encrypt_cbc(
       plain[j] ^ prev[j]
     })
     let encrypted = sm4_process_block(xored, rk)
-    for j = 0; j < 4; j = j + 1 {
+    for j in 0..<4 {
       result_words[b * 4 + j] = encrypted[j]
     }
   }
@@ -367,7 +366,7 @@ pub fn sm4_decrypt_cbc(
   let result_words : FixedArray[UInt] = FixedArray::makei(n_blocks * 4, fn(_i) {
     0U
   })
-  for b = 0; b < n_blocks; b = b + 1 {
+  for b in 0..<n_blocks {
     // Decrypt ciphertext block
     let cipher : FixedArray[UInt] = FixedArray::makei(4, fn(j) {
       get_u32_be(data, b * 16 + j * 4)
@@ -380,7 +379,7 @@ pub fn sm4_decrypt_cbc(
       FixedArray::makei(4, fn(j) { get_u32_be(data, (b - 1) * 16 + j * 4) })
     }
     // XOR to get plaintext
-    for j = 0; j < 4; j = j + 1 {
+    for j in 0..<4 {
       result_words[b * 4 + j] = decrypted[j] ^ prev[j]
     }
   }
@@ -478,10 +477,10 @@ fn cfb_core(
     b'\x00'
   })
   let mut reg : Bytes = iv
-  for b = 0; b < n; b = b + 1 {
+  for b in 0..<n {
     let ks = sm4_block(rk, reg)
     let base = b * 16
-    for j = 0; j < 16; j = j + 1 {
+    for j in 0..<16 {
       out[base + j] = (ks[j].to_uint() ^ data[base + j].to_uint()).to_byte()
     }
     if encrypt {
@@ -533,10 +532,10 @@ fn ofb_core(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
     b'\x00'
   })
   let mut reg : Bytes = iv
-  for b = 0; b < n; b = b + 1 {
+  for b in 0..<n {
     let ks = sm4_block(rk, reg)
     let base = b * 16
-    for j = 0; j < 16; j = j + 1 {
+    for j in 0..<16 {
       out[base + j] = (ks[j].to_uint() ^ data[base + j].to_uint()).to_byte()
     }
     reg = ks
@@ -577,10 +576,10 @@ fn gf_mult_arr(x : FixedArray[Byte], y : Bytes) -> FixedArray[Byte] {
   })
   let z : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
   let v : FixedArray[Byte] = FixedArray::makei(16, fn(i) { x[i] })
-  for i = 0; i < 128; i = i + 1 {
+  for i in 0..<128 {
     let yi = (y[i / 8].to_uint() >> (7 - i % 8)) & 1U
     if yi == 1U {
-      for k = 0; k < 16; k = k + 1 {
+      for k in 0..<16 {
         z[k] = (z[k].to_uint() ^ v[k].to_uint()).to_byte()
       }
     }
@@ -595,7 +594,7 @@ fn gf_mult_arr(x : FixedArray[Byte], y : Bytes) -> FixedArray[Byte] {
       }
     }
     if lsb == 1U {
-      for k = 0; k < 16; k = k + 1 {
+      for k in 0..<16 {
         v[k] = (v[k].to_uint() ^ r[k].to_uint()).to_byte()
       }
     }
@@ -609,8 +608,8 @@ fn gf_mult_arr(x : FixedArray[Byte], y : Bytes) -> FixedArray[Byte] {
 fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
   let mut x : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
   let a_blocks = (a.length() + 15) / 16
-  for i = 0; i < a_blocks; i = i + 1 {
-    for k = 0; k < 16; k = k + 1 {
+  for i in 0..<a_blocks {
+    for k in 0..<16 {
       let idx = i * 16 + k
       let bk = if idx < a.length() { a[idx] } else { b'\x00' }
       x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
@@ -618,8 +617,8 @@ fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
     x = gf_mult_arr(x, h)
   }
   let c_blocks = (c.length() + 15) / 16
-  for i = 0; i < c_blocks; i = i + 1 {
-    for k = 0; k < 16; k = k + 1 {
+  for i in 0..<c_blocks {
+    for k in 0..<16 {
       let idx = i * 16 + k
       let bk = if idx < c.length() { c[idx] } else { b'\x00' }
       x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
@@ -633,11 +632,11 @@ fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
   // would reduce shifts >= 32 modulo 32 and corrupt the block).
   let a_len : UInt64 = a.length().reinterpret_as_uint().to_uint64()
   let c_len : UInt64 = c.length().reinterpret_as_uint().to_uint64()
-  for k = 0; k < 8; k = k + 1 {
+  for k in 0..<8 {
     let bk = ((a_len >> (56 - k * 8)) & 0xFFUL).to_uint().to_byte()
     x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
   }
-  for k = 0; k < 8; k = k + 1 {
+  for k in 0..<8 {
     let bk = ((c_len >> (56 - k * 8)) & 0xFFUL).to_uint().to_byte()
     x[8 + k] = (x[8 + k].to_uint() ^ bk.to_uint()).to_byte()
   }
@@ -721,21 +720,21 @@ pub fn sm4_gcm_encrypt(
     Bytes::makei(16, fn(_) { b'\x00' })
   })
   yblocks[0] = y0
-  for i = 1; i <= n; i = i + 1 {
+  for i in 1..<=n {
     yblocks[i] = gcm_inc(yblocks[i - 1])
   }
   let cipher : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
-  for i = 1; i <= n - 1; i = i + 1 {
+  for i in 1..<n {
     let ek = sm4_block(rk, yblocks[i])
     let base = (i - 1) * 16
-    for j = 0; j < 16; j = j + 1 {
+    for j in 0..<16 {
       cipher[base + j] = (ek[j].to_uint() ^ plaintext[base + j].to_uint()).to_byte()
     }
   }
   let ek = sm4_block(rk, yblocks[n])
   let nb = if l == 0 { 0 } else { l - (n - 1) * 16 }
   let base = (n - 1) * 16
-  for j = 0; j < nb; j = j + 1 {
+  for j in 0..<nb {
     cipher[base + j] = (ek[j].to_uint() ^ plaintext[base + j].to_uint()).to_byte()
   }
   let c = Bytes::makei(l, fn(i) { cipher[i] })
@@ -770,7 +769,7 @@ pub fn sm4_gcm_decrypt(
     Bytes::makei(16, fn(_) { b'\x00' })
   })
   yblocks[0] = y0
-  for i = 1; i <= n; i = i + 1 {
+  for i in 1..<=n {
     yblocks[i] = gcm_inc(yblocks[i - 1])
   }
   let ey0 = sm4_block(rk, y0)
@@ -779,17 +778,17 @@ pub fn sm4_gcm_decrypt(
     (ey0[i].to_uint() ^ s[i].to_uint()).to_byte()
   })
   let plain : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
-  for i = 1; i <= n - 1; i = i + 1 {
+  for i in 1..<n {
     let ek = sm4_block(rk, yblocks[i])
     let base = (i - 1) * 16
-    for j = 0; j < 16; j = j + 1 {
+    for j in 0..<16 {
       plain[base + j] = (ek[j].to_uint() ^ ciphertext[base + j].to_uint()).to_byte()
     }
   }
   let nb = if l == 0 { 0 } else { l - (n - 1) * 16 }
   let base = (n - 1) * 16
   let ek = sm4_block(rk, yblocks[n])
-  for j = 0; j < nb; j = j + 1 {
+  for j in 0..<nb {
     plain[base + j] = (ek[j].to_uint() ^ ciphertext[base + j].to_uint()).to_byte()
   }
   (Bytes::makei(l, fn(i) { plain[i] }), Bytes::makei(16, fn(i) { tag[i] }))

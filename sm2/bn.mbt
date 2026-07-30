@@ -3,42 +3,30 @@
 /// All arithmetic is modulo the SM2 prime p.
 
 ///|
-// SM2 prime p = FFFFFFFE FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF 00000000 FFFFFFFF FFFFFFFF
+/// SM2 prime p = FFFFFFFE FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF 00000000 FFFFFFFF FFFFFFFF
 fn p_limbs() -> FixedArray[UInt64] {
-  FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xFFFFFFFFFFFFFFFFUL
-      1 => 0xFFFFFFFF00000000UL
-      2 => 0xFFFFFFFFFFFFFFFFUL
-      3 => 0xFFFFFFFEFFFFFFFFUL
-      _ => abort("unreachable")
-    }
-  })
+  FixedArray::from_array([
+    0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFF00000000UL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+  ])
 }
 
 ///|
-// SM2 curve order n
+/// SM2 curve order n
 fn n_limbs() -> FixedArray[UInt64] {
-  FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0x53BBF40939D54123UL
-      1 => 0x7203DF6B21C6052BUL
-      2 => 0xFFFFFFFFFFFFFFFFUL
-      3 => 0xFFFFFFFEFFFFFFFFUL
-      _ => abort("unreachable")
-    }
-  })
+  FixedArray::from_array([
+    0x53BBF40939D54123UL, 0x7203DF6B21C6052BUL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFEFFFFFFFFUL,
+  ])
 }
 
 ///|
 /// Check if a == 0 (4 limbs)
-pub fn bn_is_zero(a : FixedArray[UInt64]) -> Bool {
+fn bn_is_zero(a : FixedArray[UInt64]) -> Bool {
   (a[0] | a[1] | a[2] | a[3]) == 0UL
 }
 
 ///|
 /// Set r to zero
-pub fn bn_zero(r : FixedArray[UInt64]) -> Unit {
+fn bn_zero(r : FixedArray[UInt64]) -> Unit {
   r[0] = 0UL
   r[1] = 0UL
   r[2] = 0UL
@@ -47,7 +35,7 @@ pub fn bn_zero(r : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Copy src to dst (4 limbs)
-pub fn bn_copy(dst : FixedArray[UInt64], src : FixedArray[UInt64]) -> Unit {
+fn bn_copy(dst : FixedArray[UInt64], src : FixedArray[UInt64]) -> Unit {
   dst[0] = src[0]
   dst[1] = src[1]
   dst[2] = src[2]
@@ -56,7 +44,7 @@ pub fn bn_copy(dst : FixedArray[UInt64], src : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Convert 32 bytes (big-endian) to 4 × 64-bit limbs (little-endian)
-pub fn bn_from_bytes(r : FixedArray[UInt64], b : Bytes, off : Int) -> Unit {
+fn bn_from_bytes(r : FixedArray[UInt64], b : Bytes, off : Int) -> Unit {
   r[0] = get_u64_be(b, off + 24)
   r[1] = get_u64_be(b, off + 16)
   r[2] = get_u64_be(b, off + 8)
@@ -67,13 +55,7 @@ pub fn bn_from_bytes(r : FixedArray[UInt64], b : Bytes, off : Int) -> Unit {
 /// Convert 4 × 64-bit limbs to 32 bytes (big-endian)
 pub fn bn_to_bytes(r : FixedArray[UInt64]) -> Bytes {
   Bytes::makei(32, fn(i) {
-    let limb = match i / 8 {
-      0 => r[3]
-      1 => r[2]
-      2 => r[1]
-      3 => r[0]
-      _ => abort("unreachable")
-    }
+    let limb = r[3 - i / 8]
     let shift = 56 - i % 8 * 8
     ((limb >> shift) & 0xFFUL).to_byte()
   })
@@ -81,13 +63,13 @@ pub fn bn_to_bytes(r : FixedArray[UInt64]) -> Bytes {
 
 ///|
 /// a == b (4 limbs)
-pub fn bn_eq(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
+fn bn_eq(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
   a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]
 }
 
 ///|
 /// a < b (4 limbs, unsigned)
-pub fn bn_lt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
+fn bn_lt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
   if a[3] != b[3] {
     return a[3] < b[3]
   }
@@ -102,7 +84,7 @@ pub fn bn_lt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
 
 ///|
 /// a > b (4 limbs, unsigned)
-pub fn bn_gt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
+fn bn_gt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
   if a[3] != b[3] {
     return a[3] > b[3]
   }
@@ -116,7 +98,7 @@ pub fn bn_gt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
 }
 
 ///|
-// Internal: read UInt64 from bytes (big-endian) at offset
+/// Internal: read UInt64 from bytes (big-endian) at offset
 fn get_u64_be(b : Bytes, off : Int) -> UInt64 {
   (b[off].to_uint64() << 56) |
   (b[off + 1].to_uint64() << 48) |
@@ -129,7 +111,7 @@ fn get_u64_be(b : Bytes, off : Int) -> UInt64 {
 }
 
 ///|
-// Multiply two UInt64 values, returning (high 64 bits, low 64 bits)
+/// Multiply two UInt64 values, returning (high 64 bits, low 64 bits)
 fn mul_128(a : UInt64, b : UInt64) -> (UInt64, UInt64) {
   let mask32 = 0xFFFFFFFFUL
   let a0 = a & mask32
@@ -154,10 +136,10 @@ fn mul_128(a : UInt64, b : UInt64) -> (UInt64, UInt64) {
 }
 
 ///|
-// 512-bit accumulator functions (9 limbs)
+/// 512-bit accumulator functions (9 limbs)
 
 ///|
-// Add a UInt64 value shifted left by `bits` to a 9-limb accumulator
+/// Add a UInt64 value shifted left by `bits` to a 9-limb accumulator
 fn acc_add_shifted(
   acc : FixedArray[UInt64],
   value : UInt64,
@@ -181,7 +163,7 @@ fn acc_add_shifted(
 }
 
 ///|
-// Subtract a UInt64 value shifted left by `bits` from a 9-limb accumulator
+/// Subtract a UInt64 value shifted left by `bits` from a 9-limb accumulator
 fn acc_sub_shifted(
   acc : FixedArray[UInt64],
   value : UInt64,
@@ -205,7 +187,7 @@ fn acc_sub_shifted(
 }
 
 ///|
-// Add value at limb position with carry propagation (9-limb acc)
+/// Add value at limb position with carry propagation (9-limb acc)
 fn acc_add_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
   let mut s = acc[idx] + value
   acc[idx] = s
@@ -220,7 +202,7 @@ fn acc_add_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
 }
 
 ///|
-// Subtract value at limb position with borrow propagation (9-limb acc)
+/// Subtract value at limb position with borrow propagation (9-limb acc)
 fn acc_sub_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
   if value == 0UL {
     return
@@ -319,7 +301,7 @@ fn acc_ge_bn(acc : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
 ///|
 fn acc_sub_bn(acc : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
   let mut borrow : UInt64 = 0UL
-  for i = 0; i < 9; i = i + 1 {
+  for i in 0..<9 {
     let bv = if i < 4 { b[i] } else { 0UL }
     let acc_i = acc[i]
     let d1 = acc_i - bv
@@ -337,10 +319,10 @@ fn acc_sub_bn(acc : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
 /// can leave spillover terms in limbs >= 4 (e.g. 2^224·coeff spills its top 32 bits
 /// into the 2^256 region). Those must be reduced again, so we iterate until no limb
 /// at or above 2^256 remains, then do the final conditional subtraction of p.
-pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
+fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
   let acc : FixedArray[UInt64] = FixedArray::makei(9, fn(_) { 0UL })
 
-  for i = 0; i < 8; i = i + 1 {
+  for i in 0..<8 {
     acc[i] = s[i]
   }
 
@@ -351,7 +333,7 @@ pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
   let mut again = true
   while again {
     again = false
-    for i = 4; i < 9; i = i + 1 {
+    for i in 4..<9 {
       if acc[i] != 0UL {
         let c = acc[i]
         acc[i] = 0UL
@@ -367,7 +349,7 @@ pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
     acc_sub_bn(acc, p)
   }
 
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     r[i] = acc[i]
   }
 }
@@ -377,21 +359,21 @@ pub fn bn_mod_p(r : FixedArray[UInt64], s : FixedArray[UInt64]) -> Unit {
 /// The 128-bit product of each limb pair (hi*2^64 + lo) is placed at limbs
 /// (i+j) and (i+j+1). `acc_add_at` propagates carries correctly across all
 /// limbs, including the rare case where `hi + carry == 2^64`.
-pub fn bn_mul(
+fn bn_mul(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
 ) -> Unit {
-  for i = 0; i < 8; i = i + 1 {
+  for i in 0..<8 {
     r[i] = 0UL
   }
 
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     let ai = a[i]
     if ai == 0UL {
       continue
     }
-    for j = 0; j < 4; j = j + 1 {
+    for j in 0..<4 {
       let bj = b[j]
       if bj == 0UL {
         continue
@@ -406,13 +388,13 @@ pub fn bn_mul(
 
 ///|
 /// Square: r (8 limbs) = a (4 limbs)²
-pub fn bn_sqr(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
+fn bn_sqr(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   bn_mul(r, a, a)
 }
 
 ///|
 /// Modular multiplication modulo p: r = (a * b) mod p
-pub fn bn_modmul_p(
+fn bn_modmul_p(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
@@ -424,19 +406,19 @@ pub fn bn_modmul_p(
 
 ///|
 /// Modular squaring modulo p: r = a² mod p
-pub fn bn_modsqr_p(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
+fn bn_modsqr_p(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   bn_modmul_p(r, a, a)
 }
 
 ///|
 /// Addition with carry: r = a + b, returns carry
-pub fn bn_add(
+fn bn_add(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
 ) -> UInt {
   let mut carry : UInt64 = 0UL
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     let sum = a[i] + b[i] + carry
     let new_carry : UInt64 = if sum < a[i] || (carry != 0UL && sum == a[i]) {
       1UL
@@ -451,13 +433,13 @@ pub fn bn_add(
 
 ///|
 /// Subtraction with borrow: r = a - b, returns borrow
-pub fn bn_sub(
+fn bn_sub(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
 ) -> UInt {
   let mut borrow : UInt64 = 0UL
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     let ai = a[i]
     let bi = b[i]
     // d1 = ai - bi, then d2 = d1 - borrow; track each step's borrow separately
@@ -474,7 +456,7 @@ pub fn bn_sub(
 
 ///|
 /// Modular addition modulo p: r = (a + b) mod p
-pub fn bn_addmod_p(
+fn bn_addmod_p(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
@@ -488,7 +470,7 @@ pub fn bn_addmod_p(
 
 ///|
 /// Modular subtraction modulo p: r = (a - b) mod p
-pub fn bn_submod_p(
+fn bn_submod_p(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
@@ -506,7 +488,7 @@ pub fn bn_submod_p(
 
 ///|
 /// Modular inversion modulo p using Fermat: a^(p-2) mod p
-pub fn bn_modinv_p(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
+fn bn_modinv_p(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   let p = p_limbs()
   let p_minus_2 = FixedArray::makei(4, fn(i) {
     if i == 0 {
@@ -520,7 +502,7 @@ pub fn bn_modinv_p(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Modular exponentiation: r = base^exp mod p (square-and-multiply)
-pub fn bn_exp_mod_p(
+fn bn_exp_mod_p(
   r : FixedArray[UInt64],
   base : FixedArray[UInt64],
   exp : FixedArray[UInt64],
@@ -535,7 +517,7 @@ pub fn bn_exp_mod_p(
 
   for limb_idx = 3; limb_idx >= 0; limb_idx = limb_idx - 1 {
     let mut e = exp[limb_idx]
-    for _bit = 0; _bit < 64; _bit = _bit + 1 {
+    for _bit in 0..<64 {
       let bit_val = (e >> 63) & 1UL
       e = e << 1
 
@@ -555,19 +537,13 @@ pub fn bn_exp_mod_p(
 /// decreases the value by hi*n > 0, so iterating until the high half is zero
 /// terminates (each step shrinks the value by roughly 2^32 bits of headroom).
 /// A final conditional subtraction of n yields the canonical result.
-pub fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
+fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   let n = n_limbs()
 
   // t = 2^256 mod n
-  let t : FixedArray[UInt64] = FixedArray::makei(4, fn(i) {
-    match i {
-      0 => 0xAC440BF6C62ABEDDUL
-      1 => 0x8DFC2094DE39FAD4UL
-      2 => 0x0000000000000000UL
-      3 => 0x0000000100000000UL
-      _ => abort("unreachable")
-    }
-  })
+  let t : FixedArray[UInt64] = FixedArray::from_array([
+    0xAC440BF6C62ABEDDUL, 0x8DFC2094DE39FAD4UL, 0x0000000000000000UL, 0x0000000100000000UL,
+  ])
 
   let work : FixedArray[UInt64] = FixedArray::makei(8, fn(i) { a[i] })
   while (work[4] | work[5] | work[6] | work[7]) != 0UL {
@@ -581,7 +557,7 @@ pub fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   while !bn_lt(rr, n) {
     bn_sub(rr, rr, n) |> ignore
   }
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     r[i] = rr[i]
   }
 }
@@ -590,7 +566,7 @@ pub fn bn_mod_n(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
 /// Add the low 4 limbs of `b` into the 8-limb accumulator `a` (with carry).
 fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
   let mut carry : UInt64 = 0UL
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     let s1 = a[i] + b[i]
     let c1 : UInt64 = if s1 < a[i] { 1UL } else { 0UL }
     let s2 = s1 + carry
@@ -619,7 +595,7 @@ let fallback_rand : @random.Rand = @random.Rand::chacha8()
 
 ///|
 /// Generate random k: 1 ≤ k ≤ n-1
-pub fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] {
+fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] {
   let n = n_limbs()
   let k : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let r = match random {

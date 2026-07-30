@@ -1,4 +1,4 @@
-//| Shared hex / byte helpers for the command-line demos and tests.
+/// Shared hex / byte helpers for the command-line demos and tests.
 
 ///|
 pub fn nibble_to_char(n : Int) -> Char {

@@ -61,13 +61,13 @@ pub fn SM3::write(self : SM3, data : Bytes) -> SM3 {
   if buf_len > 0 {
     let fill = 64 - buf_len
     if len < fill {
-      for i = 0; i < len; i = i + 1 {
+      for i in 0..<len {
         buf[buf_len + i] = data[offset + i]
       }
       buf_len = buf_len + len
       offset = len
     } else {
-      for i = 0; i < fill; i = i + 1 {
+      for i in 0..<fill {
         buf[buf_len + i] = data[offset + i]
       }
       offset = offset + fill
@@ -85,7 +85,7 @@ pub fn SM3::write(self : SM3, data : Bytes) -> SM3 {
   // Copy remaining bytes to buffer
   let remaining = len - offset
   if remaining > 0 {
-    for i = 0; i < remaining; i = i + 1 {
+    for i in 0..<remaining {
       buf[i] = data[offset + i]
     }
     buf_len = remaining
@@ -113,10 +113,10 @@ pub fn SM3::block_size(_self : SM3) -> Int {
 pub fn SM3::reset(self : SM3) -> SM3 {
   let state = self.state
   let buf = self.buf
-  for i = 0; i < 8; i = i + 1 {
+  for i in 0..<8 {
     state[i] = iv[i]
   }
-  for i = 0; i < 64; i = i + 1 {
+  for i in 0..<64 {
     buf[i] = b'\x00'
   }
   SM3::{ state, buf, buf_len: 0, total: 0UL }
@@ -170,7 +170,7 @@ fn finalize(
 
   // Append total message length in bits as 64-bit big-endian integer
   let total_bits_bytes = (total * 8UL).to_be_bytes()
-  for i = 0; i < 8; i = i + 1 {
+  for i in 0..<8 {
     buf[56 + i] = total_bits_bytes[i]
   }
   compress_fixed(state, buf, offset=0)
@@ -258,17 +258,17 @@ fn compress(state : FixedArray[UInt], block : Bytes, offset? : Int = 0) -> Unit 
   // Message expansion: W'[0..63]
   let w1 : FixedArray[UInt] = FixedArray::makei(64, fn(_i) { 0U })
 
-  for j = 0; j < 16; j = j + 1 {
+  for j in 0..<16 {
     w[j] = get_u32_be(block, offset + j * 4)
   }
 
-  for j = 16; j < 68; j = j + 1 {
+  for j in 16..<68 {
     w[j] = p1(w[j - 16] ^ w[j - 9] ^ rotl(w[j - 3], 15)) ^
       rotl(w[j - 13], 7) ^
       w[j - 6]
   }
 
-  for j = 0; j < 64; j = j + 1 {
+  for j in 0..<64 {
     w1[j] = w[j] ^ w[j + 4]
   }
 
@@ -287,17 +287,17 @@ fn compress_fixed(
   // Message expansion: W'[0..63]
   let w1 : FixedArray[UInt] = FixedArray::makei(64, fn(_i) { 0U })
 
-  for j = 0; j < 16; j = j + 1 {
+  for j in 0..<16 {
     w[j] = get_u32_be_fa(block, offset + j * 4)
   }
 
-  for j = 16; j < 68; j = j + 1 {
+  for j in 16..<68 {
     w[j] = p1(w[j - 16] ^ w[j - 9] ^ rotl(w[j - 3], 15)) ^
       rotl(w[j - 13], 7) ^
       w[j - 6]
   }
 
-  for j = 0; j < 64; j = j + 1 {
+  for j in 0..<64 {
     w1[j] = w[j] ^ w[j + 4]
   }
 
@@ -320,7 +320,7 @@ fn compress_rounds(
   let mut g = state[6]
   let mut h = state[7]
 
-  for j = 0; j < 64; j = j + 1 {
+  for j in 0..<64 {
     let ss1 = rotl(rotl(a, 12) + e + rotl(tj(j), j), 7)
     let ss2 = ss1 ^ rotl(a, 12)
     let tt1 = ff(j, a, b, c) + d + ss2 + w1[j]

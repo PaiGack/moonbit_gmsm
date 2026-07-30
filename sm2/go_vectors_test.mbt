@@ -49,7 +49,7 @@ fn go_byte_to_hex(b : Byte) -> String {
 ///|
 fn go_bytes_to_hex(b : Bytes) -> String {
   let buf = StringBuilder::new()
-  for i = 0; i < b.length(); i = i + 1 {
+  for i in 0..<b.length() {
     buf.write_string(go_byte_to_hex(b[i]))
   }
   buf.to_string()
@@ -309,7 +309,7 @@ test "go_sm2_compress_k0" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i = 1; i < 33; i = i + 1 {
+  for i in 1..<33 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -336,7 +336,7 @@ test "go_sm2_compress_k1" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i = 1; i < 33; i = i + 1 {
+  for i in 1..<33 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -363,7 +363,7 @@ test "go_sm2_compress_k2" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i = 1; i < 33; i = i + 1 {
+  for i in 1..<33 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -390,7 +390,7 @@ test "go_sm2_compress_k3" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i = 1; i < 33; i = i + 1 {
+  for i in 1..<33 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)

@@ -74,7 +74,7 @@ pub fn SM4Cipher::set_iv(self : SM4Cipher, iv : Bytes) -> Unit raise SM4Error {
   if iv.length() != sm4_block_size {
     raise SM4Error::InvalidIV
   }
-  for i = 0; i < sm4_block_size; i = i + 1 {
+  for i in 0..<sm4_block_size {
     self.iv[i] = iv[i]
   }
 }
@@ -97,7 +97,7 @@ pub fn set_iv(iv : Bytes) -> Unit raise SM4Error {
   if iv.length() != sm4_block_size {
     raise SM4Error::InvalidIV
   }
-  for i = 0; i < sm4_block_size; i = i + 1 {
+  for i in 0..<sm4_block_size {
     default_iv[i] = iv[i]
   }
 }

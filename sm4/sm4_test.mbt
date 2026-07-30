@@ -43,7 +43,7 @@ let kat_cipher : Bytes = hex_to_bytes("681EDF34D206965E86B3E94F536E4246")
 /// Single block encryption KAT from GM/T 0002-2012 Appendix A.
 test "sm4_encrypt_block_kat" {
   let cipher = @sm4.sm4_encrypt_block(kat_key, kat_plain)
-  for i = 0; i < 16; i = i + 1 {
+  for i in 0..<16 {
     assert_eq(cipher[i], kat_cipher[i])
   }
 }
@@ -52,7 +52,7 @@ test "sm4_encrypt_block_kat" {
 /// Single block decryption KAT.
 test "sm4_decrypt_block_kat" {
   let plain = @sm4.sm4_decrypt_block(kat_key, kat_cipher)
-  for i = 0; i < 16; i = i + 1 {
+  for i in 0..<16 {
     assert_eq(plain[i], kat_plain[i])
   }
 }
@@ -62,14 +62,14 @@ test "sm4_decrypt_block_kat" {
 test "sm4_block_roundtrip" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
   // Test 100 random blocks
-  for seed = 0; seed < 100; seed = seed + 1 {
+  for seed in 0..<100 {
     let data = Bytes::makei(16, fn(i) {
       let v = (seed * 256 + i * 17 + 42) & 0xFF
       v.to_byte()
     })
     let cipher = @sm4.sm4_encrypt_block(key, data)
     let plain = @sm4.sm4_decrypt_block(key, cipher)
-    for i = 0; i < 16; i = i + 1 {
+    for i in 0..<16 {
       assert_eq(plain[i], data[i])
     }
   }
@@ -82,7 +82,7 @@ test "sm4_ecb_roundtrip" {
   let data = Bytes::makei(32, fn(i) { (i & 0xFF).to_byte() })
   let cipher = @sm4.sm4_encrypt_ecb(key, data)
   let plain = @sm4.sm4_decrypt_ecb(key, cipher)
-  for i = 0; i < 32; i = i + 1 {
+  for i in 0..<32 {
     assert_eq(plain[i], data[i])
   }
 }
@@ -94,7 +94,7 @@ test "sm4_ecb_roundtrip_multiple_blocks" {
   let data = Bytes::makei(48, fn(i) { ((i * 7 + 13) & 0xFF).to_byte() })
   let cipher = @sm4.sm4_encrypt_ecb(key, data)
   let plain = @sm4.sm4_decrypt_ecb(key, cipher)
-  for i = 0; i < 48; i = i + 1 {
+  for i in 0..<48 {
     assert_eq(plain[i], data[i])
   }
 }
@@ -107,7 +107,7 @@ test "sm4_cbc_roundtrip" {
   let data = Bytes::makei(32, fn(i) { ((i + 1) & 0xFF).to_byte() })
   let cipher = @sm4.sm4_encrypt_cbc(key, iv, data)
   let plain = @sm4.sm4_decrypt_cbc(key, iv, cipher)
-  for i = 0; i < 32; i = i + 1 {
+  for i in 0..<32 {
     assert_eq(plain[i], data[i])
   }
 }
@@ -120,7 +120,7 @@ test "sm4_cbc_roundtrip_multiple_blocks" {
   let data = Bytes::makei(48, fn(i) { ((i * 3 + 7) & 0xFF).to_byte() })
   let cipher = @sm4.sm4_encrypt_cbc(key, iv, data)
   let plain = @sm4.sm4_decrypt_cbc(key, iv, cipher)
-  for i = 0; i < 48; i = i + 1 {
+  for i in 0..<48 {
     assert_eq(plain[i], data[i])
   }
 }
@@ -133,7 +133,7 @@ test "sm4_cbc_roundtrip_single_block" {
   let data = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
   let cipher = @sm4.sm4_encrypt_cbc(key, iv, data)
   let plain = @sm4.sm4_decrypt_cbc(key, iv, cipher)
-  for i = 0; i < 16; i = i + 1 {
+  for i in 0..<16 {
     assert_eq(plain[i], data[i])
   }
 }
@@ -146,7 +146,7 @@ test "pkcs7_pad_unpad_roundtrip" {
   assert_eq(padded.length(), 16)
   let unpadded = @sm4.pkcs7_unpad(padded)
   assert_eq(unpadded.length(), 5)
-  for i = 0; i < 5; i = i + 1 {
+  for i in 0..<5 {
     assert_eq(unpadded[i], data[i])
   }
 }
@@ -158,7 +158,7 @@ test "pkcs7_pad_exact_block" {
   let padded = @sm4.pkcs7_pad(data, 16)
   assert_eq(padded.length(), 32)
   // Last 16 bytes should be 0x10
-  for i = 16; i < 32; i = i + 1 {
+  for i in 16..<32 {
     assert_eq(padded[i], b'\x10')
   }
 }
@@ -176,7 +176,7 @@ test "pkcs7_unpad_full_block" {
 test "pkcs7_pad_empty" {
   let padded = @sm4.pkcs7_pad(b"", 16)
   assert_eq(padded.length(), 16)
-  for i = 0; i < 16; i = i + 1 {
+  for i in 0..<16 {
     assert_eq(padded[i], b'\x10')
   }
 }
@@ -190,7 +190,7 @@ test "pkcs7_pad_different_block_sizes" {
   assert_eq(padded.length(), 16)
   assert_eq(padded[0], b'A')
   assert_eq(padded[1], b'B')
-  for i = 2; i < 16; i = i + 1 {
+  for i in 2..<16 {
     assert_eq(padded[i], b'\x0E')
   }
 }
@@ -200,7 +200,7 @@ fn assert_bytes_eq(a : Bytes, b : Bytes) -> Unit {
   if a.length() != b.length() {
     abort("assert_bytes_eq: length mismatch")
   }
-  for i = 0; i < a.length(); i = i + 1 {
+  for i in 0..<a.length() {
     if a[i] != b[i] {
       abort("assert_bytes_eq: byte mismatch")
     }
@@ -222,7 +222,7 @@ test "sm4_cfb_kat" {
       "fb8b469a4140c8b5e30a96e9a3dd55b87be15983ee37541641623738b14fbfecbb158b6072eee057c19c01a4393b3bd2",
     ),
   ]
-  for i = 0; i < 3; i = i + 1 {
+  for i in 0..<3 {
     let pt = hex_to_bytes(cases[i].0)
     let ct = hex_to_bytes(cases[i].1)
     assert_bytes_eq(@sm4.sm4_encrypt_cfb(key, iv, pt), ct)
@@ -245,7 +245,7 @@ test "sm4_ofb_kat" {
       "fb8b469a4140c8b5e30a96e9a3dd55b88e55f07caa32815cd4ac6fe2fda3b5f31f546ead309c61ed636c147f8b1048c7",
     ),
   ]
-  for i = 0; i < 3; i = i + 1 {
+  for i in 0..<3 {
     let pt = hex_to_bytes(cases[i].0)
     let ct = hex_to_bytes(cases[i].1)
     assert_bytes_eq(@sm4.sm4_encrypt_ofb(key, iv, pt), ct)
@@ -322,7 +322,7 @@ test "sm4_gcm_kat" {
       "8c7ce165d05aa66b76d633c3507c070c51275f3313290cbbe055c74124e9b93f", "6dae12184b119bd1a694978ab8762c44",
     ),
   ]
-  for i = 0; i < 9; i = i + 1 {
+  for i in 0..<9 {
     let pt = hex_to_bytes(cases[i].0)
     let aad = if cases[i].1 == "" {
       Bytes::makei(0, fn(_) { b'\x00' })
@@ -346,7 +346,7 @@ test "sm4_gcm_kat" {
 test "sm4_gcm_roundtrip" {
   let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
   let iv = hex_to_bytes("00000000000000000000000000000000")
-  for len = 0; len < 48; len = len + 1 {
+  for len in 0..<48 {
     let pt = Bytes::makei(len, fn(i) {
       ((i * 7 + len * 3 + 5) & 0xFF).to_byte()
     })

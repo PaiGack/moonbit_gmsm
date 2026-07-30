@@ -45,7 +45,7 @@ test "bn_acc_zero_value_early_returns" {
   reduce_term(acc, 0UL, 100)
   reduce_term_neg(acc, 0UL, 100)
   reduce_term_pos(acc, 0UL, 100)
-  for i = 0; i < 9; i = i + 1 {
+  for i in 0..<9 {
     assert_eq(acc[i], 0UL)
   }
   // Separate: reduce_term_pos with power >= 256 exercises the recursive else
