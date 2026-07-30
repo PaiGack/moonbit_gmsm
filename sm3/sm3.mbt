@@ -184,15 +184,6 @@ fn finalize(
 }
 
 ///|
-/// Read a 32-bit unsigned integer from a FixedArray[Byte] at the given offset.
-fn get_u32_be_fa(buf : FixedArray[Byte], offset : Int) -> UInt {
-  (buf[offset].to_uint().land(0xffU) << 24) |
-  (buf[offset + 1].to_uint().land(0xffU) << 16) |
-  (buf[offset + 2].to_uint().land(0xffU) << 8) |
-  buf[offset + 3].to_uint().land(0xffU)
-}
-
-///|
 /// SM3 constant T_j.
 fn tj(j : Int) -> UInt {
   if j < 16 {
@@ -272,7 +263,7 @@ fn compress_fixed(
   let w1 : FixedArray[UInt] = FixedArray::makei(64, fn(_i) { 0U })
 
   for j in 0..<16 {
-    w[j] = get_u32_be_fa(block, offset + j * 4)
+    w[j] = @byteutil.get_u32_be_fa(block, offset + j * 4)
   }
 
   for j in 16..<68 {

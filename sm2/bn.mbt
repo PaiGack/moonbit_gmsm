@@ -43,25 +43,6 @@ fn bn_copy(dst : FixedArray[UInt64], src : FixedArray[UInt64]) -> Unit {
 }
 
 ///|
-/// Convert 32 bytes (big-endian) to 4 × 64-bit limbs (little-endian)
-fn bn_from_bytes(r : FixedArray[UInt64], b : Bytes, off : Int) -> Unit {
-  r[0] = get_u64_be(b, off + 24)
-  r[1] = get_u64_be(b, off + 16)
-  r[2] = get_u64_be(b, off + 8)
-  r[3] = get_u64_be(b, off)
-}
-
-///|
-/// Convert 4 × 64-bit limbs to 32 bytes (big-endian)
-pub fn bn_to_bytes(r : FixedArray[UInt64]) -> Bytes {
-  Bytes::makei(32, fn(i) {
-    let limb = r[3 - i / 8]
-    let shift = 56 - i % 8 * 8
-    ((limb >> shift) & 0xFFUL).to_byte()
-  })
-}
-
-///|
 /// a == b (4 limbs)
 fn bn_eq(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
   a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]
@@ -96,19 +77,6 @@ fn bn_gt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
     return a[1] > b[1]
   }
   a[0] > b[0]
-}
-
-///|
-/// Internal: read UInt64 from bytes (big-endian) at offset
-fn get_u64_be(b : Bytes, off : Int) -> UInt64 {
-  (b[off].to_uint64() << 56) |
-  (b[off + 1].to_uint64() << 48) |
-  (b[off + 2].to_uint64() << 40) |
-  (b[off + 3].to_uint64() << 32) |
-  (b[off + 4].to_uint64() << 24) |
-  (b[off + 5].to_uint64() << 16) |
-  (b[off + 6].to_uint64() << 8) |
-  b[off + 7].to_uint64()
 }
 
 ///|
@@ -606,7 +574,7 @@ fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] {
   }
   while true {
     let buf = Bytes::makei(32, fn(_i) { (r.int(limit=256) & 0xFF).to_byte() })
-    bn_from_bytes(k, buf, 0)
+    @byteutil.bn_from_bytes(k, buf, 0)
     if !bn_is_zero(k) && bn_lt(k, n) {
       return k
     }

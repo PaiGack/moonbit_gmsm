@@ -7,8 +7,6 @@ import {
 }
 
 // Values
-pub fn bn_to_bytes(FixedArray[UInt64]) -> Bytes
-
 pub fn cipher_marshal(Bytes) -> Bytes
 
 pub fn cipher_mode_c1c2c3() -> CipherMode

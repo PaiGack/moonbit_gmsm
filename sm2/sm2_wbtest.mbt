@@ -3,8 +3,8 @@
 test "bn_from_to_bytes" {
   let r : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let bytes = Bytes::makei(32, fn(i) { (i % 256).to_byte() })
-  bn_from_bytes(r, bytes, 0)
-  let out = bn_to_bytes(r)
+  @byteutil.bn_from_bytes(r, bytes, 0)
+  let out = @byteutil.bn_to_bytes(r)
   for i in 0..<32 {
     assert_eq(out[i], bytes[i])
   }
@@ -399,7 +399,7 @@ test "sm2_verify_signature_out_of_range" {
   let public_key = derive_public_key(private_key)
   let uid = default_uid()
   // r = n (equal to order) -> out of range -> InvalidSignature
-  let r = bn_to_bytes(sm2_p256().n)
+  let r = @byteutil.bn_to_bytes(sm2_p256().n)
   let s = Bytes::makei(32, fn(_) { b'\x01' })
   let res : Result[Unit, Sm2Error] = try {
     ignore(sm2_verify(public_key, b"m", uid, r, s))
@@ -612,8 +612,8 @@ test "sm2_verify_s_out_of_range" {
   let public_key = derive_public_key(private_key)
   let uid = default_uid()
   let r_one = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
-  let r_b = bn_to_bytes(r_one)
-  let s_n = bn_to_bytes(n_limbs())
+  let r_b = @byteutil.bn_to_bytes(r_one)
+  let s_n = @byteutil.bn_to_bytes(n_limbs())
   let res : Result[Unit, Sm2Error] = try {
     ignore(sm2_verify(public_key, b"m", uid, r_b, s_n))
     Ok(())
@@ -714,8 +714,8 @@ test "sm2_verify_t_zero_returns_false" {
   let n = n_limbs()
   let s = FixedArray::makei(4, fn(_) { 0UL })
   bn_sub(s, n, one) |> ignore // s = n - 1
-  let r_b = bn_to_bytes(one)
-  let s_b = bn_to_bytes(s)
+  let r_b = @byteutil.bn_to_bytes(one)
+  let s_b = @byteutil.bn_to_bytes(s)
   // t = (r + s) mod n = (1 + n - 1) mod n = 0 -> returns false
   assert_false(sm2_verify(public_key, b"m", uid, r_b, s_b))
 }

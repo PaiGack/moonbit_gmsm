@@ -79,7 +79,7 @@ pub fn private_key_from_bytes(
     raise Sm2Error::InvalidParameter
   }
   let dv : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(dv, d, 0)
+  @byteutil.bn_from_bytes(dv, d, 0)
   if bn_is_zero(dv) || !bn_lt(dv, curve.n) {
     raise Sm2Error::ZeroParam
   }
@@ -97,8 +97,8 @@ pub fn public_key_from_xy(
   }
   let xv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   let yv : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(xv, x, 0)
-  bn_from_bytes(yv, y, 0)
+  @byteutil.bn_from_bytes(xv, x, 0)
+  @byteutil.bn_from_bytes(yv, y, 0)
   if !point_is_on_curve_affine(xv, yv) {
     raise Sm2Error::NotOnCurve
   }
@@ -115,7 +115,7 @@ pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey {
   let d : Bn = FixedArray::makei(4, fn(_) { 0UL })
   while true {
     let buf = Bytes::makei(32, fn(_) { (r.int(limit=256) & 0xFF).to_byte() })
-    bn_from_bytes(d, buf, 0)
+    @byteutil.bn_from_bytes(d, buf, 0)
     if !bn_is_zero(d) && bn_lt(d, curve.n) {
       break
     }
@@ -274,7 +274,7 @@ pub fn sm2_sign(
     if bn_is_zero(s) {
       continue
     }
-    return (bn_to_bytes(r), bn_to_bytes(s))
+    return (@byteutil.bn_to_bytes(r), @byteutil.bn_to_bytes(s))
   }
   abort("unreachable")
 }
@@ -294,8 +294,8 @@ pub fn sm2_verify(
   }
   let rv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   let sv : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(rv, r, 0)
-  bn_from_bytes(sv, s, 0)
+  @byteutil.bn_from_bytes(rv, r, 0)
+  @byteutil.bn_from_bytes(sv, s, 0)
   if bn_is_zero(rv) || !bn_lt(rv, n) {
     raise Sm2Error::InvalidSignature
   }
@@ -572,8 +572,8 @@ pub fn sm2_encrypt(
   scalar_mult(kp, k, kp_pt)
   let (x2, y2) = point_to_affine(kp)
 
-  let x2b = bn_to_bytes(x2)
-  let y2b = bn_to_bytes(y2)
+  let x2b = @byteutil.bn_to_bytes(x2)
+  let y2b = @byteutil.bn_to_bytes(y2)
   let (t, ok) = kdf(msg.length(), [x2b, y2b])
   if !ok {
     raise Sm2Error::KdfZeroKey
@@ -584,8 +584,8 @@ pub fn sm2_encrypt(
   })
   let c3_input = concat_bytes([x2b, msg, y2b])
   let c3 = @sm3.sm3_sum(c3_input)
-  let c1x_b = bn_to_bytes(c1x)
-  let c1y_b = bn_to_bytes(c1y)
+  let c1x_b = @byteutil.bn_to_bytes(c1x)
+  let c1y_b = @byteutil.bn_to_bytes(c1y)
   let c1 = Bytes::makei(65, fn(i) {
     if i == 0 {
       b'\x04'
@@ -637,9 +637,9 @@ pub fn sm2_decrypt(
     }
   }
   let c1x_b : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(c1x_b, cipher, 1)
+  @byteutil.bn_from_bytes(c1x_b, cipher, 1)
   let c1y_b : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(c1y_b, cipher, 33)
+  @byteutil.bn_from_bytes(c1y_b, cipher, 33)
   if !point_is_on_curve_affine(c1x_b, c1y_b) {
     raise Sm2Error::InvalidCipher
   }
@@ -653,8 +653,8 @@ pub fn sm2_decrypt(
   scalar_mult(kp2, pk.d, c1_pt)
   let (x2, y2) = point_to_affine(kp2)
 
-  let x2b = bn_to_bytes(x2)
-  let y2b = bn_to_bytes(y2)
+  let x2b = @byteutil.bn_to_bytes(x2)
+  let y2b = @byteutil.bn_to_bytes(y2)
   let (t, ok) = kdf(c2.length(), [x2b, y2b])
   if !ok {
     raise Sm2Error::KdfZeroKey
@@ -827,8 +827,8 @@ pub fn key_exchange_a(
 
   let za_a = za(pubA.x, pubA.y, ida)
   let zb_b = za(pubB.x, pubB.y, idb)
-  let x2b = bn_to_bytes(x2)
-  let y2b = bn_to_bytes(y2)
+  let x2b = @byteutil.bn_to_bytes(x2)
+  let y2b = @byteutil.bn_to_bytes(y2)
   let (k, ok) = kdf(klen, [x2b, y2b, za_a, zb_b])
   if !ok {
     abort("KDF all-zero key")
@@ -890,8 +890,8 @@ pub fn key_exchange_b(
 
   let za_a = za(pubA.x, pubA.y, ida)
   let zb_b = za(pubB.x, pubB.y, idb)
-  let x2b = bn_to_bytes(x2)
-  let y2b = bn_to_bytes(y2)
+  let x2b = @byteutil.bn_to_bytes(x2)
+  let y2b = @byteutil.bn_to_bytes(y2)
   let (k, ok) = kdf(klen, [x2b, y2b, za_a, zb_b])
   if !ok {
     abort("KDF all-zero key")
@@ -928,10 +928,10 @@ fn compute_ke_inner(
       x2b,
       za,
       zb,
-      bn_to_bytes(x1),
-      bn_to_bytes(y1),
-      bn_to_bytes(x2),
-      bn_to_bytes(y2),
+      @byteutil.bn_to_bytes(x1),
+      @byteutil.bn_to_bytes(y1),
+      @byteutil.bn_to_bytes(x2),
+      @byteutil.bn_to_bytes(y2),
     ]),
   )
 }
@@ -943,7 +943,7 @@ fn compute_ke_s(prefix : Bytes, y2 : Bytes, inner : Bytes) -> Bytes {
 
 ///|
 pub fn compress_point(p : SM2PublicKey) -> Bytes {
-  let xb = bn_to_bytes(p.x)
+  let xb = @byteutil.bn_to_bytes(p.x)
   Bytes::makei(33, fn(i) {
     if i == 0 {
       if (p.y[0] & 1UL) == 0UL {
@@ -964,7 +964,7 @@ pub fn decompress_point(b : Bytes) -> SM2PublicKey raise Sm2Error {
   }
   let curve = sm2_p256()
   let x : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(x, b, 1)
+  @byteutil.bn_from_bytes(x, b, 1)
 
   let x2 : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_modsqr_p(x2, x)
@@ -995,5 +995,5 @@ pub fn decompress_point(b : Bytes) -> SM2PublicKey raise Sm2Error {
   if (y[0] & 1UL) != exp_par {
     bn_sub(y, curve.p, y) |> ignore
   }
-  public_key_from_xy(curve, bn_to_bytes(x), bn_to_bytes(y))
+  public_key_from_xy(curve, @byteutil.bn_to_bytes(x), @byteutil.bn_to_bytes(y))
 }

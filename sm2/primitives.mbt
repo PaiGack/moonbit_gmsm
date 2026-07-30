@@ -9,22 +9,22 @@ fn default_uid_impl() -> Bytes {
 ///|
 // Curve constants as 32-byte strings
 fn a_bytes() -> Bytes {
-  bn_to_bytes(sm2_p256().a)
+  @byteutil.bn_to_bytes(sm2_p256().a)
 }
 
 ///|
 fn b_bytes() -> Bytes {
-  bn_to_bytes(sm2_p256().b)
+  @byteutil.bn_to_bytes(sm2_p256().b)
 }
 
 ///|
 fn gx_bytes() -> Bytes {
-  bn_to_bytes(sm2_p256().gx)
+  @byteutil.bn_to_bytes(sm2_p256().gx)
 }
 
 ///|
 fn gy_bytes() -> Bytes {
-  bn_to_bytes(sm2_p256().gy)
+  @byteutil.bn_to_bytes(sm2_p256().gy)
 }
 
 ///|
@@ -59,8 +59,8 @@ fn za(xA : FixedArray[UInt64], yA : FixedArray[UInt64], uid : Bytes) -> Bytes {
   let entl_hi = ((entl >> 8) & 0xFF).to_byte()
   let entl_lo = (entl & 0xFF).to_byte()
 
-  let xa_bytes = bn_to_bytes(xA)
-  let ya_bytes = bn_to_bytes(yA)
+  let xa_bytes = @byteutil.bn_to_bytes(xA)
+  let ya_bytes = @byteutil.bn_to_bytes(yA)
   let a_b = a_bytes()
   let b_b = b_bytes()
   let gx_b = gx_bytes()
@@ -86,7 +86,7 @@ fn msg_hash(za_val : Bytes, msg : Bytes) -> FixedArray[UInt64] {
   let data = concat_bytes([za_val, msg])
   let hash = @sm3.sm3_sum(data)
   let e : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
-  bn_from_bytes(e, hash, 0)
+  @byteutil.bn_from_bytes(e, hash, 0)
   e
 }
 

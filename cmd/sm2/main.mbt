@@ -10,13 +10,13 @@ fn main {
     let pri = @gmsm_sm2.generate_key(None)
     let pubk = @gmsm_sm2.derive_public_key(pri)
     println(
-      "Private key d : " + @byteutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pri.d)),
+      "Private key d : " + @byteutil.bytes_to_hex(@byteutil.bn_to_bytes(pri.d)),
     )
     println(
-      "Public key  X : " + @byteutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.x)),
+      "Public key  X : " + @byteutil.bytes_to_hex(@byteutil.bn_to_bytes(pubk.x)),
     )
     println(
-      "Public key  Y : " + @byteutil.bytes_to_hex(@gmsm_sm2.bn_to_bytes(pubk.y)),
+      "Public key  Y : " + @byteutil.bytes_to_hex(@byteutil.bn_to_bytes(pubk.y)),
     )
     println("Point on curve: " + @byteutil.bstr(@gmsm_sm2.is_on_curve(pubk)))
 

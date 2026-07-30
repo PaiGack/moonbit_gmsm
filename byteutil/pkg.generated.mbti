@@ -2,6 +2,12 @@
 package "PaiGack/gmsm/byteutil"
 
 // Values
+pub fn block_to_words(Bytes) -> FixedArray[UInt]
+
+pub fn bn_from_bytes(FixedArray[UInt64], Bytes, Int) -> Unit
+
+pub fn bn_to_bytes(FixedArray[UInt64]) -> Bytes
+
 pub fn bstr(Bool) -> String
 
 pub fn byte_to_hex(Byte) -> String
@@ -12,6 +18,10 @@ pub fn bytes_to_hex(Bytes) -> String
 
 pub fn get_u32_be(Bytes, Int) -> UInt
 
+pub fn get_u32_be_fa(FixedArray[Byte], Int) -> UInt
+
+pub fn get_u64_be(Bytes, Int) -> UInt64
+
 pub fn hex_nibble(UInt16) -> Int
 
 pub fn hex_to_bytes(String) -> Bytes
@@ -19,6 +29,8 @@ pub fn hex_to_bytes(String) -> Bytes
 pub fn nibble_to_char(Int) -> Char
 
 pub fn rotl(UInt, Int) -> UInt
+
+pub fn words_to_block(FixedArray[UInt]) -> Bytes
 
 // Errors
 
