@@ -332,15 +332,6 @@ test "sm4_gcm_kat" {
     let ct = hex_to_bytes(cases[i].2)
     let tag = hex_to_bytes(cases[i].3)
     let (c, t) = @sm4.sm4_gcm_encrypt(key, iv, pt, aad)
-    if i == 0 {
-      let d = "0123456789abcdef"
-      let mut hx = ""
-      for j = 0; j < c.length(); j = j + 1 {
-        let v = c[j].to_uint()
-        hx = hx + d[(v >> 4).to_int()].to_string() + d[(v & 0xF).to_int()].to_string()
-      }
-      abort("DEBUGCASE0 C=" + hx)
-    }
     assert_bytes_eq(c, ct)
     assert_bytes_eq(t, tag)
     let (p, t2) = @sm4.sm4_gcm_decrypt(key, iv, ct, aad)

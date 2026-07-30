@@ -66,33 +66,53 @@ test "go_sm4_block_kat" {
 ///|
 test "go_sm4_ecb_32B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  let plain = go_hex_to_bytes("030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc")
+  let plain = go_hex_to_bytes(
+    "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc",
+  )
   let cipher = @sm4.sm4_encrypt_ecb(key, plain)
-  assert_eq(go_bytes_to_hex(cipher), "7f83eb6c5a416a93ec81bbbba19482ce1459a84011c85cb49be3f604574286ed")
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "7f83eb6c5a416a93ec81bbbba19482ce1459a84011c85cb49be3f604574286ed",
+  )
 }
 
 ///|
 test "go_sm4_ecb_48B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  let plain = go_hex_to_bytes("0b10151a1f24292e33383d42474c51565b60656a6f74797e83888d92979ca1a6abb0b5babfc4c9ced3d8dde2e7ecf1f6")
+  let plain = go_hex_to_bytes(
+    "0b10151a1f24292e33383d42474c51565b60656a6f74797e83888d92979ca1a6abb0b5babfc4c9ced3d8dde2e7ecf1f6",
+  )
   let cipher = @sm4.sm4_encrypt_ecb(key, plain)
-  assert_eq(go_bytes_to_hex(cipher), "37ba84103b209595d5897eec9375f5190e519943e24b7804f8e047aed12d8bb1a9abb389ba62b46138c8f00e46363852")
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "37ba84103b209595d5897eec9375f5190e519943e24b7804f8e047aed12d8bb1a9abb389ba62b46138c8f00e46363852",
+  )
 }
 
 ///|
 test "go_sm4_cbc_32B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
   let iv = go_hex_to_bytes("00000000000000000000000000000000")
-  let plain = go_hex_to_bytes("010c17222d38434e59646f7a85909ba6b1bcc7d2dde8f3fe09141f2a35404b56")
+  let plain = go_hex_to_bytes(
+    "010c17222d38434e59646f7a85909ba6b1bcc7d2dde8f3fe09141f2a35404b56",
+  )
   let cipher = @sm4.sm4_encrypt_cbc(key, iv, plain)
-  assert_eq(go_bytes_to_hex(cipher), "8b6acffc08f2352c5802fe6381536999cdde71e4a9e7ef79a61b990b01a30984")
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "8b6acffc08f2352c5802fe6381536999cdde71e4a9e7ef79a61b990b01a30984",
+  )
 }
 
 ///|
 test "go_sm4_cbc_48B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
   let iv = go_hex_to_bytes("00000000000000000000000000000000")
-  let plain = go_hex_to_bytes("070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e6164676a6d707376797c7f8285888b8e9194")
+  let plain = go_hex_to_bytes(
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e6164676a6d707376797c7f8285888b8e9194",
+  )
   let cipher = @sm4.sm4_encrypt_cbc(key, iv, plain)
-  assert_eq(go_bytes_to_hex(cipher), "6d39e1f81c4c2ef7e59355e9e8e3eb63370ce8d76c4c1f7fdf40ee79f189a9428bcd06279a3579d71d80ca7c1b4cb5d1")
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "6d39e1f81c4c2ef7e59355e9e8e3eb63370ce8d76c4c1f7fdf40ee79f189a9428bcd06279a3579d71d80ca7c1b4cb5d1",
+  )
 }

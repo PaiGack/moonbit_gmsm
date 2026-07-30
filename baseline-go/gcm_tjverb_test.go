@@ -211,6 +211,7 @@ func TestGcmTjVerb(t *testing.T) {
 	c2, _ := sm4.NewCipher(key)
 	H := make([]byte, 16)
 	c2.Encrypt(H, make([]byte, 16))
+	t.Logf("H =%s", hex.EncodeToString(H))
 	multX := make([]byte, 16)
 	multX[15] = 0x10
 	mb := mbtMult(multX, H)

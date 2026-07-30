@@ -630,14 +630,16 @@ fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
   // length block: 64-bit length of A || 64-bit length of C.
   // NOTE: mirrors tjfoc/gmsm `GHASH`, which uses *byte* lengths here (not the
   // bit lengths required by the GCM specification).
-  let a_len = a.length().reinterpret_as_uint()
-  let c_len = c.length().reinterpret_as_uint()
+  // Use UInt64 so the 56-bit right shifts stay within range (a 32-bit UInt
+  // would reduce shifts >= 32 modulo 32 and corrupt the block).
+  let a_len : UInt64 = a.length().reinterpret_as_uint().to_uint64()
+  let c_len : UInt64 = c.length().reinterpret_as_uint().to_uint64()
   for k = 0; k < 8; k = k + 1 {
-    let bk = ((a_len >> (56 - k * 8)) & 0xFFU).to_byte()
+    let bk = ((a_len >> (56 - k * 8)) & 0xFFUL).to_uint().to_byte()
     x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
   }
   for k = 0; k < 8; k = k + 1 {
-    let bk = ((c_len >> (56 - k * 8)) & 0xFFU).to_byte()
+    let bk = ((c_len >> (56 - k * 8)) & 0xFFUL).to_uint().to_byte()
     x[8 + k] = (x[8 + k].to_uint() ^ bk.to_uint()).to_byte()
   }
   x = gf_mult_arr(x, h)
@@ -666,10 +668,11 @@ fn gcm_get_y0(h : Bytes, iv : Bytes) -> Bytes {
 
 ///|
 /// Increment the 128-bit counter block by 1. Mirrors tjfoc/gmsm `addYone`
-/// (used by `incr`): a byte equal to `0xff` with no incoming carry is
-/// treated as overflowing and is set to `0x00` (carrying 1), instead of
-/// staying `0xff`. This quirk is required so the generated counter blocks
-/// match `sm4.Sm4GCM`'s output byte-for-byte.
+/// (used by `incr`). The arithmetic is done byte-wise (mod 256), so a byte
+/// equal to `0xff` plus a carry wraps to `0x00` *and* stays `0x00` (the
+/// incoming carry is absorbed), rather than producing `0x01`. This quirk is
+/// required so the generated counter blocks match `sm4.Sm4GCM`'s output
+/// byte-for-byte.
 fn gcm_inc(y : Bytes) -> Bytes {
   let out : FixedArray[Byte] = FixedArray::makei(16, fn(i) { y[i] })
   let mut rc : UInt = 0U
@@ -683,8 +686,9 @@ fn gcm_inc(y : Bytes) -> Bytes {
         rc = 1U
       }
     } else {
-      if out[k].to_uint() + rc < 0xFFU {
-        out[k] = (out[k].to_uint() + rc).to_byte()
+      let s = (out[k].to_uint() + rc) & 0xFFU
+      if s < 0xFFU {
+        out[k] = s.to_byte()
         rc = 0U
       } else {
         out[k] = b'\x00'
