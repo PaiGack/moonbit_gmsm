@@ -106,7 +106,7 @@ test "sm4_mode_wrappers_roundtrip" {
     Bytes::makei(30, fn(i) { ((i * 3 + 7) % 256).to_byte() }),
   ]
   for plain in inputs {
-    let padded = @sm4.pkcs7_pad(plain, 16)
+    let padded = @byteutil.pkcs7_pad(plain, 16)
     let ecb = @sm4.sm4_ecb(key, plain, true)
     assert_bytes_eq(ecb, @sm4.sm4_encrypt_ecb(key, padded))
     assert_bytes_eq(@sm4.sm4_ecb(key, ecb, false), plain)

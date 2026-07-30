@@ -351,44 +351,6 @@ pub fn sm4_decrypt_cbc(
 }
 
 ///|
-/// PKCS7 padding.
-pub fn pkcs7_pad(data : Bytes, block_size : Int) -> Bytes {
-  let pad_len = block_size - data.length() % block_size
-  let pad_byte = pad_len.to_byte()
-  Bytes::makei(data.length() + pad_len, fn(i) {
-    if i < data.length() {
-      data[i]
-    } else {
-      pad_byte
-    }
-  })
-}
-
-///|
-/// PKCS7 unpadding. Removes the padding and returns the original data.
-pub fn pkcs7_unpad(data : Bytes) -> Bytes raise SM4Error {
-  if data.length() == 0 {
-    raise SM4Error::InvalidPadding
-  }
-  let pad_len = data[data.length() - 1].to_int()
-  if pad_len < 1 || pad_len > 16 {
-    raise SM4Error::InvalidPadding
-  }
-  if pad_len > data.length() {
-    raise SM4Error::InvalidPadding
-  }
-
-  // Verify all padding bytes are correct
-  for i = data.length() - pad_len; i < data.length(); i = i + 1 {
-    if data[i].to_int() != pad_len {
-      raise SM4Error::InvalidPadding
-    }
-  }
-
-  data[0:data.length() - pad_len].to_owned()
-}
-
-///|
 /// Encrypt a single 16-byte block using pre-expanded round keys (forward).
 fn sm4_block(rk : FixedArray[UInt], block : Bytes) -> Bytes {
   @byteutil.words_to_block(
@@ -425,8 +387,9 @@ fn cfb_core(
   for b in 0..<n {
     let ks = sm4_block(rk, reg)
     let base = b * 16
+    let xored = @byteutil.xor_bytes(ks, data[base:base + 16].to_owned())
     for j in 0..<16 {
-      out[base + j] = (ks[j].to_uint() ^ data[base + j].to_uint()).to_byte()
+      out[base + j] = xored[j]
     }
     if encrypt {
       reg = Bytes::makei(16, fn(j) { out[base + j] })
@@ -480,8 +443,9 @@ fn ofb_core(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
   for b in 0..<n {
     let ks = sm4_block(rk, reg)
     let base = b * 16
+    let xored = @byteutil.xor_bytes(ks, data[base:base + 16].to_owned())
     for j in 0..<16 {
-      out[base + j] = (ks[j].to_uint() ^ data[base + j].to_uint()).to_byte()
+      out[base + j] = xored[j]
     }
     reg = ks
   }
@@ -672,22 +636,25 @@ pub fn sm4_gcm_encrypt(
   for i in 1..<n {
     let ek = sm4_block(rk, yblocks[i])
     let base = (i - 1) * 16
+    let xored = @byteutil.xor_bytes(ek, plaintext[base:base + 16].to_owned())
     for j in 0..<16 {
-      cipher[base + j] = (ek[j].to_uint() ^ plaintext[base + j].to_uint()).to_byte()
+      cipher[base + j] = xored[j]
     }
   }
   let ek = sm4_block(rk, yblocks[n])
   let nb = if l == 0 { 0 } else { l - (n - 1) * 16 }
   let base = (n - 1) * 16
+  let xored = @byteutil.xor_bytes(
+    ek[0:nb].to_owned(),
+    plaintext[base:base + nb].to_owned(),
+  )
   for j in 0..<nb {
-    cipher[base + j] = (ek[j].to_uint() ^ plaintext[base + j].to_uint()).to_byte()
+    cipher[base + j] = xored[j]
   }
   let c = Bytes::makei(l, fn(i) { cipher[i] })
   let ey0 = sm4_block(rk, y0)
   let s = ghash(h, aad, c)
-  let tag : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
-    (ey0[i].to_uint() ^ s[i].to_uint()).to_byte()
-  })
+  let tag = @byteutil.xor_bytes(ey0, s)
   (c, Bytes::makei(16, fn(i) { tag[i] }))
 }
 
@@ -719,22 +686,25 @@ pub fn sm4_gcm_decrypt(
   }
   let ey0 = sm4_block(rk, y0)
   let s = ghash(h, aad, ciphertext)
-  let tag : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
-    (ey0[i].to_uint() ^ s[i].to_uint()).to_byte()
-  })
+  let tag = @byteutil.xor_bytes(ey0, s)
   let plain : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
   for i in 1..<n {
     let ek = sm4_block(rk, yblocks[i])
     let base = (i - 1) * 16
+    let xored = @byteutil.xor_bytes(ek, ciphertext[base:base + 16].to_owned())
     for j in 0..<16 {
-      plain[base + j] = (ek[j].to_uint() ^ ciphertext[base + j].to_uint()).to_byte()
+      plain[base + j] = xored[j]
     }
   }
   let nb = if l == 0 { 0 } else { l - (n - 1) * 16 }
   let base = (n - 1) * 16
   let ek = sm4_block(rk, yblocks[n])
+  let xored = @byteutil.xor_bytes(
+    ek[0:nb].to_owned(),
+    ciphertext[base:base + nb].to_owned(),
+  )
   for j in 0..<nb {
-    plain[base + j] = (ek[j].to_uint() ^ ciphertext[base + j].to_uint()).to_byte()
+    plain[base + j] = xored[j]
   }
   (Bytes::makei(l, fn(i) { plain[i] }), Bytes::makei(16, fn(i) { tag[i] }))
 }

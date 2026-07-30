@@ -65,7 +65,6 @@ fn bn_lt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
 
 ///|
 /// a > b (4 limbs, unsigned)
-#warnings("-unused_value")
 fn bn_gt(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
   if a[3] != b[3] {
     return a[3] > b[3]
@@ -357,7 +356,6 @@ fn bn_mul(
 
 ///|
 /// Square: r (8 limbs) = a (4 limbs)²
-#warnings("-unused_value")
 fn bn_sqr(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
   bn_mul(r, a, a)
 }

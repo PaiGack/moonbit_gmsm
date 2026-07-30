@@ -346,132 +346,13 @@ pub fn sm2_verify(
 }
 
 ///|
-fn encode_asn1_length(len : Int) -> Bytes {
-  if len < 128 {
-    return Bytes::from_array([len.to_byte()])
-  }
-  let mut temp = len
-  let mut byte_count = 0
-  while temp > 0 {
-    byte_count = byte_count + 1
-    temp = temp >> 8
-  }
-  Bytes::makei(1 + byte_count, fn(i) {
-    if i == 0 {
-      (0x80 | byte_count).to_byte()
-    } else {
-      ((len >> ((byte_count - i) * 8)) & 0xFF).to_byte()
-    }
-  })
-}
-
-///|
-fn decode_asn1_length(data : Bytes, off : Int) -> (Int, Int) {
-  if off >= data.length() {
-    abort("ASN.1: out of bounds")
-  }
-  let first = data[off].to_uint()
-  if first < 0x80U {
-    return (first.reinterpret_as_int(), 1)
-  }
-  let num_bytes = first.reinterpret_as_int() & 0x7F
-  if num_bytes == 0 || off + 1 + num_bytes > data.length() {
-    abort("ASN.1: invalid long length")
-  }
-  let mut len : Int = 0
-  for i in 0..<num_bytes {
-    len = (len << 8) | data[off + 1 + i].to_int()
-  }
-  (len, 1 + num_bytes)
-}
-
-///|
-fn pad_left(data : Bytes, target : Int) -> Bytes {
-  if data.length() >= target {
-    return data
-  }
-  Bytes::makei(target, fn(i) {
-    let o = target - data.length()
-    if i < o {
-      b'\x00'
-    } else {
-      data[i - o]
-    }
-  })
-}
-
-///|
-/// Normalize an ASN.1 INTEGER content to exactly 32 bytes:
-/// strip leading zero bytes (sign padding), then left-pad with zeros.
-fn normalize_32(data : Bytes) -> Bytes {
-  let mut start = 0
-  while start < data.length() - 1 &&
-        data[start] == b'\x00' &&
-        data.length() - start > 32 {
-    start = start + 1
-  }
-  if data.length() - start > 32 {
-    abort("integer too large")
-  }
-  pad_left(data[start:].to_owned(), 32)
-}
-
-///|
-fn encode_asn1_integer(bytes : Bytes) -> Bytes {
-  let mut start = 0
-  while start < bytes.length() && bytes[start] == b'\x00' {
-    start = start + 1
-  }
-  let remaining = bytes.length() - start
-  if remaining == 0 {
-    return Bytes::from_array([b'\x02', b'\x01', b'\x00'])
-  }
-  let pad = (bytes[start].to_uint() & 0x80U) != 0U
-  let content_len = if pad { remaining + 1 } else { remaining }
-  let lb = encode_asn1_length(content_len)
-  let total = 1 + lb.length() + content_len
-  Bytes::makei(total, fn(i) {
-    if i == 0 {
-      b'\x02'
-    } else if i < 1 + lb.length() {
-      lb[i - 1]
-    } else {
-      let vi = i - 1 - lb.length()
-      if pad {
-        if vi == 0 {
-          b'\x00'
-        } else {
-          bytes[start + vi - 1]
-        }
-      } else {
-        bytes[start + vi]
-      }
-    }
-  })
-}
-
-///|
-fn encode_asn1_octet_string(data : Bytes) -> Bytes {
-  let lb = encode_asn1_length(data.length())
-  Bytes::makei(1 + lb.length() + data.length(), fn(i) {
-    if i == 0 {
-      b'\x04'
-    } else if i < 1 + lb.length() {
-      lb[i - 1]
-    } else {
-      data[i - 1 - lb.length()]
-    }
-  })
-}
-
-///|
 /// DER-encode the signature pair `(r, s)` as `SEQUENCE { INTEGER, INTEGER }`.
 fn asn1_encode_signature(r : Bytes, s : Bytes) -> Bytes {
-  let rd = encode_asn1_integer(r)
-  let sd = encode_asn1_integer(s)
+  let rd = @byteutil.encode_asn1_integer(r)
+  let sd = @byteutil.encode_asn1_integer(s)
   let cl = rd.length() + sd.length()
-  let sl = encode_asn1_length(cl)
-  concat_bytes([Bytes::from_array([b'\x30']), sl, rd, sd])
+  let sl = @byteutil.encode_asn1_length(cl)
+  @byteutil.concat_bytes([Bytes::from_array([b'\x30']), sl, rd, sd])
 }
 
 ///|
@@ -484,23 +365,23 @@ fn asn1_decode_signature(der : Bytes) -> Result[(Bytes, Bytes), String] {
   if der[0] != b'\x30' {
     return Err("not SEQUENCE")
   }
-  let (_, sl1) = decode_asn1_length(der, 1)
+  let (_, sl1) = @byteutil.decode_asn1_length(der, 1)
   let mut off = 1 + sl1
   if der[off] != b'\x02' {
     return Err("expected INTEGER")
   }
   off = off + 1
-  let (rl, rls) = decode_asn1_length(der, off)
+  let (rl, rls) = @byteutil.decode_asn1_length(der, off)
   off = off + rls
-  let rv = normalize_32(der[off:off + rl].to_owned())
+  let rv = @byteutil.normalize_32(der[off:off + rl].to_owned())
   off = off + rl
   if der[off] != b'\x02' {
     return Err("expected INTEGER")
   }
   off = off + 1
-  let (sl2, sls) = decode_asn1_length(der, off)
+  let (sl2, sls) = @byteutil.decode_asn1_length(der, off)
   off = off + sls
-  let sv = normalize_32(der[off:off + sl2].to_owned())
+  let sv = @byteutil.normalize_32(der[off:off + sl2].to_owned())
   Ok((rv, sv))
 }
 
@@ -579,10 +460,8 @@ pub fn sm2_encrypt(
     raise Sm2Error::KdfZeroKey
   }
 
-  let c2 = Bytes::makei(msg.length(), fn(i) {
-    (msg[i].to_int() ^ t[i].to_int()).to_byte()
-  })
-  let c3_input = concat_bytes([x2b, msg, y2b])
+  let c2 = @byteutil.xor_bytes(msg, t)
+  let c3_input = @byteutil.concat_bytes([x2b, msg, y2b])
   let c3 = @sm3.sm3_sum(c3_input)
   let c1x_b = @byteutil.bn_to_bytes(c1x)
   let c1y_b = @byteutil.bn_to_bytes(c1y)
@@ -660,10 +539,8 @@ pub fn sm2_decrypt(
     raise Sm2Error::KdfZeroKey
   }
 
-  let dec = Bytes::makei(c2.length(), fn(i) {
-    (c2[i].to_int() ^ t[i].to_int()).to_byte()
-  })
-  let u_input = concat_bytes([x2b, dec, y2b])
+  let dec = @byteutil.xor_bytes(c2, t)
+  let u_input = @byteutil.concat_bytes([x2b, dec, y2b])
   let u = @sm3.sm3_sum(u_input)
   if u.length() != c3.length() {
     raise Sm2Error::InvalidCipher
@@ -702,18 +579,18 @@ pub fn cipher_marshal(cipher : Bytes) -> Bytes {
   let y = cipher[33:65].to_owned()
   let c3 = cipher[65:97].to_owned()
   let c2 = cipher[97:].to_owned()
-  concat_bytes([
+  @byteutil.concat_bytes([
     Bytes::from_array([b'\x30']),
-    encode_asn1_length(
-      encode_asn1_integer(x).length() +
-      encode_asn1_integer(y).length() +
-      encode_asn1_octet_string(c3).length() +
-      encode_asn1_octet_string(c2).length(),
+    @byteutil.encode_asn1_length(
+      @byteutil.encode_asn1_integer(x).length() +
+      @byteutil.encode_asn1_integer(y).length() +
+      @byteutil.encode_asn1_octet_string(c3).length() +
+      @byteutil.encode_asn1_octet_string(c2).length(),
     ),
-    encode_asn1_integer(x),
-    encode_asn1_integer(y),
-    encode_asn1_octet_string(c3),
-    encode_asn1_octet_string(c2),
+    @byteutil.encode_asn1_integer(x),
+    @byteutil.encode_asn1_integer(y),
+    @byteutil.encode_asn1_octet_string(c3),
+    @byteutil.encode_asn1_octet_string(c2),
   ])
 }
 
@@ -722,32 +599,32 @@ pub fn cipher_unmarshal(der : Bytes) -> Bytes {
   if der.length() < 4 || der[0] != b'\x30' {
     abort("invalid DER")
   }
-  let (_, sl1) = decode_asn1_length(der, 1)
+  let (_, sl1) = @byteutil.decode_asn1_length(der, 1)
   let mut off = 1 + sl1
 
   if der[off] != b'\x02' {
     abort("expected INTEGER")
   }
   off = off + 1
-  let (xl, xls) = decode_asn1_length(der, off)
+  let (xl, xls) = @byteutil.decode_asn1_length(der, off)
   off = off + xls
-  let xv = normalize_32(der[off:off + xl].to_owned())
+  let xv = @byteutil.normalize_32(der[off:off + xl].to_owned())
   off = off + xl
 
   if der[off] != b'\x02' {
     abort("expected INTEGER")
   }
   off = off + 1
-  let (yl, yls) = decode_asn1_length(der, off)
+  let (yl, yls) = @byteutil.decode_asn1_length(der, off)
   off = off + yls
-  let yv = normalize_32(der[off:off + yl].to_owned())
+  let yv = @byteutil.normalize_32(der[off:off + yl].to_owned())
   off = off + yl
 
   if der[off] != b'\x04' {
     abort("expected OCTET STRING")
   }
   off = off + 1
-  let (c3l, c3ls) = decode_asn1_length(der, off)
+  let (c3l, c3ls) = @byteutil.decode_asn1_length(der, off)
   off = off + c3ls
   let c3v = der[off:off + c3l].to_owned()
   off = off + c3l
@@ -756,7 +633,7 @@ pub fn cipher_unmarshal(der : Bytes) -> Bytes {
     abort("expected OCTET STRING")
   }
   off = off + 1
-  let (c2l, c2ls) = decode_asn1_length(der, off)
+  let (c2l, c2ls) = @byteutil.decode_asn1_length(der, off)
   off = off + c2ls
   let c2v = der[off:off + c2l].to_owned()
 
@@ -924,7 +801,7 @@ fn compute_ke_inner(
   y2 : Bn,
 ) -> Bytes {
   @sm3.sm3_sum(
-    concat_bytes([
+    @byteutil.concat_bytes([
       x2b,
       za,
       zb,
@@ -938,7 +815,7 @@ fn compute_ke_inner(
 
 ///|
 fn compute_ke_s(prefix : Bytes, y2 : Bytes, inner : Bytes) -> Bytes {
-  @sm3.sm3_sum(concat_bytes([prefix, y2, inner]))
+  @sm3.sm3_sum(@byteutil.concat_bytes([prefix, y2, inner]))
 }
 
 ///|

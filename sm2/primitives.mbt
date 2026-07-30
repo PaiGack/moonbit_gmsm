@@ -28,27 +28,6 @@ fn gy_bytes() -> Bytes {
 }
 
 ///|
-// Concatenate multiple Bytes segments into one
-fn concat_bytes(segments : Array[Bytes]) -> Bytes {
-  let mut total : Int = 0
-  for i in 0..<segments.length() {
-    total = total + segments[i].length()
-  }
-  Bytes::makei(total, fn(i) {
-    let mut pos = i
-    for j in 0..<segments.length() {
-      let seg = segments[j]
-      let seg_len = seg.length()
-      if pos < seg_len {
-        return seg[pos]
-      }
-      pos = pos - seg_len
-    }
-    abort("unreachable in concat_bytes")
-  })
-}
-
-///|
 /// Compute ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA)
 fn za(xA : FixedArray[UInt64], yA : FixedArray[UInt64], uid : Bytes) -> Bytes {
   if uid.length() >= 8192 {
@@ -76,14 +55,14 @@ fn za(xA : FixedArray[UInt64], yA : FixedArray[UInt64], uid : Bytes) -> Bytes {
     xa_bytes,
     ya_bytes,
   ]
-  let data = concat_bytes(partes)
+  let data = @byteutil.concat_bytes(partes)
   @sm3.sm3_sum(data)
 }
 
 ///|
 /// Compute message hash: SM3(ZA ‖ msg), returned as 256-bit integer
 fn msg_hash(za_val : Bytes, msg : Bytes) -> FixedArray[UInt64] {
-  let data = concat_bytes([za_val, msg])
+  let data = @byteutil.concat_bytes([za_val, msg])
   let hash = @sm3.sm3_sum(data)
   let e : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   @byteutil.bn_from_bytes(e, hash, 0)
@@ -97,7 +76,7 @@ fn kdf(length : Int, parts : Array[Bytes]) -> (Bytes, Bool) {
     return (b"", true)
   }
 
-  let z = concat_bytes(parts)
+  let z = @byteutil.concat_bytes(parts)
   let ct = (length + 31) / 32
 
   let mut all_zero = true
@@ -105,8 +84,8 @@ fn kdf(length : Int, parts : Array[Bytes]) -> (Bytes, Bool) {
   let chunks : Array[Bytes] = []
 
   for _ in 0..<ct {
-    let cb = int_to_bytes_be(counter)
-    let hash_input = concat_bytes([z, cb])
+    let cb = @byteutil.int_to_bytes_be(counter)
+    let hash_input = @byteutil.concat_bytes([z, cb])
     let hash = @sm3.sm3_sum(hash_input)
 
     for j in 0..<32 {
@@ -122,7 +101,7 @@ fn kdf(length : Int, parts : Array[Bytes]) -> (Bytes, Bool) {
     return (b"", false)
   }
 
-  let full = concat_bytes(chunks)
+  let full = @byteutil.concat_bytes(chunks)
   let result = Bytes::makei(length, fn(i) { full[i] })
   (result, true)
 }
@@ -136,15 +115,4 @@ fn ke_x_hat(x : FixedArray[UInt64]) -> FixedArray[UInt64] {
   r[3] = 0UL
   r[1] = r[1] | (1UL << 63)
   r
-}
-
-///|
-/// Convert int to 4-byte big-endian
-fn int_to_bytes_be(n : Int) -> Bytes {
-  Bytes::from_array([
-    ((n >> 24) & 0xFF).to_byte(),
-    ((n >> 16) & 0xFF).to_byte(),
-    ((n >> 8) & 0xFF).to_byte(),
-    (n & 0xFF).to_byte(),
-  ])
 }

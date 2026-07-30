@@ -1,6 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "PaiGack/gmsm/byteutil"
 
+import {
+  "moonbitlang/core/debug",
+}
+
 // Values
 pub fn block_to_words(Bytes) -> FixedArray[UInt]
 
@@ -16,6 +20,16 @@ pub fn bytes_eq(Bytes, Bytes) -> Bool
 
 pub fn bytes_to_hex(Bytes) -> String
 
+pub fn concat_bytes(Array[Bytes]) -> Bytes
+
+pub fn decode_asn1_length(Bytes, Int) -> (Int, Int)
+
+pub fn encode_asn1_integer(Bytes) -> Bytes
+
+pub fn encode_asn1_length(Int) -> Bytes
+
+pub fn encode_asn1_octet_string(Bytes) -> Bytes
+
 pub fn get_u32_be(Bytes, Int) -> UInt
 
 pub fn get_u32_be_fa(FixedArray[Byte], Int) -> UInt
@@ -26,15 +40,30 @@ pub fn hex_nibble(UInt16) -> Int
 
 pub fn hex_to_bytes(String) -> Bytes
 
+pub fn int_to_bytes_be(Int) -> Bytes
+
 pub fn nibble_to_char(Int) -> Char
+
+pub fn normalize_32(Bytes) -> Bytes
+
+pub fn pad_left(Bytes, Int) -> Bytes
+
+pub fn pkcs7_pad(Bytes, Int) -> Bytes
+
+pub fn pkcs7_unpad(Bytes) -> Result[Bytes, ByteUtilError]
 
 pub fn rotl(UInt, Int) -> UInt
 
 pub fn words_to_block(FixedArray[UInt]) -> Bytes
 
+pub fn xor_bytes(Bytes, Bytes) -> Bytes
+
 // Errors
 
 // Types and methods
+pub enum ByteUtilError {
+  InvalidPadding
+} derive(Eq, @debug.Debug)
 
 // Type aliases
 

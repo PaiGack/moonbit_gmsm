@@ -246,7 +246,6 @@ fn point_add(p : SM2Point, q : SM2Point) -> Unit {
 
 ///|
 /// Point addition where q has z=1 (affine or mixed addition) — optimized
-#warnings("-unused_value")
 fn point_add_affine(
   p : SM2Point,
   qx : FixedArray[UInt64],
@@ -348,7 +347,6 @@ fn scalar_base_mult(result : SM2Point, k : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Negate a point: y = -y mod p
-#warnings("-unused_value")
 fn point_neg(p : SM2Point) -> Unit {
   if point_is_infinity(p) {
     return
@@ -361,7 +359,6 @@ fn point_neg(p : SM2Point) -> Unit {
 
 ///|
 /// Compare two points for equality (in affine)
-#warnings("-unused_value")
 fn point_eq(a : SM2Point, b : SM2Point) -> Bool {
   let (ax, ay) = point_to_affine(a)
   let (bx, by) = point_to_affine(b)

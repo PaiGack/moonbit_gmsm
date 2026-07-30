@@ -32,21 +32,33 @@ fn main {
 
     // 2. ECB mode with PKCS7 padding (needs padded input length multiple of 16)
     let msg = b"Hello SM4 ECB mode demo."
-    let padded = @gmsm_sm4.pkcs7_pad(msg, 16)
+    let padded = @byteutil.pkcs7_pad(msg, 16)
     let ecb_c = @gmsm_sm4.sm4_encrypt_ecb(key, padded)
-    let ecb_d = @gmsm_sm4.pkcs7_unpad(@gmsm_sm4.sm4_decrypt_ecb(key, ecb_c))
+    let ecb_d = match
+      @byteutil.pkcs7_unpad(@gmsm_sm4.sm4_decrypt_ecb(key, ecb_c)) {
+      Ok(b) => b
+      Err(_) => b""
+    }
     println("")
     println("ECB ciphertext: " + @byteutil.bytes_to_hex(ecb_c))
     println("ECB roundtrip : " + @byteutil.bstr(@byteutil.bytes_eq(ecb_d, msg)))
 
     // 3. CBC mode with PKCS7 padding
     let cbc_c = @gmsm_sm4.sm4_encrypt_cbc(key, iv, padded)
-    let cbc_d = @gmsm_sm4.pkcs7_unpad(@gmsm_sm4.sm4_decrypt_cbc(key, iv, cbc_c))
+    let cbc_d = match
+      @byteutil.pkcs7_unpad(@gmsm_sm4.sm4_decrypt_cbc(key, iv, cbc_c)) {
+      Ok(b) => b
+      Err(_) => b""
+    }
     println("CBC ciphertext: " + @byteutil.bytes_to_hex(cbc_c))
     println("CBC roundtrip : " + @byteutil.bstr(@byteutil.bytes_eq(cbc_d, msg)))
 
     // 4. PKCS7 padding sanity
-    let unpadded = @gmsm_sm4.pkcs7_unpad(@gmsm_sm4.pkcs7_pad(b"short", 16))
+    let unpadded = match
+      @byteutil.pkcs7_unpad(@byteutil.pkcs7_pad(b"short", 16)) {
+      Ok(b) => b
+      Err(_) => b""
+    }
     println(
       "PKCS7 roundtrip: " +
       @byteutil.bstr(@byteutil.bytes_eq(unpadded, b"short")),

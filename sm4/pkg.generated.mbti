@@ -10,10 +10,6 @@ pub fn get_iv() -> Bytes
 
 pub fn new_cipher(Bytes) -> SM4Cipher raise SM4Error
 
-pub fn pkcs7_pad(Bytes, Int) -> Bytes
-
-pub fn pkcs7_unpad(Bytes) -> Bytes raise SM4Error
-
 pub fn set_iv(Bytes) -> Unit raise SM4Error
 
 pub let sm4_block_size : Int

@@ -198,65 +198,6 @@ test "sm4_decrypt_cbc_invalid_data" {
 }
 
 ///|
-test "pkcs7_unpad_empty" {
-  let r : Result[Unit, SM4Error] = try {
-    ignore(@sm4.pkcs7_unpad(b""))
-    Ok(())
-  } catch {
-    e => Err(e)
-  }
-  expect_err("unpad empty", r)
-}
-
-///|
-test "pkcs7_unpad_invalid_pad_value" {
-  // last byte 0x11 (17) > 16 -> invalid
-  let bad = Bytes::makei(16, fn(i) { if i == 15 { b'\x11' } else { b'\x01' } })
-  let r : Result[Unit, SM4Error] = try {
-    ignore(@sm4.pkcs7_unpad(bad))
-    Ok(())
-  } catch {
-    e => Err(e)
-  }
-  expect_err("unpad pad value", r)
-}
-
-///|
-test "pkcs7_unpad_pad_too_long" {
-  // last byte 0x10 (16) but only 1 byte total -> pad_len > length
-  let bad = Bytes::makei(1, fn(_) { b'\x10' })
-  let r : Result[Unit, SM4Error] = try {
-    ignore(@sm4.pkcs7_unpad(bad))
-    Ok(())
-  } catch {
-    e => Err(e)
-  }
-  expect_err("unpad too long", r)
-}
-
-///|
-test "pkcs7_unpad_wrong_pad_bytes" {
-  // claims 3 bytes of padding 0x03 but data is only 4 bytes long,
-  // so pad_len (3) would exceed length -> rejected first.
-  let bad = Bytes::makei(4, fn(i) {
-    match i {
-      0 => b'A'
-      1 => b'B'
-      2 => b'\x03'
-      3 => b'\x03'
-      _ => b'\x00'
-    }
-  })
-  let r : Result[Unit, SM4Error] = try {
-    ignore(@sm4.pkcs7_unpad(bad))
-    Ok(())
-  } catch {
-    e => Err(e)
-  }
-  expect_err("unpad wrong bytes", r)
-}
-
-///|
 test "sm4_error_decrypt_failed_constructible" {
   let e = @sm4.sm4_error_decrypt_failed()
   match e {

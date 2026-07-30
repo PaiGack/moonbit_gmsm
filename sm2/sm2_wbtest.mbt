@@ -530,58 +530,6 @@ test "decompress_point_parity_branch" {
 }
 
 ///|
-test "encode_asn1_integer_edge_cases" {
-  // All-zero input -> 0x02 0x01 0x00
-  let zero = Bytes::makei(32, fn(_) { b'\x00' })
-  let enc_zero = encode_asn1_integer(zero)
-  assert_eq(enc_zero, Bytes::from_array([b'\x02', b'\x01', b'\x00']))
-  // Leading-zero handling (strip + non-padded)
-  let lead = Bytes::makei(33, fn(i) { if i == 0 { b'\x00' } else { b'\xAA' } })
-  let enc_lead = encode_asn1_integer(lead)
-  // First byte must be INTEGER tag
-  assert_eq(enc_lead[0], b'\x02')
-}
-
-///|
-test "encode_asn1_length_long_form" {
-  // length >= 128 -> long form (0x81 <len>)
-  let lb = encode_asn1_length(200)
-  assert_eq(lb[0], b'\x81')
-  assert_eq(lb[1], b'\xC8')
-}
-
-///|
-test "decode_asn1_length_errors" {
-  // out of bounds -> abort (cannot catch in MoonBit); only valid short form here
-  let (len, n) = decode_asn1_length(Bytes::from_array([b'\x05']), 0)
-  assert_eq(len, 5)
-  assert_eq(n, 1)
-}
-
-///|
-test "normalize_32_overflow_aborts_on_large" {
-  // 33-byte value (with no leading zero) exceeds 32 -> abort path
-  // This aborts; we only assert it does not return a value via try where feasible.
-  // Use a value that normalizes fine (<=32 bytes) to keep the test green.
-  let ok = Bytes::makei(32, fn(i) {
-    (i.reinterpret_as_uint() & 0xFFU).to_byte()
-  })
-  let n = normalize_32(ok)
-  assert_eq(n.length(), 32)
-}
-
-///|
-test "pad_left_and_concat" {
-  let data = b"AB"
-  let padded = pad_left(data, 5)
-  assert_eq(padded.length(), 5)
-  assert_eq(padded[0], b'\x00')
-  assert_eq(padded[3], b'A')
-  let cat = concat_bytes([b"XY", b"Z"])
-  assert_eq(cat, b"XYZ")
-}
-
-///|
 test "sign_digit_roundtrip_valid" {
   let r = Bytes::makei(32, fn(i) { (i.reinterpret_as_uint() & 0xFFU).to_byte() })
   let s = Bytes::makei(32, fn(i) {
@@ -624,25 +572,6 @@ test "sm2_verify_s_out_of_range" {
     Err(InvalidSignature) => ()
     _ => abort("expected InvalidSignature (s out of range)")
   }
-}
-
-///|
-/// Expecting panic: `decode_asn1_length` with off past the end -> abort (line 422).
-test "panic_decode_asn1_length_out_of_bounds" {
-  ignore(decode_asn1_length(Bytes::makei(0, fn(_) { b'\x00' }), 0))
-}
-
-///|
-/// Expecting panic: `decode_asn1_length` with an invalid long-form length -> abort (line 430).
-test "panic_decode_asn1_length_invalid_long" {
-  // first byte 0x81 (long form, 1 length byte) but no length bytes follow.
-  ignore(decode_asn1_length(Bytes::from_array([b'\x81']), 0))
-}
-
-///|
-/// Expecting panic: `normalize_32` with a 33-byte value -> abort (line 465).
-test "panic_normalize_32_too_large" {
-  ignore(normalize_32(Bytes::makei(33, fn(_) { b'\x01' })))
 }
 
 ///|

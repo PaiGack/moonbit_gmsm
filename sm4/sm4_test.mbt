@@ -139,63 +139,6 @@ test "sm4_cbc_roundtrip_single_block" {
 }
 
 ///|
-/// PKCS7 pad / unpad round-trip.
-test "pkcs7_pad_unpad_roundtrip" {
-  let data = b"hello"
-  let padded = @sm4.pkcs7_pad(data, 16)
-  assert_eq(padded.length(), 16)
-  let unpadded = @sm4.pkcs7_unpad(padded)
-  assert_eq(unpadded.length(), 5)
-  for i in 0..<5 {
-    assert_eq(unpadded[i], data[i])
-  }
-}
-
-///|
-/// PKCS7 padding with exact block size produces a full block of padding.
-test "pkcs7_pad_exact_block" {
-  let data = b"1234567890123456" // exactly 16 bytes
-  let padded = @sm4.pkcs7_pad(data, 16)
-  assert_eq(padded.length(), 32)
-  // Last 16 bytes should be 0x10
-  for i in 16..<32 {
-    assert_eq(padded[i], b'\x10')
-  }
-}
-
-///|
-/// PKCS7 unpadding empty padding block returns empty.
-test "pkcs7_unpad_full_block" {
-  let padded = Bytes::makei(16, fn(_i) { b'\x10' })
-  let unpadded = @sm4.pkcs7_unpad(padded)
-  assert_eq(unpadded.length(), 0)
-}
-
-///|
-/// PKCS7 pad empty data.
-test "pkcs7_pad_empty" {
-  let padded = @sm4.pkcs7_pad(b"", 16)
-  assert_eq(padded.length(), 16)
-  for i in 0..<16 {
-    assert_eq(padded[i], b'\x10')
-  }
-}
-
-///|
-/// PKCS7 pad with various block sizes.
-test "pkcs7_pad_different_block_sizes" {
-  // block_size 16: pad "AB" (2 bytes) -> 14 bytes of 0x0E
-  let data = b"AB"
-  let padded = @sm4.pkcs7_pad(data, 16)
-  assert_eq(padded.length(), 16)
-  assert_eq(padded[0], b'A')
-  assert_eq(padded[1], b'B')
-  for i in 2..<16 {
-    assert_eq(padded[i], b'\x0E')
-  }
-}
-
-///|
 fn assert_bytes_eq(a : Bytes, b : Bytes) -> Unit {
   if a.length() != b.length() {
     abort("assert_bytes_eq: length mismatch")
