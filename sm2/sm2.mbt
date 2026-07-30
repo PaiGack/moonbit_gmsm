@@ -28,7 +28,10 @@ pub struct SM2PrivateKey {
 }
 
 ///|
-pub enum CipherMode {
+/// Ciphertext layout selector, mirroring gmsm's `C1C3C2` / `C1C2C3`
+/// constants. Exposed as `pub(all)` so callers outside the package can name
+/// the constructors directly.
+pub(all) enum CipherMode {
   C1C3C2
   C1C2C3
 }
@@ -145,7 +148,7 @@ pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey {
   let curve = sm2_p256()
   let r = match random {
     Some(rr) => rr
-    None => @random.Rand::chacha8()
+    None => fallback_rand
   }
   let d : Bn = FixedArray::makei(4, fn(_) { 0UL })
   while true {
@@ -180,6 +183,13 @@ pub fn default_uid() -> Bytes {
 /// Returns the C1C2C3 cipher mode (constructs the variant for API completeness).
 pub fn cipher_mode_c1c2c3() -> CipherMode {
   C1C2C3
+}
+
+///|
+/// Returns the default C1C3C2 cipher mode (the layout produced by gmsm's
+/// `Encrypt` with `mode = C1C3C2`).
+pub fn cipher_mode_c1c3c2() -> CipherMode {
+  C1C3C2
 }
 
 ///|
@@ -536,7 +546,8 @@ fn concat_bytes_array(segments : Array[Bytes]) -> Bytes {
 }
 
 ///|
-fn sign_data_to_sign_digit(r : Bytes, s : Bytes) -> Bytes {
+/// DER-encode the signature pair `(r, s)` as `SEQUENCE { INTEGER, INTEGER }`.
+fn asn1_encode_signature(r : Bytes, s : Bytes) -> Bytes {
   let rd = encode_asn1_integer(r)
   let sd = encode_asn1_integer(s)
   let cl = rd.length() + sd.length()
@@ -545,7 +556,9 @@ fn sign_data_to_sign_digit(r : Bytes, s : Bytes) -> Bytes {
 }
 
 ///|
-fn sign_digit_to_sign_data(der : Bytes) -> Result[(Bytes, Bytes), String] {
+/// Decode a DER `SEQUENCE { INTEGER r, INTEGER s }` back into two 32-byte
+/// big-endian scalars.
+fn asn1_decode_signature(der : Bytes) -> Result[(Bytes, Bytes), String] {
   if der.length() < 4 {
     return Err("too short")
   }
@@ -573,6 +586,25 @@ fn sign_digit_to_sign_data(der : Bytes) -> Result[(Bytes, Bytes), String] {
 }
 
 ///|
+/// Convert the raw signature digits `(r, s)` (32-byte big-endian scalars) into
+/// the DER encoded signature. Mirrors `sm2.SignDigitToSignData`.
+pub fn sign_digit_to_sign_data(r : Bytes, s : Bytes) -> Bytes {
+  asn1_encode_signature(r, s)
+}
+
+///|
+/// Convert a DER encoded signature back into the raw digits `(r, s)`, each
+/// normalized to 32 big-endian bytes. Mirrors `sm2.SignDataToSignDigit`.
+/// Raises `InvalidSignature` when the input is not a well-formed
+/// `SEQUENCE { INTEGER, INTEGER }`.
+pub fn sign_data_to_sign_digit(der : Bytes) -> (Bytes, Bytes) raise Sm2Error {
+  match asn1_decode_signature(der) {
+    Ok(pair) => pair
+    Err(_) => raise Sm2Error::InvalidSignature
+  }
+}
+
+///|
 pub fn sm2_sign_der(
   pk : SM2PrivateKey,
   msg : Bytes,
@@ -580,7 +612,7 @@ pub fn sm2_sign_der(
   r : @random.Rand?,
 ) -> Bytes {
   let (rv, sv) = sm2_sign(pk, msg, uid, r)
-  sign_data_to_sign_digit(rv, sv)
+  asn1_encode_signature(rv, sv)
 }
 
 ///|
@@ -590,7 +622,7 @@ pub fn sm2_verify_der(
   uid : Bytes,
   der : Bytes,
 ) -> Bool raise Sm2Error {
-  match sign_digit_to_sign_data(der) {
+  match asn1_decode_signature(der) {
     Ok((rv, sv)) => sm2_verify(pubk, msg, uid, rv, sv)
     Err(_) => false
   }
@@ -607,7 +639,7 @@ pub fn sm2_encrypt(
 ) -> Bytes raise Sm2Error {
   let r = match random {
     Some(rr) => rr
-    None => @random.Rand::chacha8()
+    None => fallback_rand
   }
   let k = bn_rand_k(Some(r))
   let c1_p : SM2Point = point_infinity()
@@ -851,9 +883,14 @@ pub fn key_exchange_a(
   let pubA = derive_public_key(priA)
   let rpubA = derive_public_key(rpriA)
 
-  let x_hat = ke_x_hat(rpubB.x)
+  // x1_hat comes from A's *own* ephemeral point (used to build the scalar
+  // tA), x2_hat from the peer's ephemeral point (used to build the shared
+  // point). Mixing the two up still yields a self-consistent implementation
+  // but one that cannot interoperate with gmsm / GB/T 32918.3.
+  let x1_hat = ke_x_hat(rpubA.x)
+  let x2_hat = ke_x_hat(rpubB.x)
   let xhr_8 : FixedArray[UInt64] = FixedArray::makei(8, fn(_) { 0UL })
-  bn_mul(xhr_8, x_hat, rpriA.d)
+  bn_mul(xhr_8, x1_hat, rpriA.d)
   let xhr : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_mod_n(xhr, xhr_8)
   let ta8 : FixedArray[UInt64] = FixedArray::makei(8, fn(i) {
@@ -868,7 +905,7 @@ pub fn key_exchange_a(
   bn_mod_n(ta, ta8)
 
   let xrb : SM2Point = point_infinity()
-  scalar_mult(xrb, x_hat, point_from_pubkey(rpubB))
+  scalar_mult(xrb, x2_hat, point_from_pubkey(rpubB))
   point_add(xrb, point_from_pubkey(pubB))
   let v_pt : SM2Point = point_infinity()
   scalar_mult(v_pt, ta, xrb)
@@ -883,7 +920,16 @@ pub fn key_exchange_a(
     abort("KDF all-zero key")
   }
 
-  let inner = compute_ke_inner(x2b, za_a, zb_b, rpubA.x, rpubA.y, x2, y2)
+  // gmsm hashes the responder's ephemeral point first on both sides.
+  let inner = compute_ke_inner(
+    x2b,
+    za_a,
+    zb_b,
+    rpubB.x,
+    rpubB.y,
+    rpubA.x,
+    rpubA.y,
+  )
   let s1 = compute_ke_s(Bytes::from_array([b'\x02']), y2b, inner)
   let s2 = compute_ke_s(Bytes::from_array([b'\x03']), y2b, inner)
   (k, s1, s2)
@@ -903,9 +949,12 @@ pub fn key_exchange_b(
   let pubB = derive_public_key(priB)
   let rpubB = derive_public_key(rpriB)
 
-  let x_hat = ke_x_hat(rpubA.x)
+  // Symmetric to `key_exchange_a`: the scalar tB uses B's own ephemeral
+  // point, the shared point uses A's ephemeral point.
+  let x1_hat = ke_x_hat(rpubB.x)
+  let x2_hat = ke_x_hat(rpubA.x)
   let xhr_8 : FixedArray[UInt64] = FixedArray::makei(8, fn(_) { 0UL })
-  bn_mul(xhr_8, x_hat, rpriB.d)
+  bn_mul(xhr_8, x1_hat, rpriB.d)
   let xhr : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_mod_n(xhr, xhr_8)
   let tb8 : FixedArray[UInt64] = FixedArray::makei(8, fn(i) {
@@ -920,7 +969,7 @@ pub fn key_exchange_b(
   bn_mod_n(tb, tb8)
 
   let xra : SM2Point = point_infinity()
-  scalar_mult(xra, x_hat, point_from_pubkey(rpubA))
+  scalar_mult(xra, x2_hat, point_from_pubkey(rpubA))
   point_add(xra, point_from_pubkey(pubA))
   let v2_pt : SM2Point = point_infinity()
   scalar_mult(v2_pt, tb, xra)
@@ -935,13 +984,23 @@ pub fn key_exchange_b(
     abort("KDF all-zero key")
   }
 
-  let inner = compute_ke_inner(x2b, za_a, zb_b, rpubB.x, rpubB.y, x2, y2)
+  let inner = compute_ke_inner(
+    x2b,
+    za_a,
+    zb_b,
+    rpubB.x,
+    rpubB.y,
+    rpubA.x,
+    rpubA.y,
+  )
   let s1 = compute_ke_s(Bytes::from_array([b'\x02']), y2b, inner)
   let s2 = compute_ke_s(Bytes::from_array([b'\x03']), y2b, inner)
   (k, s1, s2)
 }
 
 ///|
+/// Inner hash of the key-confirmation words:
+/// `SM3(xV || ZA || ZB || xRB || yRB || xRA || yRA)`.
 fn compute_ke_inner(
   x2b : Bytes,
   za : Bytes,

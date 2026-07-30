@@ -608,13 +608,23 @@ fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
 }
 
 ///|
+/// Process-wide fallback generator used when the caller passes `None`.
+///
+/// `@random.Rand::chacha8()` is seeded with a *fixed* default seed, so
+/// creating a fresh instance on every call would hand out the very same `k`
+/// every time — fatal for signature nonces and for ephemeral keys. Keeping a
+/// single shared stream at least guarantees that successive draws differ.
+/// Production code should still pass its own properly seeded `@random.Rand`.
+let fallback_rand : @random.Rand = @random.Rand::chacha8()
+
+///|
 /// Generate random k: 1 ≤ k ≤ n-1
 pub fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] {
   let n = n_limbs()
   let k : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let r = match random {
     Some(r) => r
-    None => @random.Rand::chacha8()
+    None => fallback_rand
   }
   while true {
     let buf = Bytes::makei(32, fn(_i) { (r.int(limit=256) & 0xFF).to_byte() })

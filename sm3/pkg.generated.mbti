@@ -6,6 +6,8 @@ pub fn new() -> SM3
 
 pub fn sm3_sum(Bytes) -> Bytes
 
+pub fn sm3_sum_multi(Array[Bytes]) -> Bytes
+
 // Errors
 
 // Types and methods
@@ -15,7 +17,11 @@ pub struct SM3 {
   buf_len : Int
   total : UInt64
 }
+pub fn SM3::block_size(Self) -> Int
 pub fn SM3::finish(Self) -> Bytes
+pub fn SM3::reset(Self) -> Self
+pub fn SM3::size(Self) -> Int
+pub fn SM3::sum(Self) -> Bytes
 pub fn SM3::write(Self, Bytes) -> Self
 
 // Type aliases

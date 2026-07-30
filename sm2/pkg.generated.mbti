@@ -53,6 +53,8 @@ pub fn cipher_marshal(Bytes) -> Bytes
 
 pub fn cipher_mode_c1c2c3() -> CipherMode
 
+pub fn cipher_mode_c1c3c2() -> CipherMode
+
 pub fn cipher_unmarshal(Bytes) -> Bytes
 
 pub fn compress_point(SM2PublicKey) -> Bytes
@@ -109,6 +111,10 @@ pub fn scalar_base_mult(SM2Point, FixedArray[UInt64]) -> Unit
 
 pub fn scalar_mult(SM2Point, FixedArray[UInt64], SM2Point) -> Unit
 
+pub fn sign_data_to_sign_digit(Bytes) -> (Bytes, Bytes) raise Sm2Error
+
+pub fn sign_digit_to_sign_data(Bytes, Bytes) -> Bytes
+
 pub fn sm2_decrypt(SM2PrivateKey, Bytes, CipherMode) -> Bytes raise Sm2Error
 
 pub fn sm2_decrypt_asn1(SM2PrivateKey, Bytes) -> Bytes raise Sm2Error
@@ -144,7 +150,7 @@ pub suberror Sm2Error {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
-pub enum CipherMode {
+pub(all) enum CipherMode {
   C1C3C2
   C1C2C3
 }

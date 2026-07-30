@@ -107,3 +107,95 @@ test "go_sm3_200B" {
     "137c8be9a568df1f999ea75e042359e582990c708027d61f20489a368bf5ced5",
   )
 }
+
+///|
+test "go_sm3_multi_abc_split" {
+  let chunks : Array[Bytes] = [
+    go_hex_to_bytes("61"),
+    go_hex_to_bytes("62"),
+    go_hex_to_bytes("63"),
+  ]
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum_multi(chunks)),
+    "66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0",
+  )
+  let mut ctx = @sm3.new()
+  for c in chunks {
+    ctx = ctx.write(c)
+  }
+  assert_eq(
+    go_bytes_to_hex(ctx.sum()),
+    "66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0",
+  )
+  assert_eq(ctx.size(), 32)
+  assert_eq(ctx.block_size(), 64)
+}
+
+///|
+test "go_sm3_multi_empty_chunks" {
+  let chunks : Array[Bytes] = [
+    go_hex_to_bytes(""),
+    go_hex_to_bytes("68656c6c6f"),
+    go_hex_to_bytes(""),
+  ]
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum_multi(chunks)),
+    "becbbfaae6548b8bf0cfcad5a27183cd1be6093b1cceccc303d9c61d0a645268",
+  )
+  let mut ctx = @sm3.new()
+  for c in chunks {
+    ctx = ctx.write(c)
+  }
+  assert_eq(
+    go_bytes_to_hex(ctx.sum()),
+    "becbbfaae6548b8bf0cfcad5a27183cd1be6093b1cceccc303d9c61d0a645268",
+  )
+  assert_eq(ctx.size(), 32)
+  assert_eq(ctx.block_size(), 64)
+}
+
+///|
+test "go_sm3_multi_block_edge" {
+  let chunks : Array[Bytes] = [
+    go_hex_to_bytes(
+      "6162636461626364616263646162636461626364616263646162636461626364",
+    ),
+    go_hex_to_bytes(
+      "6162636461626364616263646162636461626364616263646162636461626364",
+    ),
+    go_hex_to_bytes("7461696c"),
+  ]
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum_multi(chunks)),
+    "bbccea1c5161c7f85c66b50061db702f8c93f20e07d71181d88487eab5af1269",
+  )
+  let mut ctx = @sm3.new()
+  for c in chunks {
+    ctx = ctx.write(c)
+  }
+  assert_eq(
+    go_bytes_to_hex(ctx.sum()),
+    "bbccea1c5161c7f85c66b50061db702f8c93f20e07d71181d88487eab5af1269",
+  )
+  assert_eq(ctx.size(), 32)
+  assert_eq(ctx.block_size(), 64)
+}
+
+///|
+test "go_sm3_multi_none" {
+  let chunks : Array[Bytes] = []
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum_multi(chunks)),
+    "1ab21d8355cfa17f8e61194831e81a8f22bec8c728fefb747ed035eb5082aa2b",
+  )
+  let mut ctx = @sm3.new()
+  for c in chunks {
+    ctx = ctx.write(c)
+  }
+  assert_eq(
+    go_bytes_to_hex(ctx.sum()),
+    "1ab21d8355cfa17f8e61194831e81a8f22bec8c728fefb747ed035eb5082aa2b",
+  )
+  assert_eq(ctx.size(), 32)
+  assert_eq(ctx.block_size(), 64)
+}

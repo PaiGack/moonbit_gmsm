@@ -78,15 +78,55 @@ test "sm2_key_exchange" {
   let ida = b"1234567812345678"
   let idb = b"1234567812345678"
   let klen = 16
-  let (ka, _, _) = @sm2.key_exchange_a(
+  let (ka, s1a, s2a) = @sm2.key_exchange_a(
     klen, ida, idb, priv_a, pub_b, rpriv_a, rpub_b,
   )
-  let (kb, _, _) = @sm2.key_exchange_b(
+  let (kb, s1b, s2b) = @sm2.key_exchange_b(
     klen, ida, idb, priv_b, pub_a, rpriv_b, rpub_a,
   )
-  for i = 0; i < 16; i = i + 1 {
+  // the four static/ephemeral keys must really be different, otherwise the
+  // agreement below would hold trivially
+  assert_false(bn_equal(priv_a.d, priv_b.d))
+  assert_false(bn_equal(rpriv_a.d, rpriv_b.d))
+  assert_false(bn_equal(priv_a.d, rpriv_a.d))
+  assert_eq(ka.length(), klen)
+  for i = 0; i < klen; i = i + 1 {
     assert_eq(ka[i], kb[i])
   }
+  // the key-confirmation words must agree as well
+  assert_eq(s1a.length(), 32)
+  assert_eq(s2a.length(), 32)
+  for i = 0; i < 32; i = i + 1 {
+    assert_eq(s1a[i], s1b[i])
+    assert_eq(s2a[i], s2b[i])
+  }
+  // S1 and S2 are derived from different prefixes, so they must differ
+  assert_false(bytes_same(s1a, s2a))
+}
+
+///|
+/// Helper: byte-wise equality without aborting.
+fn bytes_same(a : Bytes, b : Bytes) -> Bool {
+  if a.length() != b.length() {
+    return false
+  }
+  for i = 0; i < a.length(); i = i + 1 {
+    if a[i] != b[i] {
+      return false
+    }
+  }
+  true
+}
+
+///|
+/// Helper: compare two 4-limb scalars.
+fn bn_equal(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
+  for i = 0; i < 4; i = i + 1 {
+    if a[i] != b[i] {
+      return false
+    }
+  }
+  true
 }
 
 ///|
@@ -99,6 +139,79 @@ test "sm2_cipher_marshal_unmarshal" {
   for i = 0; i < msg.length(); i = i + 1 {
     assert_eq(decrypted[i], msg[i])
   }
+}
+
+///|
+/// The exported ASN.1 signature converters round-trip and interoperate with
+/// `sm2_sign_der` / `sm2_verify_der`.
+test "sm2_sign_digit_data_roundtrip" {
+  let private_key = @sm2.generate_key(None)
+  let public_key = @sm2.derive_public_key(private_key)
+  let msg = b"digit/data conversion"
+  let uid = @sm2.default_uid()
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  let der = @sm2.sign_digit_to_sign_data(r, s)
+  assert_true(@sm2.sm2_verify_der(public_key, msg, uid, der))
+  let (r2, s2) = @sm2.sign_data_to_sign_digit(der)
+  assert_eq(r2.length(), 32)
+  assert_eq(s2.length(), 32)
+  assert_true(bytes_same(r, r2))
+  assert_true(bytes_same(s, s2))
+  assert_true(@sm2.sm2_verify(public_key, msg, uid, r2, s2))
+  // and the DER produced here is exactly what sm2_sign_der emits
+  let der2 = @sm2.sign_digit_to_sign_data(r2, s2)
+  assert_true(bytes_same(der, der2))
+}
+
+///|
+/// `sign_data_to_sign_digit` rejects malformed DER.
+test "sm2_sign_data_to_sign_digit_invalid" {
+  let bad : Array[Bytes] = [
+    b"",
+    b"abc",
+    Bytes::from_array([b'\x30', b'\x03', b'\xAA', b'\xBB', b'\xCC']),
+    Bytes::from_array([b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03']),
+  ]
+  for der in bad {
+    let r : Result[(Bytes, Bytes), @sm2.Sm2Error] = Ok(
+      @sm2.sign_data_to_sign_digit(der),
+    ) catch {
+      e => Err(e)
+    }
+    match r {
+      Ok(_) => abort("sign_data_to_sign_digit: expected InvalidSignature")
+      Err(e) => assert_true(e is @sm2.Sm2Error::InvalidSignature)
+    }
+  }
+}
+
+///|
+/// Both raw ciphertext layouts round-trip, and the mode accessors name the
+/// same variants as the exported constructors.
+test "sm2_raw_cipher_modes" {
+  let private_key = @sm2.generate_key(None)
+  let public_key = @sm2.derive_public_key(private_key)
+  let msg = b"raw layout roundtrip"
+  let c132 = @sm2.sm2_encrypt(public_key, msg, None, @sm2.C1C3C2)
+  let c123 = @sm2.sm2_encrypt(public_key, msg, None, @sm2.C1C2C3)
+  assert_eq(c132.length(), 1 + 64 + 32 + msg.length())
+  assert_eq(c132[0], b'\x04')
+  assert_true(bytes_same(@sm2.sm2_decrypt(private_key, c132, @sm2.C1C3C2), msg))
+  assert_true(bytes_same(@sm2.sm2_decrypt(private_key, c123, @sm2.C1C2C3), msg))
+  // the two layouts differ only in the order of C2 and C3
+  assert_true(
+    bytes_same(
+      @sm2.sm2_decrypt(private_key, c132, @sm2.C1C3C2),
+      @sm2.sm2_decrypt(
+        private_key,
+        @sm2.cipher_unmarshal(@sm2.cipher_marshal(c132)),
+        @sm2.cipher_mode_c1c3c2(),
+      ),
+    ),
+  )
+  // accessors return the same variants
+  assert_true(@sm2.cipher_mode_c1c3c2() is @sm2.CipherMode::C1C3C2)
+  assert_true(@sm2.cipher_mode_c1c2c3() is @sm2.CipherMode::C1C2C3)
 }
 
 ///|

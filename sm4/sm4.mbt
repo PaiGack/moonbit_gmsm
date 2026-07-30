@@ -455,10 +455,9 @@ fn sm4_block(rk : FixedArray[UInt], block : Bytes) -> Bytes {
 ///|
 /// CFB mode (128-bit feedback). `encrypt = true` for encryption, `false` for
 /// decryption. Data length must be a multiple of 16 (raw mode, no padding).
-/// Mirrors tjfoc/gmsm `sm4.Sm4CFB` but with an explicit `iv` parameter and
-/// without the internal PKCS7 padding (consistent with this package's
-/// ECB/CBC API, which also requires block-aligned input).
-fn sm4_cfb(
+/// Raw core shared by `sm4_encrypt_cfb` / `sm4_decrypt_cfb` and by the
+/// tjfoc-style `sm4_cfb` wrapper: no PKCS7 padding, explicit `iv`.
+fn cfb_core(
   key : Bytes,
   iv : Bytes,
   data : Bytes,
@@ -501,7 +500,7 @@ pub fn sm4_encrypt_cfb(
   iv : Bytes,
   data : Bytes,
 ) -> Bytes raise SM4Error {
-  sm4_cfb(key, iv, data, true)
+  cfb_core(key, iv, data, true)
 }
 
 ///|
@@ -511,14 +510,14 @@ pub fn sm4_decrypt_cfb(
   iv : Bytes,
   data : Bytes,
 ) -> Bytes raise SM4Error {
-  sm4_cfb(key, iv, data, false)
+  cfb_core(key, iv, data, false)
 }
 
 ///|
 /// OFB mode (128-bit feedback). Encryption and decryption are identical.
-/// Data length must be a multiple of 16 (raw mode, no padding). Mirrors
-/// tjfoc/gmsm `sm4.Sm4OFB` with an explicit `iv` parameter.
-fn sm4_ofb(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
+/// Raw core shared by `sm4_encrypt_ofb` / `sm4_decrypt_ofb` and by the
+/// tjfoc-style `sm4_ofb` wrapper: no PKCS7 padding, explicit `iv`.
+fn ofb_core(key : Bytes, iv : Bytes, data : Bytes) -> Bytes raise SM4Error {
   if key.length() != 16 {
     raise SM4Error::InvalidKey
   }
@@ -552,7 +551,7 @@ pub fn sm4_encrypt_ofb(
   iv : Bytes,
   data : Bytes,
 ) -> Bytes raise SM4Error {
-  sm4_ofb(key, iv, data)
+  ofb_core(key, iv, data)
 }
 
 ///|
@@ -562,7 +561,7 @@ pub fn sm4_decrypt_ofb(
   iv : Bytes,
   data : Bytes,
 ) -> Bytes raise SM4Error {
-  sm4_ofb(key, iv, data)
+  ofb_core(key, iv, data)
 }
 
 ///|

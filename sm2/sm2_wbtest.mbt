@@ -587,8 +587,8 @@ test "sign_digit_roundtrip_valid" {
   let s = Bytes::makei(32, fn(i) {
     ((31 - i).reinterpret_as_uint() & 0xFFU).to_byte()
   })
-  let der = sign_data_to_sign_digit(r, s)
-  match sign_digit_to_sign_data(der) {
+  let der = asn1_encode_signature(r, s)
+  match asn1_decode_signature(der) {
     Ok((rv, sv)) => {
       assert_eq(rv, r)
       assert_eq(sv, s)
@@ -721,33 +721,33 @@ test "sm2_verify_t_zero_returns_false" {
 }
 
 ///|
-/// `sign_digit_to_sign_data` with a DER shorter than 4 bytes -> Err("too short") (line 550).
-test "sign_digit_to_sign_data_too_short" {
-  match sign_digit_to_sign_data(b"abc") {
+/// `asn1_decode_signature` with a DER shorter than 4 bytes -> Err("too short").
+test "asn1_decode_signature_too_short" {
+  match asn1_decode_signature(b"abc") {
     Err(_) => ()
     Ok(_) => abort("expected Err (too short)")
   }
 }
 
 ///|
-/// `sign_digit_to_sign_data` after SEQUENCE but first element is not INTEGER (line 558).
-test "sign_digit_to_sign_data_bad_first_tag" {
+/// `asn1_decode_signature` after SEQUENCE but first element is not INTEGER.
+test "asn1_decode_signature_bad_first_tag" {
   // SEQUENCE (0x30), length 3, then a byte that is not 0x02 (INTEGER).
   let der = Bytes::from_array([b'\x30', b'\x03', b'\xAA', b'\xBB', b'\xCC'])
-  match sign_digit_to_sign_data(der) {
+  match asn1_decode_signature(der) {
     Err(_) => ()
     Ok(_) => abort("expected Err (bad first tag)")
   }
 }
 
 ///|
-/// `sign_digit_to_sign_data` first INTEGER ok, second element not INTEGER (line 566).
-test "sign_digit_to_sign_data_bad_second_tag" {
+/// `asn1_decode_signature` first INTEGER ok, second element not INTEGER.
+test "asn1_decode_signature_bad_second_tag" {
   // SEQUENCE, length 4, INTEGER 0x02 0x01 0x00, then 0x03 (not INTEGER).
   let der = Bytes::from_array([
     b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03',
   ])
-  match sign_digit_to_sign_data(der) {
+  match asn1_decode_signature(der) {
     Err(_) => ()
     Ok(_) => abort("expected Err (bad second tag)")
   }

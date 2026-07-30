@@ -37,6 +37,17 @@ pub fn sm3_sum(data : Bytes) -> Bytes {
 }
 
 ///|
+/// Compute the SM3 hash of several chunks as if they were concatenated.
+/// Mirrors `Sm3SumMulti` from the Go reference implementation.
+pub fn sm3_sum_multi(chunks : Array[Bytes]) -> Bytes {
+  let mut ctx = new()
+  for chunk in chunks {
+    ctx = ctx.write(chunk)
+  }
+  ctx.finish()
+}
+
+///|
 /// Feed `data` into the hash context. Returns the updated context.
 pub fn SM3::write(self : SM3, data : Bytes) -> SM3 {
   let len = data.length()
@@ -84,11 +95,58 @@ pub fn SM3::write(self : SM3, data : Bytes) -> SM3 {
 }
 
 ///|
+/// Return the digest length in bytes (32), mirroring `hash.Hash.Size`.
+pub fn SM3::size(_self : SM3) -> Int {
+  32
+}
+
+///|
+/// Return the internal block length in bytes (64), mirroring
+/// `hash.Hash.BlockSize`.
+pub fn SM3::block_size(_self : SM3) -> Int {
+  64
+}
+
+///|
+/// Reset the context back to the standard IV so it can be reused.
+/// Mirrors `hash.Hash.Reset`.
+pub fn SM3::reset(self : SM3) -> SM3 {
+  let state = self.state
+  let buf = self.buf
+  for i = 0; i < 8; i = i + 1 {
+    state[i] = iv[i]
+  }
+  for i = 0; i < 64; i = i + 1 {
+    buf[i] = b'\x00'
+  }
+  SM3::{ state, buf, buf_len: 0, total: 0UL }
+}
+
+///|
+/// Return the 32-byte digest of everything written so far without consuming
+/// the context. Mirrors `hash.Hash.Sum`.
+pub fn SM3::sum(self : SM3) -> Bytes {
+  let state = FixedArray::makei(8, fn(i) { self.state[i] })
+  let buf = FixedArray::makei(64, fn(i) { self.buf[i] })
+  finalize(state, buf, self.buf_len, self.total)
+}
+
+///|
 /// Finalize the hash computation and return the 32-byte digest.
 pub fn SM3::finish(self : SM3) -> Bytes {
-  let buf = self.buf
-  let mut buf_len = self.buf_len
-  let state = self.state
+  self.sum()
+}
+
+///|
+/// Shared finalization: apply the SM3 padding rules to `buf` and emit the
+/// big-endian digest of `state`.
+fn finalize(
+  state : FixedArray[UInt],
+  buf : FixedArray[Byte],
+  buf_len_init : Int,
+  total : UInt64,
+) -> Bytes {
+  let mut buf_len = buf_len_init
 
   // Append padding byte 0x80
   buf[buf_len] = b'\x80'
@@ -111,7 +169,7 @@ pub fn SM3::finish(self : SM3) -> Bytes {
   }
 
   // Append total message length in bits as 64-bit big-endian integer
-  let total_bits_bytes = (self.total * 8UL).to_be_bytes()
+  let total_bits_bytes = (total * 8UL).to_be_bytes()
   for i = 0; i < 8; i = i + 1 {
     buf[56 + i] = total_bits_bytes[i]
   }

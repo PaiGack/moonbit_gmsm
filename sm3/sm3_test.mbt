@@ -126,6 +126,59 @@ test "sm3_one_block" {
 }
 
 ///|
+/// `sm3_sum_multi` hashes the concatenation of its chunks.
+test "sm3_sum_multi" {
+  let chunks : Array[Bytes] = [b"abc", b"", b"defgh", b"ijklmnopqrstuvwxyz"]
+  let expected = @sm3.sm3_sum(b"abcdefghijklmnopqrstuvwxyz")
+  assert_eq(bytes_to_hex(@sm3.sm3_sum_multi(chunks)), bytes_to_hex(expected))
+  // an empty chunk list hashes the empty message
+  assert_eq(
+    bytes_to_hex(@sm3.sm3_sum_multi([])),
+    bytes_to_hex(@sm3.sm3_sum(b"")),
+  )
+  // a single chunk behaves like sm3_sum
+  assert_eq(
+    bytes_to_hex(@sm3.sm3_sum_multi([b"abc"])),
+    bytes_to_hex(@sm3.sm3_sum(b"abc")),
+  )
+}
+
+///|
+/// `sum` does not consume the context: it can be called repeatedly and the
+/// context can still be extended afterwards.
+test "sm3_sum_is_not_destructive" {
+  let ctx = @sm3.new().write(b"abc")
+  let first = ctx.sum()
+  let second = ctx.sum()
+  assert_eq(bytes_to_hex(first), bytes_to_hex(second))
+  assert_eq(bytes_to_hex(first), bytes_to_hex(@sm3.sm3_sum(b"abc")))
+  let ctx = ctx.write(b"def")
+  assert_eq(bytes_to_hex(ctx.sum()), bytes_to_hex(@sm3.sm3_sum(b"abcdef")))
+}
+
+///|
+/// `reset` brings the context back to the initial state.
+test "sm3_reset" {
+  let ctx = @sm3.new().write(b"garbage data that must be discarded")
+  let ctx = ctx.reset()
+  assert_eq(bytes_to_hex(ctx.sum()), bytes_to_hex(@sm3.sm3_sum(b"")))
+  let ctx = ctx.write(b"abc")
+  assert_eq(bytes_to_hex(ctx.sum()), bytes_to_hex(@sm3.sm3_sum(b"abc")))
+  // reset also works after crossing a block boundary
+  let ctx = ctx.write(Bytes::makei(200, fn(_i) { b'z' })).reset().write(b"abc")
+  assert_eq(bytes_to_hex(ctx.sum()), bytes_to_hex(@sm3.sm3_sum(b"abc")))
+}
+
+///|
+/// `size` / `block_size` mirror Go's `hash.Hash`.
+test "sm3_size_and_block_size" {
+  let ctx = @sm3.new()
+  assert_eq(ctx.size(), 32)
+  assert_eq(ctx.block_size(), 64)
+  assert_eq(ctx.sum().length(), ctx.size())
+}
+
+///|
 /// SM3 hash output length is always 32 bytes
 test "sm3_output_length" {
   let test_cases : Array[Bytes] = [

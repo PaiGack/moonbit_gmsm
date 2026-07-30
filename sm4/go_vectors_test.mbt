@@ -116,3 +116,223 @@ test "go_sm4_cbc_48B" {
     "6d39e1f81c4c2ef7e59355e9e8e3eb63370ce8d76c4c1f7fdf40ee79f189a9428bcd06279a3579d71d80ca7c1b4cb5d1",
   )
 }
+
+///|
+test "go_sm4_ecb_empty" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("")
+  let cipher = @sm4.sm4_ecb(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "002a8a4efa863ccad024ac0300bb40d2")
+  let back = @sm4.sm4_ecb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "")
+}
+
+///|
+test "go_sm4_ecb_5B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("68656c6c6f")
+  let cipher = @sm4.sm4_ecb(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "db0669bd841e5450ec1652ecd42b6d60")
+  let back = @sm4.sm4_ecb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "68656c6c6f")
+}
+
+///|
+test "go_sm4_ecb_16B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  let cipher = @sm4.sm4_ecb(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "681edf34d206965e86b3e94f536e4246002a8a4efa863ccad024ac0300bb40d2",
+  )
+  let back = @sm4.sm4_ecb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "0123456789abcdeffedcba9876543210")
+}
+
+///|
+test "go_sm4_ecb_30B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes(
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+  let cipher = @sm4.sm4_ecb(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "6d39e1f81c4c2ef7e59355e9e8e3eb637b0bb9b8f818f301f916a2a8d156b9a5",
+  )
+  let back = @sm4.sm4_ecb(key, cipher, false)
+  assert_eq(
+    go_bytes_to_hex(back),
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+}
+
+///|
+test "go_sm4_cbc_empty" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("")
+  let cipher = @sm4.sm4_cbc(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "4b910651754b5553f10cfa0c8a09e9e5")
+  let back = @sm4.sm4_cbc(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "")
+}
+
+///|
+test "go_sm4_cbc_5B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("68656c6c6f")
+  let cipher = @sm4.sm4_cbc(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "1342ad943c12b3c9ceb95e227b901d0b")
+  let back = @sm4.sm4_cbc(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "68656c6c6f")
+}
+
+///|
+test "go_sm4_cbc_16B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  let cipher = @sm4.sm4_cbc(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "a9a268883a336315bac0c9c9ff350ab1e004a8baddb756f693cbc3f96c4baeae",
+  )
+  let back = @sm4.sm4_cbc(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "0123456789abcdeffedcba9876543210")
+}
+
+///|
+test "go_sm4_cbc_30B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes(
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+  let cipher = @sm4.sm4_cbc(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "73cad336f73901c30f4f4feb9ffac00ae02f9aceef8ed7a19aeae7ecebc2e7b8",
+  )
+  let back = @sm4.sm4_cbc(key, cipher, false)
+  assert_eq(
+    go_bytes_to_hex(back),
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+}
+
+///|
+test "go_sm4_cfb_empty" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("")
+  let cipher = @sm4.sm4_cfb(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "16888c712db678bd3a9de792f1b8e97a")
+  let back = @sm4.sm4_cfb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "")
+}
+
+///|
+test "go_sm4_cfb_5B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("68656c6c6f")
+  let cipher = @sm4.sm4_cfb(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "6efdf00d52ad63a62186fc89eaa3f261")
+  let back = @sm4.sm4_cfb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "68656c6c6f")
+}
+
+///|
+test "go_sm4_cfb_16B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  let cipher = @sm4.sm4_cfb(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "07bbd906b40da542d4514d1a97fccb7aa1b3175086ea51a019d69b007257822d",
+  )
+  let back = @sm4.sm4_cfb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "0123456789abcdeffedcba9876543210")
+}
+
+///|
+test "go_sm4_cfb_30B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes(
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+  let cipher = @sm4.sm4_cfb(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "019291712eb071b135afd2aaca86c85e50b559ea42f3aa84a841442cd02d8a94",
+  )
+  let back = @sm4.sm4_cfb(key, cipher, false)
+  assert_eq(
+    go_bytes_to_hex(back),
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+}
+
+///|
+test "go_sm4_ofb_empty" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("")
+  let cipher = @sm4.sm4_ofb(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "16888c712db678bd3a9de792f1b8e97a")
+  let back = @sm4.sm4_ofb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "")
+}
+
+///|
+test "go_sm4_ofb_5B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("68656c6c6f")
+  let cipher = @sm4.sm4_ofb(key, plain, true)
+  assert_eq(go_bytes_to_hex(cipher), "6efdf00d52ad63a62186fc89eaa3f261")
+  let back = @sm4.sm4_ofb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "68656c6c6f")
+}
+
+///|
+test "go_sm4_ofb_16B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  let cipher = @sm4.sm4_ofb(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "07bbd906b40da542d4514d1a97fccb7ae3ff525ca7934a6d714ffc84cd33f830",
+  )
+  let back = @sm4.sm4_ofb(key, cipher, false)
+  assert_eq(go_bytes_to_hex(back), "0123456789abcdeffedcba9876543210")
+}
+
+///|
+test "go_sm4_ofb_30B" {
+  let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
+  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  let plain = go_hex_to_bytes(
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+  let cipher = @sm4.sm4_ofb(key, plain, true)
+  assert_eq(
+    go_bytes_to_hex(cipher),
+    "019291712eb071b135afd2aaca86c85ec4d57f0cf4c513312e0db9cc867dea22",
+  )
+  let back = @sm4.sm4_ofb(key, cipher, false)
+  assert_eq(
+    go_bytes_to_hex(back),
+    "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+}

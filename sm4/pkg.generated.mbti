@@ -6,9 +6,21 @@ import {
 }
 
 // Values
+pub fn get_iv() -> Bytes
+
+pub fn new_cipher(Bytes) -> SM4Cipher raise SM4Error
+
 pub fn pkcs7_pad(Bytes, Int) -> Bytes
 
 pub fn pkcs7_unpad(Bytes) -> Bytes raise SM4Error
+
+pub fn set_iv(Bytes) -> Unit raise SM4Error
+
+pub let sm4_block_size : Int
+
+pub fn sm4_cbc(Bytes, Bytes, Bool) -> Bytes raise SM4Error
+
+pub fn sm4_cfb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
 pub fn sm4_decrypt_block(Bytes, Bytes) -> Bytes raise SM4Error
 
@@ -19,6 +31,8 @@ pub fn sm4_decrypt_cfb(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 pub fn sm4_decrypt_ecb(Bytes, Bytes) -> Bytes raise SM4Error
 
 pub fn sm4_decrypt_ofb(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
+
+pub fn sm4_ecb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
 pub fn sm4_encrypt_block(Bytes, Bytes) -> Bytes raise SM4Error
 
@@ -32,9 +46,15 @@ pub fn sm4_encrypt_ofb(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
 pub fn sm4_error_decrypt_failed() -> SM4Error
 
+pub fn sm4_gcm(Bytes, Bytes, Bytes, Bytes, Bool) -> (Bytes, Bytes) raise SM4Error
+
 pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
 
 pub fn sm4_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
+
+pub let sm4_key_size : Int
+
+pub fn sm4_ofb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
 // Errors
 pub suberror SM4Error {
@@ -46,6 +66,16 @@ pub suberror SM4Error {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub struct SM4Cipher {
+  rk : FixedArray[UInt]
+  rk_rev : FixedArray[UInt]
+  iv : FixedArray[Byte]
+}
+pub fn SM4Cipher::block_size(Self) -> Int
+pub fn SM4Cipher::decrypt(Self, Bytes) -> Bytes raise SM4Error
+pub fn SM4Cipher::encrypt(Self, Bytes) -> Bytes raise SM4Error
+pub fn SM4Cipher::get_iv(Self) -> Bytes
+pub fn SM4Cipher::set_iv(Self, Bytes) -> Unit raise SM4Error
 
 // Type aliases
 

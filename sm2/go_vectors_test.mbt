@@ -210,3 +210,479 @@ test "go_sm2_verify_m2" {
   )
   assert_true(@sm2.sm2_verify_der(pubkey, msg, uid, der))
 }
+
+///|
+test "go_sm2_signdata_m0" {
+  let r = go_hex_to_bytes(
+    "66df97ffebff6f40de5127548674776bc8f5930fc9001e2cc68bc43eb5185981",
+  )
+  let s = go_hex_to_bytes(
+    "9b9e5d975ee941d5a8e93d6d46ffe4c5fe9509ec512ec10514da0dc362fdb526",
+  )
+  let der = @sm2.sign_digit_to_sign_data(r, s)
+  assert_eq(
+    go_bytes_to_hex(der),
+    "3045022066df97ffebff6f40de5127548674776bc8f5930fc9001e2cc68bc43eb51859810221009b9e5d975ee941d5a8e93d6d46ffe4c5fe9509ec512ec10514da0dc362fdb526",
+  )
+  let (r2, s2) = @sm2.sign_data_to_sign_digit(
+    go_hex_to_bytes(
+      "3045022066df97ffebff6f40de5127548674776bc8f5930fc9001e2cc68bc43eb51859810221009b9e5d975ee941d5a8e93d6d46ffe4c5fe9509ec512ec10514da0dc362fdb526",
+    ),
+  )
+  assert_eq(
+    go_bytes_to_hex(r2),
+    "66df97ffebff6f40de5127548674776bc8f5930fc9001e2cc68bc43eb5185981",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2),
+    "9b9e5d975ee941d5a8e93d6d46ffe4c5fe9509ec512ec10514da0dc362fdb526",
+  )
+}
+
+///|
+test "go_sm2_signdata_m1" {
+  let r = go_hex_to_bytes(
+    "32f3fb1e43646e3ada35e5b6c11c2e0619cf46fa3ca6b0d77628dc1998a7b82b",
+  )
+  let s = go_hex_to_bytes(
+    "5db60bdf14f99cb55fb275df0510c14d323989b4e993a5ddbbe2bc3d7400a8f6",
+  )
+  let der = @sm2.sign_digit_to_sign_data(r, s)
+  assert_eq(
+    go_bytes_to_hex(der),
+    "3044022032f3fb1e43646e3ada35e5b6c11c2e0619cf46fa3ca6b0d77628dc1998a7b82b02205db60bdf14f99cb55fb275df0510c14d323989b4e993a5ddbbe2bc3d7400a8f6",
+  )
+  let (r2, s2) = @sm2.sign_data_to_sign_digit(
+    go_hex_to_bytes(
+      "3044022032f3fb1e43646e3ada35e5b6c11c2e0619cf46fa3ca6b0d77628dc1998a7b82b02205db60bdf14f99cb55fb275df0510c14d323989b4e993a5ddbbe2bc3d7400a8f6",
+    ),
+  )
+  assert_eq(
+    go_bytes_to_hex(r2),
+    "32f3fb1e43646e3ada35e5b6c11c2e0619cf46fa3ca6b0d77628dc1998a7b82b",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2),
+    "5db60bdf14f99cb55fb275df0510c14d323989b4e993a5ddbbe2bc3d7400a8f6",
+  )
+}
+
+///|
+test "go_sm2_signdata_m2" {
+  let r = go_hex_to_bytes(
+    "d392ed8ae73bffdf70b6ac75f06d9131cee513cc9f0b756f6776c1fecf849da0",
+  )
+  let s = go_hex_to_bytes(
+    "05cd5dd2f86ff0f7fcbc4e20bb901395f2a7bf6094f2d032aa1a3bdaa18a2c31",
+  )
+  let der = @sm2.sign_digit_to_sign_data(r, s)
+  assert_eq(
+    go_bytes_to_hex(der),
+    "3045022100d392ed8ae73bffdf70b6ac75f06d9131cee513cc9f0b756f6776c1fecf849da0022005cd5dd2f86ff0f7fcbc4e20bb901395f2a7bf6094f2d032aa1a3bdaa18a2c31",
+  )
+  let (r2, s2) = @sm2.sign_data_to_sign_digit(
+    go_hex_to_bytes(
+      "3045022100d392ed8ae73bffdf70b6ac75f06d9131cee513cc9f0b756f6776c1fecf849da0022005cd5dd2f86ff0f7fcbc4e20bb901395f2a7bf6094f2d032aa1a3bdaa18a2c31",
+    ),
+  )
+  assert_eq(
+    go_bytes_to_hex(r2),
+    "d392ed8ae73bffdf70b6ac75f06d9131cee513cc9f0b756f6776c1fecf849da0",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2),
+    "05cd5dd2f86ff0f7fcbc4e20bb901395f2a7bf6094f2d032aa1a3bdaa18a2c31",
+  )
+}
+
+///|
+test "go_sm2_compress_k0" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "a477fbeae28650a529e406cf7215cc30d7e00382d7c9d45e36e613812adf9eae",
+    ),
+  )
+  let pubkey = @sm2.derive_public_key(privkey)
+  let comp = @sm2.compress_point(pubkey)
+  let go_comp = go_hex_to_bytes(
+    "01fd120dfa040a10f5071bdfffca608c7de1a5b8859f59bf71a4bd25caeed5d7ca",
+  )
+  assert_eq(comp.length(), 33)
+  assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
+  for i = 1; i < 33; i = i + 1 {
+    assert_eq(comp[i], go_comp[i])
+  }
+  let back = @sm2.decompress_point(comp)
+  assert_true(@sm2.is_on_curve(back))
+  assert_eq(go_bytes_to_hex(@sm2.compress_point(back)), go_bytes_to_hex(comp))
+  // the recovered y must be the real one: verify a signature with it
+  let msg = b"decompressed key check"
+  let uid = @sm2.default_uid()
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
+}
+
+///|
+test "go_sm2_compress_k1" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "1899251a8f98974e16c94ce7298d0f9588d34cd494165571065dc568bcd9ba4e",
+    ),
+  )
+  let pubkey = @sm2.derive_public_key(privkey)
+  let comp = @sm2.compress_point(pubkey)
+  let go_comp = go_hex_to_bytes(
+    "0069639b98114cb1e30cb693d895cf73c8dd1aa6d8daf98e75e64b1b35a83d8523",
+  )
+  assert_eq(comp.length(), 33)
+  assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
+  for i = 1; i < 33; i = i + 1 {
+    assert_eq(comp[i], go_comp[i])
+  }
+  let back = @sm2.decompress_point(comp)
+  assert_true(@sm2.is_on_curve(back))
+  assert_eq(go_bytes_to_hex(@sm2.compress_point(back)), go_bytes_to_hex(comp))
+  // the recovered y must be the real one: verify a signature with it
+  let msg = b"decompressed key check"
+  let uid = @sm2.default_uid()
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
+}
+
+///|
+test "go_sm2_compress_k2" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "60af4425d97b4c79988e924dbceb893c823d7dad19d0739f2b4704570ee9a85d",
+    ),
+  )
+  let pubkey = @sm2.derive_public_key(privkey)
+  let comp = @sm2.compress_point(pubkey)
+  let go_comp = go_hex_to_bytes(
+    "01a33b08a19fd9a9be7af5e08fe9b99956aacf2b8c82d682904ee801f0861c02ea",
+  )
+  assert_eq(comp.length(), 33)
+  assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
+  for i = 1; i < 33; i = i + 1 {
+    assert_eq(comp[i], go_comp[i])
+  }
+  let back = @sm2.decompress_point(comp)
+  assert_true(@sm2.is_on_curve(back))
+  assert_eq(go_bytes_to_hex(@sm2.compress_point(back)), go_bytes_to_hex(comp))
+  // the recovered y must be the real one: verify a signature with it
+  let msg = b"decompressed key check"
+  let uid = @sm2.default_uid()
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
+}
+
+///|
+test "go_sm2_compress_k3" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "df7adce96f9c920060833df2decb46b3cc31dfd48c0f7338ac199529cfbd446b",
+    ),
+  )
+  let pubkey = @sm2.derive_public_key(privkey)
+  let comp = @sm2.compress_point(pubkey)
+  let go_comp = go_hex_to_bytes(
+    "01c80055f296abaef88274e1ca3a402a91b826702824dbce0cc752ef959513f92c",
+  )
+  assert_eq(comp.length(), 33)
+  assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
+  for i = 1; i < 33; i = i + 1 {
+    assert_eq(comp[i], go_comp[i])
+  }
+  let back = @sm2.decompress_point(comp)
+  assert_true(@sm2.is_on_curve(back))
+  assert_eq(go_bytes_to_hex(@sm2.compress_point(back)), go_bytes_to_hex(comp))
+  // the recovered y must be the real one: verify a signature with it
+  let msg = b"decompressed key check"
+  let uid = @sm2.default_uid()
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
+}
+
+///|
+test "go_sm2_raw_m0" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "065ff9ce2f65fc38bcf52bbd7d89e07effded5b2b9d5f3f8adce19c49be7e9b9",
+    ),
+  )
+  let c132 = go_hex_to_bytes(
+    "04e38a3387fe9f0898bfdf3fbef2d2e278f79ee71aaa168732c030e78cdb8a7ddca7fa67ddb303d5198ba062889cc712bde38d137662eb4e2e7a65fd13384398fe3044808861d3ec9192205af4b668f83b752e5d49a8d7c9eb633011c0b83c2de9a61996a63b30454c5647d6d2b8256ad9",
+  )
+  let c123 = go_hex_to_bytes(
+    "0419818df33b5cb6ce52a80febe4d16fc49bf401c7868441abbbe0c4af6cc2ccf1eaa7d248a16f4724e8ecb4770dc00f74d0bb84b8b491818878492f692efb9beee323e0688575b1998384d74c7d119b1e8cfa26c55d9ce07549dd996268b4d69833bc0eb2e7d198b4f198ff06a2e1a8ca",
+  )
+  let asn1c = go_hex_to_bytes(
+    "307a022100e38a3387fe9f0898bfdf3fbef2d2e278f79ee71aaa168732c030e78cdb8a7ddc022100a7fa67ddb303d5198ba062889cc712bde38d137662eb4e2e7a65fd13384398fe04203044808861d3ec9192205af4b668f83b752e5d49a8d7c9eb633011c0b83c2de90410a61996a63b30454c5647d6d2b8256ad9",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt(privkey, c132, @sm2.C1C3C2)),
+    "726177206d6f6465206d657373616765",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt(privkey, c123, @sm2.C1C2C3)),
+    "726177206d6f6465206d657373616765",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.cipher_marshal(c132)),
+    "307a022100e38a3387fe9f0898bfdf3fbef2d2e278f79ee71aaa168732c030e78cdb8a7ddc022100a7fa67ddb303d5198ba062889cc712bde38d137662eb4e2e7a65fd13384398fe04203044808861d3ec9192205af4b668f83b752e5d49a8d7c9eb633011c0b83c2de90410a61996a63b30454c5647d6d2b8256ad9",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.cipher_unmarshal(asn1c)),
+    "04e38a3387fe9f0898bfdf3fbef2d2e278f79ee71aaa168732c030e78cdb8a7ddca7fa67ddb303d5198ba062889cc712bde38d137662eb4e2e7a65fd13384398fe3044808861d3ec9192205af4b668f83b752e5d49a8d7c9eb633011c0b83c2de9a61996a63b30454c5647d6d2b8256ad9",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt_asn1(privkey, asn1c)),
+    "726177206d6f6465206d657373616765",
+  )
+}
+
+///|
+test "go_sm2_raw_m1" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "065ff9ce2f65fc38bcf52bbd7d89e07effded5b2b9d5f3f8adce19c49be7e9b9",
+    ),
+  )
+  let c132 = go_hex_to_bytes(
+    "04c44738d30f32c6b72c3302ac558ba7cfeb26b2df54c5679eb79c8ecb95c6328d536f43b5f4dd056514b3f701218705adf1370db15002cf1690e55024738cb78bc9d0781da8763ad969be4b6c139d9397b9c6edc43be362f54be2339d7da7a3850faad1ea1a6d118b919ee5809e1a68bc",
+  )
+  let c123 = go_hex_to_bytes(
+    "04624146783173ffe3bd00ddfc78729b6ddde8b1569ba9166c2f4375b9859d02a4d0fea9442ed3f108b1bec561fea625c4cf24d1f56d504cb3025d7232b78ef9dd2384b9eaf88dc4295c2a10e51062aec9b1437938f76d188f7ab095ff9ff8e13eb54bf8e039b09470a9af93b3c957f088",
+  )
+  let asn1c = go_hex_to_bytes(
+    "3079022100c44738d30f32c6b72c3302ac558ba7cfeb26b2df54c5679eb79c8ecb95c6328d0220536f43b5f4dd056514b3f701218705adf1370db15002cf1690e55024738cb78b0420c9d0781da8763ad969be4b6c139d9397b9c6edc43be362f54be2339d7da7a38504100faad1ea1a6d118b919ee5809e1a68bc",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt(privkey, c132, @sm2.C1C3C2)),
+    "030a11181f262d343b424950575e656c",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt(privkey, c123, @sm2.C1C2C3)),
+    "030a11181f262d343b424950575e656c",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.cipher_marshal(c132)),
+    "3079022100c44738d30f32c6b72c3302ac558ba7cfeb26b2df54c5679eb79c8ecb95c6328d0220536f43b5f4dd056514b3f701218705adf1370db15002cf1690e55024738cb78b0420c9d0781da8763ad969be4b6c139d9397b9c6edc43be362f54be2339d7da7a38504100faad1ea1a6d118b919ee5809e1a68bc",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.cipher_unmarshal(asn1c)),
+    "04c44738d30f32c6b72c3302ac558ba7cfeb26b2df54c5679eb79c8ecb95c6328d536f43b5f4dd056514b3f701218705adf1370db15002cf1690e55024738cb78bc9d0781da8763ad969be4b6c139d9397b9c6edc43be362f54be2339d7da7a3850faad1ea1a6d118b919ee5809e1a68bc",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt_asn1(privkey, asn1c)),
+    "030a11181f262d343b424950575e656c",
+  )
+}
+
+///|
+test "go_sm2_raw_m2" {
+  let privkey = go_load_priv(
+    go_hex_to_bytes(
+      "065ff9ce2f65fc38bcf52bbd7d89e07effded5b2b9d5f3f8adce19c49be7e9b9",
+    ),
+  )
+  let c132 = go_hex_to_bytes(
+    "041006cd1e1b26f37c5946997cedb3fe00413ca44d0463ef0710ce82890b86dbdce3bcb295c87e9dfa5cd4d8c437320c0d1ed8d7db402c29a7277dce24fbcc3174853246e92e28920ededad51b6789d4185c90726236611f6d7df6a9cb654dcaa9d28e7000bfbf058e222e52e8e4ae913792e0beb033652f1e9969cfb43ffc6f90f0ee84564133f9ad",
+  )
+  let c123 = go_hex_to_bytes(
+    "040afb4703bdb061a9a18c8f9400f57350bfcb51353370980a07b1c76e2553f53a76496d1fd79e71e70b9bcb0a2e47cd42c9f0dae6478762e3bcf1e7d781f8ed0699bbb8c3a336db205ee1b71cda5df7f45571f87e2fbd8c62553b1e026ca3bcf5aba9cb95aa75e7fd3c34e9667cdf5cba2b814a0bd96c5f04a03ebd4e3b328d4811a83ccfe5f712d4",
+  )
+  let asn1c = go_hex_to_bytes(
+    "30819102201006cd1e1b26f37c5946997cedb3fe00413ca44d0463ef0710ce82890b86dbdc022100e3bcb295c87e9dfa5cd4d8c437320c0d1ed8d7db402c29a7277dce24fbcc31740420853246e92e28920ededad51b6789d4185c90726236611f6d7df6a9cb654dcaa90428d28e7000bfbf058e222e52e8e4ae913792e0beb033652f1e9969cfb43ffc6f90f0ee84564133f9ad",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt(privkey, c132, @sm2.C1C3C2)),
+    "0b10151a1f24292e33383d42474c51565b60656a6f74797e83888d92979ca1a6abb0b5babfc4c9ce",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt(privkey, c123, @sm2.C1C2C3)),
+    "0b10151a1f24292e33383d42474c51565b60656a6f74797e83888d92979ca1a6abb0b5babfc4c9ce",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.cipher_marshal(c132)),
+    "30819102201006cd1e1b26f37c5946997cedb3fe00413ca44d0463ef0710ce82890b86dbdc022100e3bcb295c87e9dfa5cd4d8c437320c0d1ed8d7db402c29a7277dce24fbcc31740420853246e92e28920ededad51b6789d4185c90726236611f6d7df6a9cb654dcaa90428d28e7000bfbf058e222e52e8e4ae913792e0beb033652f1e9969cfb43ffc6f90f0ee84564133f9ad",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.cipher_unmarshal(asn1c)),
+    "041006cd1e1b26f37c5946997cedb3fe00413ca44d0463ef0710ce82890b86dbdce3bcb295c87e9dfa5cd4d8c437320c0d1ed8d7db402c29a7277dce24fbcc3174853246e92e28920ededad51b6789d4185c90726236611f6d7df6a9cb654dcaa9d28e7000bfbf058e222e52e8e4ae913792e0beb033652f1e9969cfb43ffc6f90f0ee84564133f9ad",
+  )
+  assert_eq(
+    go_bytes_to_hex(@sm2.sm2_decrypt_asn1(privkey, asn1c)),
+    "0b10151a1f24292e33383d42474c51565b60656a6f74797e83888d92979ca1a6abb0b5babfc4c9ce",
+  )
+}
+
+///|
+test "go_sm2_kex_k0" {
+  let ida = go_hex_to_bytes("31323334353637383132333435363738")
+  let idb = go_hex_to_bytes("38373635343332313837363534333231")
+  let pri_a = go_load_priv(
+    go_hex_to_bytes(
+      "469e2ca8b4c477e397a123968096ba153ffa182d6af6b7e09dca2d439944eed3",
+    ),
+  )
+  let pri_b = go_load_priv(
+    go_hex_to_bytes(
+      "16106dd78834f3d67006b6d607a0440fba265deefb077f5a23dd5a2fdb806f89",
+    ),
+  )
+  let pub_a = go_load_pub(
+    go_hex_to_bytes(
+      "bbb7440f03cfc08548a4cfae5c6ff3344dada64a9b9eb4afd222898dccfc6b8e",
+    ),
+    go_hex_to_bytes(
+      "37179986cfb991cec339b6ea8b2d22a966a4f18bae8e983a2c053e0f7c95e484",
+    ),
+  )
+  let pub_b = go_load_pub(
+    go_hex_to_bytes(
+      "b19356a093c7075a124767d30469a9469d7442d23564a7525729030cd454aaef",
+    ),
+    go_hex_to_bytes(
+      "8399a0ea592894dc58ea84b8d373acd3c212b25628ae17937ed2abba150c38fa",
+    ),
+  )
+  let rpri_a = go_load_priv(
+    go_hex_to_bytes(
+      "c4a6592c6e12cbacb9d33d3e8b4cb3e0d451bb927ce4285d10624c246688cc3b",
+    ),
+  )
+  let rpri_b = go_load_priv(
+    go_hex_to_bytes(
+      "faf4f9f49cf190e6a29aaef7c442bc83321c7aae8980ba1320adb1009ebc38f5",
+    ),
+  )
+  let rpub_a = go_load_pub(
+    go_hex_to_bytes(
+      "e6148ba6eb8fbcd15019079eb4ab020ca1c84a7ff7c5ac51dcd50ff9b2f560b3",
+    ),
+    go_hex_to_bytes(
+      "1a3bca150bf690d759d26654ee188159c253f77c3f76e62136b8c50bc95d1aad",
+    ),
+  )
+  let rpub_b = go_load_pub(
+    go_hex_to_bytes(
+      "86ebba4dc3846c34c75534e5dfee6b1aacc304e8a1122eb3fbd6f05ccbe83e52",
+    ),
+    go_hex_to_bytes(
+      "9c9016d5c0fa2daf477e570f7cf72f276bf4f826d0bd61f639c06b3f1abfc385",
+    ),
+  )
+  let (ka, s1a, s2a) = @sm2.key_exchange_a(
+    16, ida, idb, pri_a, pub_b, rpri_a, rpub_b,
+  )
+  assert_eq(go_bytes_to_hex(ka), "0c3e1df2e2c4baba3607ec28a952cec1")
+  assert_eq(
+    go_bytes_to_hex(s1a),
+    "aa8db05c1a4867cbbbde01c1be381e847ff8157d99aa2cb70eb077d599bd1792",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2a),
+    "674266c5dcd252e8d72535b81e2b9c5dc41ed1ca81c965e076b356e5a54e5a55",
+  )
+  let (kb, s1b, s2b) = @sm2.key_exchange_b(
+    16, ida, idb, pri_b, pub_a, rpri_b, rpub_a,
+  )
+  assert_eq(go_bytes_to_hex(kb), "0c3e1df2e2c4baba3607ec28a952cec1")
+  assert_eq(
+    go_bytes_to_hex(s1b),
+    "aa8db05c1a4867cbbbde01c1be381e847ff8157d99aa2cb70eb077d599bd1792",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2b),
+    "674266c5dcd252e8d72535b81e2b9c5dc41ed1ca81c965e076b356e5a54e5a55",
+  )
+}
+
+///|
+test "go_sm2_kex_k1" {
+  let ida = go_hex_to_bytes("31323334353637383132333435363738")
+  let idb = go_hex_to_bytes("38373635343332313837363534333231")
+  let pri_a = go_load_priv(
+    go_hex_to_bytes(
+      "2c789dbedf55992a5f3beb7a37b1108d0e1c9625bb9af47e0493566e469a918c",
+    ),
+  )
+  let pri_b = go_load_priv(
+    go_hex_to_bytes(
+      "4ae9568fd92419ab61da7c8afccc3cecf1d7f5b2d2b1bae20bc9a34a114913d2",
+    ),
+  )
+  let pub_a = go_load_pub(
+    go_hex_to_bytes(
+      "68061f344e9d72bf4405f4262d7afac8ee34feda3659392b580e9bf651a8640d",
+    ),
+    go_hex_to_bytes(
+      "884d18da4601da576e7f035bc811fcae3ad19be0f3d2b8d001d937fe34451286",
+    ),
+  )
+  let pub_b = go_load_pub(
+    go_hex_to_bytes(
+      "170e73ab53e9bfddea5a08bf0d3a310bf1276e2188bdea1cd25dd3e2184300e5",
+    ),
+    go_hex_to_bytes(
+      "21fe81c4df8a4025215f8db74359047e1351c7e501fa5dd88e4d64d8f36f2a10",
+    ),
+  )
+  let rpri_a = go_load_priv(
+    go_hex_to_bytes(
+      "2687269abd88d5381e3c85bf2c40c66d0c0867670c447906319d95e90a655c18",
+    ),
+  )
+  let rpri_b = go_load_priv(
+    go_hex_to_bytes(
+      "1543a67bffa455d0f9a807e5bb95caa11af719db2d0f2497537966811a79caea",
+    ),
+  )
+  let rpub_a = go_load_pub(
+    go_hex_to_bytes(
+      "1f67714b86bb256f134f12f7eaf34a28e3fabb659383a990ce7366d96da7ca7d",
+    ),
+    go_hex_to_bytes(
+      "25fada53531bbf970f6863f45915a1a35402a5a747f4bef64e6edc419941a444",
+    ),
+  )
+  let rpub_b = go_load_pub(
+    go_hex_to_bytes(
+      "150420ade97279f0d5f59c475853a4b2394353c6764335c760e4c279fdd7fa5a",
+    ),
+    go_hex_to_bytes(
+      "6b0eff23a5fceb6c4a35e2f9336913014bb39f6d9e806de2e9ffef641c2d1248",
+    ),
+  )
+  let (ka, s1a, s2a) = @sm2.key_exchange_a(
+    32, ida, idb, pri_a, pub_b, rpri_a, rpub_b,
+  )
+  assert_eq(
+    go_bytes_to_hex(ka),
+    "97cf3f63895693a940c62677da39bed15c7da081e3ffe327acd1a5bd8eee7cf6",
+  )
+  assert_eq(
+    go_bytes_to_hex(s1a),
+    "b7bb2c03d0293dfda590106e932292cae4d4284c9e0f36dd8002e91ac7e2ee42",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2a),
+    "93da960f0aeed58f06caa4d9fe8b5104194b9b10ea7b0fe7ff3c1024357619b0",
+  )
+  let (kb, s1b, s2b) = @sm2.key_exchange_b(
+    32, ida, idb, pri_b, pub_a, rpri_b, rpub_a,
+  )
+  assert_eq(
+    go_bytes_to_hex(kb),
+    "97cf3f63895693a940c62677da39bed15c7da081e3ffe327acd1a5bd8eee7cf6",
+  )
+  assert_eq(
+    go_bytes_to_hex(s1b),
+    "b7bb2c03d0293dfda590106e932292cae4d4284c9e0f36dd8002e91ac7e2ee42",
+  )
+  assert_eq(
+    go_bytes_to_hex(s2b),
+    "93da960f0aeed58f06caa4d9fe8b5104194b9b10ea7b0fe7ff3c1024357619b0",
+  )
+}
