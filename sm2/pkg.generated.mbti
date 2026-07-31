@@ -9,10 +9,6 @@ import {
 // Values
 pub fn cipher_marshal(Bytes) -> Bytes
 
-pub fn cipher_mode_c1c2c3() -> CipherMode
-
-pub fn cipher_mode_c1c3c2() -> CipherMode
-
 pub fn cipher_unmarshal(Bytes) -> Bytes
 
 pub fn compress_point(SM2PublicKey) -> Bytes
@@ -47,8 +43,6 @@ pub fn sm2_encrypt(SM2PublicKey, Bytes, @random.Rand?, CipherMode) -> Bytes rais
 
 pub fn sm2_encrypt_asn1(SM2PublicKey, Bytes, @random.Rand?) -> Bytes raise Sm2Error
 
-pub fn sm2_error_zero_random() -> Sm2Error
-
 pub fn sm2_p256() -> SM2Curve
 
 pub fn sm2_sign(SM2PrivateKey, Bytes, Bytes, @random.Rand?) -> (Bytes, Bytes)
@@ -67,7 +61,6 @@ pub suberror Sm2Error {
   InvalidSignature
   InvalidPoint
   InvalidParameter
-  ZeroRandom
   KdfZeroKey
 } derive(Eq, @debug.Debug)
 

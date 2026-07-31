@@ -196,12 +196,3 @@ test "sm4_decrypt_cbc_invalid_data" {
   }
   expect_err("decrypt_cbc data", r)
 }
-
-///|
-test "sm4_error_decrypt_failed_constructible" {
-  let e = @sm4.sm4_error_decrypt_failed()
-  match e {
-    SM4Error::DecryptFailed => ()
-    _ => abort("expected DecryptFailed")
-  }
-}

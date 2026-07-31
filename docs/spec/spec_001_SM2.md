@@ -321,7 +321,6 @@ pub suberror Sm2Error {
   InvalidSignature      // 签名 ASN.1 解析失败
   InvalidPoint          // 压缩点首字节非法 / 椭圆曲线点无效
   InvalidParameter      // 通用参数错误（uid 过长、int_to_bytes_be 越界）
-  ZeroRandom            // 随机源读取失败
   KdfZeroKey            // KDF 输出全 0
 } derive(Show, Eq)
 ```
@@ -557,7 +556,6 @@ mode = C1C3C2
 | 密文长度 < 97 | `sm2_decrypt` | `Sm2Error::InvalidCipher` |
 | 密文首字节 ≠ 0x04 | `sm2_decrypt` | `Sm2Error::InvalidCipher` |
 | DER 解码失败 | `sm2_verify_der` / `cipher_unmarshal` | 返回 `false` / 抛 `Sm2Error::InvalidCipher` |
-| `@random` 注入失败 | `sm2_sign` / `sm2_encrypt` | `Sm2Error::ZeroRandom` |
 
 > 注：上表中「密文长度 < 97」与「密文首字节 ≠ 0x04」两条是**本实现新增的防御性校验**，gmsm `Decrypt`（`sm2.go:325-344`）本身不做这两项检查（直接 `data[1:]` 取子串，短输入会越界而非返回该错误）。保留它们不会影响与 gmsm 的互操作（gmsm 产出的密文首字节恒为 0x04、长度恒定），但实现时应清楚它们是规范层的加固，不是 gmsm 行为。
 

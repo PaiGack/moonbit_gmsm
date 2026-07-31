@@ -210,7 +210,6 @@ pub suberror SM4Error {
   InvalidData      // 数据长度不是 16 的倍数（ECB/CBC 分组输入）
   InvalidIV        // IV 不为空且长度 ≠ 16 字节
   InvalidPadding   // PKCS7 去填充时填充值不合法
-  DecryptFailed    // CBC 解密失败（用于广义错误）
 } derive(Show, Eq)
 ```
 

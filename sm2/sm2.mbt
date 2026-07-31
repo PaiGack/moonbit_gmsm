@@ -44,7 +44,6 @@ pub suberror Sm2Error {
   InvalidSignature
   InvalidPoint
   InvalidParameter
-  ZeroRandom
   KdfZeroKey
 } derive(Debug, Eq)
 

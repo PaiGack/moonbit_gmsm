@@ -60,14 +60,7 @@ pub suberror SM4Error {
   InvalidData // data length not a multiple of 16
   InvalidIV // IV not empty and length != 16 bytes
   InvalidPadding // PKCS7 unpadding: padding value invalid
-  DecryptFailed // CBC decrypt failed
 } derive(Debug, Eq)
-
-///|
-/// Returns the DecryptFailed error (constructs the variant for API completeness).
-pub fn sm4_error_decrypt_failed() -> SM4Error {
-  DecryptFailed
-}
 
 ///|
 /// Non-linear transformation τ: substitute each byte via S-Box.

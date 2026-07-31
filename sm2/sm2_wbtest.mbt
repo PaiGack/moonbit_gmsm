@@ -271,45 +271,6 @@ test "default_uid_impl_returns_16_bytes" {
 }
 
 ///|
-test "sm2_error_variants_constructible" {
-  // Ensure all Sm2Error variants are constructed (suppresses unused_constructor warning)
-  let e0 = Sm2Error::ZeroParam
-  let e1 = Sm2Error::NotOnCurve
-  let e2 = Sm2Error::InvalidCipher
-  let e3 = Sm2Error::InvalidSignature
-  let e4 = Sm2Error::InvalidPoint
-  let e5 = Sm2Error::InvalidParameter
-  let e6 = Sm2Error::ZeroRandom
-  let e7 = Sm2Error::KdfZeroKey
-  // Verify they are distinct error variants via Debug
-  ignore(e0)
-  ignore(e1)
-  ignore(e2)
-  ignore(e3)
-  ignore(e4)
-  ignore(e5)
-  ignore(e6)
-  ignore(e7)
-}
-
-///|
-test "sm2_error_zero_random_constructible" {
-  let e = sm2_error_zero_random()
-  match e {
-    ZeroRandom => ()
-    _ => abort("expected ZeroRandom")
-  }
-}
-
-///|
-test "cipher_mode_c1c2c3_constructible" {
-  match cipher_mode_c1c2c3() {
-    C1C2C3 => ()
-    _ => abort("expected C1C2C3")
-  }
-}
-
-///|
 test "sm2_encrypt_with_provided_rand" {
   // Exercise the `Some(rand)` branch of sm2_encrypt.
   let private_key = generate_key(None)

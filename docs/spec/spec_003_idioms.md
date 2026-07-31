@@ -206,7 +206,7 @@ FixedArray::from_array([
 | 1 | `sm2.mbt:882,948` | `let _curve = priA.curve` 赋值后未使用，应直接删除 |
 | 2 | 多处 | `fn(_) { 0UL }` 与 `fn(_i) { 0U }` 混用，下划线参数命名不一致 |
 | 3 | `sm3.mbt:189` | 用 `.land(0xffU)` 方法，而 `sm4.mbt:82` 用直接 `<< 24`（因 `to_uint()` 已保证 0-255），风格不一致 |
-| 4 | `sm2.mbt:197,68` 等 | `sm2_error_zero_random()`、`cipher_mode_c1c2c3()` 等仅为"API 完整性"构造变体，实为兼容包装。按 `AGENTS.md` 应放入 `deprecated.mbt` |
+| 4 | 已修正 | `sm2_error_zero_random()`、`cipher_mode_c1c2c3()` 等零参数构造包装已删除。`CipherMode` 是 `pub(all)`、`Sm2Error` 是 `pub suberror`，调用方直接写 `@sm2.C1C3C2` 即可，对应 gmsm `sm2.go:35` 直接使用 `C1C3C2` 常量的写法。这类包装原本只为压制 `unused_constructor` 警告，不属于 deprecated 代码，不应放入 `deprecated.mbt` |
 | 5 | `sm4.mbt:163` | `let n = 4` 常量只用一次，可内联 |
 | 6 | `sm4/cipher.mbt:91` | `default_iv` 是包级可变全局状态，不符合 MoonBit 函数式偏好 |
 | 7 | `sm2` 类型 | `pub type Bn = FixedArray[UInt64]` 定义了别名，但代码中 `Bn` 和 `FixedArray[UInt64]` 混用，未统一 |

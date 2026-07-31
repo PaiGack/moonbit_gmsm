@@ -149,10 +149,8 @@ test "sm2 sign and encrypt" {
   )
 
   // C1C3C2 / C1C2C3 两种密文排布与 ASN.1 密文
-  let ct = @sm2.sm2_encrypt(pub_key, msg, None, @sm2.cipher_mode_c1c3c2())
-  assert_true(
-    @byteutil.bytes_eq(@sm2.sm2_decrypt(sk, ct, @sm2.cipher_mode_c1c3c2()), msg),
-  )
+  let ct = @sm2.sm2_encrypt(pub_key, msg, None, @sm2.C1C3C2)
+  assert_true(@byteutil.bytes_eq(@sm2.sm2_decrypt(sk, ct, @sm2.C1C3C2), msg))
   assert_true(
     @byteutil.bytes_eq(
       @sm2.sm2_decrypt_asn1(sk, @sm2.sm2_encrypt_asn1(pub_key, msg, None)),

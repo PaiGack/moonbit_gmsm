@@ -186,8 +186,7 @@ test "sm2_sign_data_to_sign_digit_invalid" {
 }
 
 ///|
-/// Both raw ciphertext layouts round-trip, and the mode accessors name the
-/// same variants as the exported constructors.
+/// Both raw ciphertext layouts round-trip.
 test "sm2_raw_cipher_modes" {
   let private_key = @sm2.generate_key(None)
   let public_key = @sm2.derive_public_key(private_key)
@@ -205,13 +204,10 @@ test "sm2_raw_cipher_modes" {
       @sm2.sm2_decrypt(
         private_key,
         @sm2.cipher_unmarshal(@sm2.cipher_marshal(c132)),
-        @sm2.cipher_mode_c1c3c2(),
+        @sm2.C1C3C2,
       ),
     ),
   )
-  // accessors return the same variants
-  assert_true(@sm2.cipher_mode_c1c3c2() is @sm2.CipherMode::C1C3C2)
-  assert_true(@sm2.cipher_mode_c1c2c3() is @sm2.CipherMode::C1C2C3)
 }
 
 ///|

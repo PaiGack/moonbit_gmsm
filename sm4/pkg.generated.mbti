@@ -40,8 +40,6 @@ pub fn sm4_encrypt_ecb(Bytes, Bytes) -> Bytes raise SM4Error
 
 pub fn sm4_encrypt_ofb(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
-pub fn sm4_error_decrypt_failed() -> SM4Error
-
 pub fn sm4_gcm(Bytes, Bytes, Bytes, Bytes, Bool) -> (Bytes, Bytes) raise SM4Error
 
 pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
@@ -58,7 +56,6 @@ pub suberror SM4Error {
   InvalidData
   InvalidIV
   InvalidPadding
-  DecryptFailed
 } derive(Eq, @debug.Debug)
 
 // Types and methods
