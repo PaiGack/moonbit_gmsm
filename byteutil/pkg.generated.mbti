@@ -28,7 +28,9 @@ pub fn concat_bytes(Array[Bytes]) -> Bytes
 
 pub fn ct_eq(Bytes, Bytes) -> Bool
 
-pub fn decode_asn1_length(Bytes, Int32) -> (Int32, Int32)
+pub fn decode_asn1_length(Bytes, Int32) -> (Int32, Int32, Int32) raise ByteUtilError
+
+pub fn decode_asn1_tlv(Bytes, Int32, Int32) -> (Int32, Int32, Int32) raise ByteUtilError
 
 pub fn encode_asn1_integer(Bytes) -> Bytes
 
@@ -50,7 +52,7 @@ pub fn int_to_bytes_be(Int32) -> Bytes
 
 pub fn nibble_to_char(Int32) -> Char
 
-pub fn normalize_32(Bytes) -> Bytes
+pub fn normalize_32(Bytes) -> Bytes raise ByteUtilError
 
 pub fn pad_left(Bytes, Int32) -> Bytes
 
@@ -64,7 +66,7 @@ pub fn pem_encode_simple(String, Bytes) -> String
 
 pub fn pkcs7_pad(Bytes, Int32) -> Bytes
 
-pub fn pkcs7_unpad(Bytes) -> Result[Bytes, ByteUtilError]
+pub fn pkcs7_unpad(Bytes) -> Bytes raise ByteUtilError
 
 pub fn rotl(UInt32, Int32) -> UInt32
 
@@ -78,6 +80,7 @@ pub suberror ByteUtilError {
   InvalidPadding
   InvalidBase64
   InvalidLength
+  InvalidDer
 }
 pub fn ByteUtilError::equal(Self, Self) -> Bool
 pub fn ByteUtilError::not_equal(Self, Self) -> Bool

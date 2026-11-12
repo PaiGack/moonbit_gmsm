@@ -497,13 +497,9 @@ test "sign_digit_roundtrip_valid" {
     ((31 - i).reinterpret_as_uint() & 0xFFU).to_byte()
   })
   let der = asn1_encode_signature(r, s)
-  match asn1_decode_signature(der) {
-    Ok((rv, sv)) => {
-      assert_eq(rv, r)
-      assert_eq(sv, s)
-    }
-    Err(_) => abort("expected Ok")
-  }
+  let (rv, sv) = asn1_decode_signature(der) catch { _ => abort("expected Ok") }
+  assert_eq(rv, r)
+  assert_eq(sv, s)
 }
 
 ///|
@@ -536,61 +532,140 @@ test "sm2_verify_s_out_of_range" {
 }
 
 ///|
-/// Expecting panic: `cipher_marshal` with a too-short cipher -> abort (line 750).
-test "panic_cipher_marshal_invalid" {
-  ignore(cipher_marshal(Bytes::makei(10, fn(_) { b'\x00' })))
+/// Helper: run `f` and report whether it raised `Sm2Error`.
+fn raises_sm2_error(f : () -> Unit raise) -> Bool {
+  let r : Result[Unit, Sm2Error] = try {
+    f()
+    Ok(())
+  } catch {
+    _ => Err(InvalidCipher)
+  }
+  r is Err(_)
 }
 
 ///|
-/// Expecting panic: `cipher_unmarshal` with a too-short DER -> abort (line 774).
-test "panic_cipher_unmarshal_invalid_der" {
-  ignore(cipher_unmarshal(Bytes::makei(3, fn(_) { b'\x00' })))
-}
-
-///|
-/// Expecting panic: `cipher_unmarshal` first element not INTEGER -> abort (line 780).
-test "panic_cipher_unmarshal_expected_integer_1" {
-  // SEQUENCE 0x30, length 2, then a byte that is not 0x02 (INTEGER).
-  ignore(
-    cipher_unmarshal(Bytes::from_array([b'\x30', b'\x02', b'\xAA', b'\xBB'])),
+/// `cipher_marshal` with a too-short / bad-prefix cipher -> InvalidCipher.
+test "cipher_marshal_invalid" {
+  assert_true(
+    raises_sm2_error(fn() raise {
+      ignore(cipher_marshal(Bytes::makei(10, fn(_) { b'\x00' })))
+    }),
+  )
+  let no_prefix = Bytes::makei(97, fn(_) { b'\x01' })
+  assert_true(
+    raises_sm2_error(fn() raise { ignore(cipher_marshal(no_prefix)) }),
   )
 }
 
 ///|
-/// Expecting panic: `cipher_unmarshal` second element not INTEGER -> abort (line 789).
-test "panic_cipher_unmarshal_expected_integer_2" {
-  // SEQUENCE, length 4, INTEGER 0x02 0x01 0x00, then 0x03 (not INTEGER).
-  ignore(
-    cipher_unmarshal(
-      Bytes::from_array([b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03']),
-    ),
+/// Malformed DER inputs must raise `Sm2Error`, never panic or abort.
+fn assert_cipher_unmarshal_raises(der : Bytes) -> Unit raise {
+  assert_true(raises_sm2_error(fn() raise { ignore(cipher_unmarshal(der)) }))
+}
+
+///|
+test "cipher_unmarshal_invalid_der" {
+  // empty / truncated
+  assert_cipher_unmarshal_raises(b"")
+  assert_cipher_unmarshal_raises(b"abc")
+  assert_cipher_unmarshal_raises(Bytes::makei(3, fn(_) { b'\x00' }))
+  // SEQUENCE header only, no children
+  assert_cipher_unmarshal_raises(Bytes::from_array([b'\x30', b'\x02']))
+  // SEQUENCE declares more content than is present
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x05', b'\x02', b'\x01', b'\x00']),
+  )
+  // tag byte itself missing (SEQUENCE ends right after the first INTEGER)
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x03', b'\x02', b'\x01', b'\x00']),
   )
 }
 
 ///|
-/// Expecting panic: `cipher_unmarshal` third element not OCTET STRING -> abort (line 798).
-test "panic_cipher_unmarshal_expected_octet_3" {
-  // SEQUENCE, two INTEGERs, then 0x03 (not OCTET STRING 0x04).
-  ignore(
-    cipher_unmarshal(
-      Bytes::from_array([
-        b'\x30', b'\x08', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x03',
-      ]),
-    ),
+test "cipher_unmarshal_wrong_tags" {
+  // first element not INTEGER
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x02', b'\xAA', b'\xBB']),
+  )
+  // second element not INTEGER
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03']),
+  )
+  // third element not OCTET STRING
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([
+      b'\x30', b'\x08', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x02',
+      b'\x00',
+    ]),
+  )
+  // fourth element not OCTET STRING
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([
+      b'\x30', b'\x0B', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x04',
+      b'\x01', b'\x00', b'\x02', b'\x00',
+    ]),
+  )
+  // too many elements
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([
+      b'\x30', b'\x0C', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x04',
+      b'\x01', b'\x00', b'\x04', b'\x01', b'\x00', b'\x05',
+    ]),
   )
 }
 
 ///|
-/// Expecting panic: `cipher_unmarshal` fourth element not OCTET STRING -> abort (line 807).
-test "panic_cipher_unmarshal_expected_octet_4" {
-  // SEQUENCE, two INTEGERs, one OCTET STRING, then 0x03 (not OCTET STRING).
-  ignore(
-    cipher_unmarshal(
-      Bytes::from_array([
-        b'\x30', b'\x0B', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x04',
-        b'\x01', b'\x00', b'\x03',
-      ]),
-    ),
+test "cipher_unmarshal_bad_length_encoding" {
+  // long-form length with a leading zero byte (non-minimal DER)
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x82', b'\x00', b'\x02', b'\x02', b'\x00']),
+  )
+  // long-form length that would fit in short form (non-minimal DER)
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x81', b'\x02', b'\x02', b'\x00', b'\x00']),
+  )
+  // long-form length claiming more bytes than the input holds
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x84', b'\x7F', b'\xFF', b'\xFF', b'\xFF']),
+  )
+  // length spanning 5 bytes (would overflow a 32-bit accumulator)
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([
+      b'\x30', b'\x85', b'\x01', b'\x00', b'\x00', b'\x00', b'\x00',
+    ]),
+  )
+  // indefinite length (0x80) is not DER
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([b'\x30', b'\x80', b'\x00', b'\x00']),
+  )
+}
+
+///|
+test "cipher_unmarshal_oversized_and_negative_integers" {
+  // 33-byte INTEGER (too large for a coordinate)
+  let big = Bytes::makei(36, fn(i) {
+    match i {
+      0 => b'\x30'
+      1 => b'\x22'
+      2 => b'\x02'
+      3 => b'\x21'
+      _ => b'\x01'
+    }
+  })
+  assert_cipher_unmarshal_raises(big)
+  // negative INTEGER: high bit set without a leading 0x00
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([
+      b'\x30', b'\x07', b'\x02', b'\x01', b'\x80', b'\x02', b'\x01', b'\x01', b'\x04',
+      b'\x00', b'\x04', b'\x00',
+    ]),
+  )
+  // empty INTEGER content is not a valid DER INTEGER
+  assert_cipher_unmarshal_raises(
+    Bytes::from_array([
+      b'\x30', b'\x06', b'\x02', b'\x00', b'\x02', b'\x01', b'\x01', b'\x04', b'\x00',
+      b'\x04', b'\x00',
+    ]),
   )
 }
 
@@ -613,10 +688,9 @@ test "sm2_verify_t_zero_returns_false" {
 ///|
 /// `asn1_decode_signature` with a DER shorter than 4 bytes -> Err("too short").
 test "asn1_decode_signature_too_short" {
-  match asn1_decode_signature(b"abc") {
-    Err(_) => ()
-    Ok(_) => abort("expected Err (too short)")
-  }
+  assert_true(
+    raises_sm2_error(fn() raise { ignore(asn1_decode_signature(b"abc")) }),
+  )
 }
 
 ///|
@@ -624,10 +698,9 @@ test "asn1_decode_signature_too_short" {
 test "asn1_decode_signature_bad_first_tag" {
   // SEQUENCE (0x30), length 3, then a byte that is not 0x02 (INTEGER).
   let der = Bytes::from_array([b'\x30', b'\x03', b'\xAA', b'\xBB', b'\xCC'])
-  match asn1_decode_signature(der) {
-    Err(_) => ()
-    Ok(_) => abort("expected Err (bad first tag)")
-  }
+  assert_true(
+    raises_sm2_error(fn() raise { ignore(asn1_decode_signature(der)) }),
+  )
 }
 
 ///|
@@ -637,10 +710,9 @@ test "asn1_decode_signature_bad_second_tag" {
   let der = Bytes::from_array([
     b'\x30', b'\x04', b'\x02', b'\x01', b'\x00', b'\x03',
   ])
-  match asn1_decode_signature(der) {
-    Err(_) => ()
-    Ok(_) => abort("expected Err (bad second tag)")
-  }
+  assert_true(
+    raises_sm2_error(fn() raise { ignore(asn1_decode_signature(der)) }),
+  )
 }
 
 ///|

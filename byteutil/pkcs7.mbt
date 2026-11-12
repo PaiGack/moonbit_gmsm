@@ -11,6 +11,8 @@ pub suberror ByteUtilError {
   InvalidBase64
   // PEM: more than one block where exactly one was expected / bad header
   InvalidLength
+  // ASN.1 DER: malformed tag / length / INTEGER content
+  InvalidDer
 }
 
 ///|
@@ -37,25 +39,25 @@ fn byte_of_pad_len(n : Int32) -> Byte {
 }
 
 ///|
-/// Remove PKCS#7 padding. Returns `Err(ByteUtilError::InvalidPadding)` on
+/// Remove PKCS#7 padding. Raises `ByteUtilError::InvalidPadding` on
 /// malformed padding so that callers can map it to their own error type.
-pub fn pkcs7_unpad(data : Bytes) -> Result[Bytes, ByteUtilError] {
+pub fn pkcs7_unpad(data : Bytes) -> Bytes raise ByteUtilError {
   if data.length() == 0 {
-    return Err(ByteUtilError::InvalidPadding)
+    raise ByteUtilError::InvalidPadding
   }
   let pad_len = data[data.length() - 1].to_int()
   if pad_len < 1 || pad_len > 16 {
-    return Err(ByteUtilError::InvalidPadding)
+    raise ByteUtilError::InvalidPadding
   }
   if pad_len > data.length() {
-    return Err(ByteUtilError::InvalidPadding)
+    raise ByteUtilError::InvalidPadding
   }
   for i = data.length() - pad_len; i < data.length(); i = i + 1 {
     if data[i].to_int() != pad_len {
-      return Err(ByteUtilError::InvalidPadding)
+      raise ByteUtilError::InvalidPadding
     }
   }
-  Ok(data[0:data.length() - pad_len].to_owned())
+  data[0:data.length() - pad_len].to_owned()
 }
 
 ///|

@@ -7,9 +7,9 @@ import {
 }
 
 // Values
-pub fn cipher_marshal(Bytes) -> Bytes
+pub fn cipher_marshal(Bytes) -> Bytes raise Sm2Error
 
-pub fn cipher_unmarshal(Bytes) -> Bytes
+pub fn cipher_unmarshal(Bytes) -> Bytes raise Sm2Error
 
 pub fn compress_point(SM2PublicKey) -> Bytes
 

@@ -44,37 +44,80 @@ test "encode_asn1_length_long_form_multi_byte" {
 }
 
 ///|
+fn decode_len_ok(data : Bytes, off : Int32) -> (Int32, Int32, Int32) {
+  decode_asn1_length(data, off) catch {
+    _ => abort("expected Ok")
+  }
+}
+
+///|
 test "decode_asn1_length_short_form" {
-  // only the valid short form can be asserted (out-of-bounds aborts)
-  let (len, n) = decode_asn1_length(Bytes::from_array([b'\x05']), 0)
-  assert_eq(len, 5)
+  let (start, end, n) = decode_len_ok(
+    Bytes::from_array([b'\x05', b'\xAA', b'\xBB']),
+    0,
+  )
+  assert_eq(start, 1)
+  assert_eq(end, 6) // content spans 1..6
   assert_eq(n, 1)
 }
 
 ///|
 test "decode_asn1_length_long_form" {
-  let (l, n) = decode_asn1_length(Bytes::from_array([b'\x81', b'\xC8']), 0)
-  assert_eq(l, 200)
-  assert_eq(n, 2)
-  let (l, n) = decode_asn1_length(
-    Bytes::from_array([b'\xFF', b'\x82', b'\x01', b'\x00']),
-    1,
-  )
-  assert_eq(l, 256)
+  // In-bounds long form: 0x82 0x01 0x01 -> length 257 (needs a 259-byte input).
+  let data = Bytes::makei(260, fn(i) {
+    if i == 0 {
+      b'\x82'
+    } else if i == 1 {
+      b'\x01'
+    } else if i == 2 {
+      b'\x01'
+    } else {
+      b'\xAA'
+    }
+  })
+  let (start, end, n) = decode_len_ok(data, 0)
+  assert_eq(start, 3)
+  assert_eq(end, 260)
   assert_eq(n, 3)
 }
 
 ///|
-/// Expecting panic: `decode_asn1_length` with offset past the end -> abort.
-test "panic_decode_asn1_length_out_of_bounds" {
-  ignore(decode_asn1_length(Bytes::makei(0, fn(_) { b'\x00' }), 0))
+/// Lengths that would slice past the input are rejected.
+test "decode_asn1_length_overflow_rejected" {
+  let r : Result[Unit, ByteUtilError] = try {
+    let _ = decode_asn1_length(Bytes::from_array([b'\x81', b'\xC8']), 0)
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  assert_true(r is Err(_))
 }
 
 ///|
-/// Expecting panic: `decode_asn1_length` with an invalid long-form length -> abort.
-test "panic_decode_asn1_length_invalid_long" {
-  // first byte 0x81 (long form, 1 length byte) but no length bytes follow.
-  ignore(decode_asn1_length(Bytes::from_array([b'\x81']), 0))
+/// Malformed length fields are reported as `Err(InvalidDer)`, never a panic.
+test "decode_asn1_length_rejects_malformed" {
+  let bad : Array[(Bytes, Int32)] = [
+    (b"", 0), // offset past the end
+    (Bytes::from_array([b'\x80']), 0), // indefinite length
+    (Bytes::from_array([b'\x81']), 0), // long form, length byte missing
+    (Bytes::from_array([b'\x82', b'\x00', b'\x80']), 0), // leading zero
+    (Bytes::from_array([b'\x81', b'\x05']), 0), // non-minimal (fits short)
+    (Bytes::from_array([b'\x81', b'\xC8']), 0), // content end past the input
+    (
+      Bytes::from_array([b'\x85', b'\x01', b'\x00', b'\x00', b'\x00', b'\x00']),
+      0,
+    ),
+  ]
+  for entry in bad {
+    let (data, off) = entry
+    let r : Result[Unit, ByteUtilError] = try {
+      let _ = decode_asn1_length(data, off)
+      Ok(())
+    } catch {
+      e => Err(e)
+    }
+    assert_true(r is Err(_))
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -115,19 +158,46 @@ test "pad_left_zero_target" {
 // ----------------------------------------------------------------------------
 
 ///|
-test "normalize_32_overflow_aborts_on_large" {
-  // A 33-byte value (no leading zero) exceeds 32 -> abort path.
-  // Use a value that normalizes fine (<=32 bytes) to keep the test green.
-  let ok = Bytes::makei(32, fn(i) {
-    (i.reinterpret_as_uint() & 0xFFU).to_byte()
-  })
-  let n = normalize_32(ok)
-  assert_eq(n.length(), 32)
+test "normalize_32_overflow_returns_error" {
+  // A 33-byte value (no leading zero) exceeds 32 bytes -> Err.
+  let too_big = Bytes::makei(33, fn(_) { b'\x01' })
+  assert_true(fails_with_invalid_der(() => ignore(normalize_32(too_big))))
+  // 33 bytes where the only leading zero is not enough still overflows.
+  let almost = Bytes::makei(34, fn(i) { if i == 0 { b'\x00' } else { b'\x01' } })
+  assert_true(fails_with_invalid_der(() => ignore(normalize_32(almost))))
+}
+
+///|
+test "normalize_32_rejects_negative_and_empty" {
+  // High bit set without a leading 0x00 -> negative INTEGER.
+  assert_true(fails_with_invalid_der(() => ignore(normalize_32(b"\x80"))))
+  assert_true(fails_with_invalid_der(() => ignore(normalize_32(b"\xFF\x01"))))
+  // Empty INTEGER content is not valid DER.
+  assert_true(fails_with_invalid_der(() => ignore(normalize_32(b""))))
+}
+
+///|
+/// Run `f` and report whether it raised `ByteUtilError::InvalidDer`.
+fn fails_with_invalid_der(f : () -> Unit raise ByteUtilError) -> Bool {
+  try {
+    f()
+    false
+  } catch {
+    ByteUtilError::InvalidDer => true
+    _ => false
+  }
+}
+
+///|
+fn normalize_32_ok(data : Bytes) -> Bytes {
+  normalize_32(data) catch {
+    _ => abort("expected Ok")
+  }
 }
 
 ///|
 test "normalize_32_shorter_pads_left" {
-  let n = normalize_32(b"\x01\x02\x03")
+  let n = normalize_32_ok(b"\x01\x02\x03")
   assert_eq(n.length(), 32)
   for i in 0..<29 {
     assert_eq(n[i], b'\x00')
@@ -141,7 +211,7 @@ test "normalize_32_shorter_pads_left" {
 test "normalize_32_strip_one_leading_zero" {
   // 33 bytes: b[0] = 0x00, b[1..32] = 0x01..0x20
   let b = Bytes::makei(33, fn(i) { if i == 0 { b'\x00' } else { i.to_byte() } })
-  let n = normalize_32(b)
+  let n = normalize_32_ok(b)
   assert_eq(n.length(), 32)
   // After stripping exactly one leading zero, the remaining 32 bytes are
   // copied verbatim (no padding needed because data.length() == target).
@@ -160,7 +230,7 @@ test "normalize_32_strip_many_leading_zeros" {
       (i - 9).to_byte()
     }
   })
-  let n = normalize_32(b)
+  let n = normalize_32_ok(b)
   assert_eq(n.length(), 32)
   // After stripping 9 leading zeros we have 31 bytes left; pad_left adds one
   // leading 0x00, so n[0] = 0x00 and the last byte is still 30 = 0x1e.
@@ -171,17 +241,11 @@ test "normalize_32_strip_many_leading_zeros" {
 ///|
 test "normalize_32_already_32" {
   let b = Bytes::makei(32, fn(i) { (i.reinterpret_as_uint() & 0xFFU).to_byte() })
-  let n = normalize_32(b)
+  let n = normalize_32_ok(b)
   assert_eq(n.length(), 32)
   for i in 0..<32 {
     assert_eq(n[i], b[i])
   }
-}
-
-///|
-/// Expecting panic: `normalize_32` with a 33-byte value -> abort.
-test "panic_normalize_32_too_large" {
-  ignore(normalize_32(Bytes::makei(33, fn(_) { b'\x01' })))
 }
 
 // ----------------------------------------------------------------------------

@@ -438,33 +438,83 @@ fn asn1_encode_signature(r : Bytes, s : Bytes) -> Bytes {
 }
 
 ///|
+/// Read the DER tag at `off`, which must equal `tag` and be followed by a
+/// length field. Returns `(content_start, content_end)` of the element.
+/// `end_limit` bounds the element (normally the enclosing SEQUENCE end).
+fn asn1_expect_tlv(
+  der : Bytes,
+  off : Int32,
+  end_limit : Int32,
+  tag : Byte,
+) -> (Int32, Int32) raise Sm2Error {
+  if off >= end_limit || der[off] != tag {
+    raise Sm2Error::InvalidSignature
+  }
+  let (start, end, _) = @byteutil.decode_asn1_length(der, off + 1) catch {
+    _ => raise Sm2Error::InvalidSignature
+  }
+  if start > end_limit || end > end_limit {
+    raise Sm2Error::InvalidSignature
+  }
+  (start, end)
+}
+
+///|
+/// Parse a full DER SEQUENCE element starting at `off` as `SEQUENCE {
+/// INTEGER / OCTET STRING, ... }`, yielding each child's content range in
+/// order. Every element must fit in its parent and the SEQUENCE must be
+/// well-formed; everything else is reported as `InvalidSignature`.
+fn asn1_sequence_children(
+  der : Bytes,
+  off : Int32,
+  end_limit : Int32,
+) -> Array[(Int32, Int32)] raise Sm2Error {
+  let (seq_start, seq_end) = asn1_expect_tlv(der, off, end_limit, b'\x30')
+  let children : Array[(Int32, Int32)] = []
+  // Walk with a plain `while` cursor: each step fully validates the next TLV
+  // (tag byte present, length parses, content inside the SEQUENCE) before it
+  // is recorded, so malformed input raises instead of reading out of bounds.
+  let mut cur = seq_start
+  while cur < seq_end {
+    let parsed = @byteutil.decode_asn1_tlv(der, cur, seq_end) catch {
+      _ => raise Sm2Error::InvalidSignature
+    }
+    let start = parsed.0
+    let end = parsed.1
+    let tag = parsed.2
+    let tag_ok = tag == 0x02 || tag == 0x04
+    if !tag_ok {
+      raise Sm2Error::InvalidSignature
+    }
+    if start > seq_end {
+      raise Sm2Error::InvalidSignature
+    }
+    if end > seq_end {
+      raise Sm2Error::InvalidSignature
+    }
+    children.push((start, end))
+    cur = end
+  }
+  children
+}
+
+///|
 /// Decode a DER `SEQUENCE { INTEGER r, INTEGER s }` back into two 32-byte
-/// big-endian scalars.
-fn asn1_decode_signature(der : Bytes) -> Result[(Bytes, Bytes), String] {
-  if der.length() < 4 {
-    return Err("too short")
+/// big-endian scalars. Never panics on malformed input.
+fn asn1_decode_signature(der : Bytes) -> (Bytes, Bytes) raise Sm2Error {
+  let children = asn1_sequence_children(der, 0, der.length())
+  if children.length() != 2 {
+    raise Sm2Error::InvalidSignature
   }
-  if der[0] != b'\x30' {
-    return Err("not SEQUENCE")
+  let (rs, re) = children[0]
+  let (ss, se) = children[1]
+  let rv = @byteutil.normalize_32(der[rs:re].to_owned()) catch {
+    _ => raise Sm2Error::InvalidSignature
   }
-  let (_, sl1) = @byteutil.decode_asn1_length(der, 1)
-  let mut off = 1 + sl1
-  if der[off] != b'\x02' {
-    return Err("expected INTEGER")
+  let sv = @byteutil.normalize_32(der[ss:se].to_owned()) catch {
+    _ => raise Sm2Error::InvalidSignature
   }
-  off = off + 1
-  let (rl, rls) = @byteutil.decode_asn1_length(der, off)
-  off = off + rls
-  let rv = @byteutil.normalize_32(der[off:off + rl].to_owned())
-  off = off + rl
-  if der[off] != b'\x02' {
-    return Err("expected INTEGER")
-  }
-  off = off + 1
-  let (sl2, sls) = @byteutil.decode_asn1_length(der, off)
-  off = off + sls
-  let sv = @byteutil.normalize_32(der[off:off + sl2].to_owned())
-  Ok((rv, sv))
+  (rv, sv)
 }
 
 ///|
@@ -480,10 +530,7 @@ pub fn sign_digit_to_sign_data(r : Bytes, s : Bytes) -> Bytes {
 /// Raises `InvalidSignature` when the input is not a well-formed
 /// `SEQUENCE { INTEGER, INTEGER }`.
 pub fn sign_data_to_sign_digit(der : Bytes) -> (Bytes, Bytes) raise Sm2Error {
-  match asn1_decode_signature(der) {
-    Ok(pair) => pair
-    Err(_) => raise Sm2Error::InvalidSignature
-  }
+  asn1_decode_signature(der)
 }
 
 ///|
@@ -504,10 +551,8 @@ pub fn sm2_verify_der(
   uid : Bytes,
   der : Bytes,
 ) -> Bool raise Sm2Error {
-  match asn1_decode_signature(der) {
-    Ok((rv, sv)) => sm2_verify(pubk, msg, uid, rv, sv)
-    Err(_) => false
-  }
+  let (rv, sv) = asn1_decode_signature(der) catch { _ => return false }
+  sm2_verify(pubk, msg, uid, rv, sv)
 }
 
 ///|
@@ -653,9 +698,9 @@ pub fn sm2_decrypt_asn1(
 }
 
 ///|
-pub fn cipher_marshal(cipher : Bytes) -> Bytes {
+pub fn cipher_marshal(cipher : Bytes) -> Bytes raise Sm2Error {
   if cipher.length() < 97 || cipher[0] != b'\x04' {
-    abort("invalid cipher")
+    raise Sm2Error::InvalidCipher
   }
   let x = cipher[1:33].to_owned()
   let y = cipher[33:65].to_owned()
@@ -677,48 +722,42 @@ pub fn cipher_marshal(cipher : Bytes) -> Bytes {
 }
 
 ///|
-pub fn cipher_unmarshal(der : Bytes) -> Bytes {
-  if der.length() < 4 || der[0] != b'\x30' {
-    abort("invalid DER")
+/// Decode a DER `SEQUENCE { INTEGER x, INTEGER y, OCTET STRING C3,
+/// OCTET STRING C2 }` into the raw 65 ‖ C3 ‖ C2 cipher layout used by
+/// `sm2_decrypt`. Every element must lie within the SEQUENCE; malformed
+/// input raises `Sm2Error::InvalidCipher` instead of panicking.
+pub fn cipher_unmarshal(der : Bytes) -> Bytes raise Sm2Error {
+  let children = asn1_sequence_children(der, 0, der.length()) catch {
+    _ => raise Sm2Error::InvalidCipher
   }
-  let (_, sl1) = @byteutil.decode_asn1_length(der, 1)
-  let mut off = 1 + sl1
-
-  if der[off] != b'\x02' {
-    abort("expected INTEGER")
+  let nch = children.length()
+  if nch != 4 {
+    raise Sm2Error::InvalidCipher
   }
-  off = off + 1
-  let (xl, xls) = @byteutil.decode_asn1_length(der, off)
-  off = off + xls
-  let xv = @byteutil.normalize_32(der[off:off + xl].to_owned())
-  off = off + xl
-
-  if der[off] != b'\x02' {
-    abort("expected INTEGER")
+  if children.length() != 4 {
+    raise Sm2Error::InvalidCipher
   }
-  off = off + 1
-  let (yl, yls) = @byteutil.decode_asn1_length(der, off)
-  off = off + yls
-  let yv = @byteutil.normalize_32(der[off:off + yl].to_owned())
-  off = off + yl
-
-  if der[off] != b'\x04' {
-    abort("expected OCTET STRING")
+  let (xs, xe) = children[0]
+  let (ys, ye) = children[1]
+  let (c3s, c3e) = children[2]
+  let (c2s, c2e) = children[3]
+  // asn1_sequence_children accepts both INTEGER and OCTET STRING children;
+  // verify the layout is INTEGER x, INTEGER y, OCTET STRING C3, OCTET C2.
+  let tags_ok = der[xs - 1].to_int() == 0x02 &&
+    der[ys - 1].to_int() == 0x02 &&
+    der[c3s - 1].to_int() == 0x04 &&
+    der[c2s - 1].to_int() == 0x04
+  if !tags_ok {
+    raise Sm2Error::InvalidCipher
   }
-  off = off + 1
-  let (c3l, c3ls) = @byteutil.decode_asn1_length(der, off)
-  off = off + c3ls
-  let c3v = der[off:off + c3l].to_owned()
-  off = off + c3l
-
-  if der[off] != b'\x04' {
-    abort("expected OCTET STRING")
+  let xv = @byteutil.normalize_32(der[xs:xe].to_owned()) catch {
+    _ => raise Sm2Error::InvalidCipher
   }
-  off = off + 1
-  let (c2l, c2ls) = @byteutil.decode_asn1_length(der, off)
-  off = off + c2ls
-  let c2v = der[off:off + c2l].to_owned()
-
+  let yv = @byteutil.normalize_32(der[ys:ye].to_owned()) catch {
+    _ => raise Sm2Error::InvalidCipher
+  }
+  let c3v = der[c3s:c3e].to_owned()
+  let c2v = der[c2s:c2e].to_owned()
   Bytes::makei(1 + 64 + c3v.length() + c2v.length(), fn(i) {
     if i == 0 {
       b'\x04'

@@ -10,10 +10,7 @@ test "pkcs7_pad_unpad_roundtrip" {
   let data = b"hello"
   let padded = pkcs7_pad(data, 16)
   assert_eq(padded.length(), 16)
-  let unpadded = match pkcs7_unpad(padded) {
-    Ok(b) => b
-    Err(_) => abort("pkcs7_unpad failed")
-  }
+  let unpadded = pkcs7_unpad(padded) catch { _ => abort("pkcs7_unpad failed") }
   assert_eq(unpadded.length(), 5)
   for i in 0..<5 {
     assert_eq(unpadded[i], data[i])
@@ -64,39 +61,27 @@ test "pkcs7_pad_different_block_sizes" {
 /// PKCS7 unpadding an empty padding block returns empty.
 test "pkcs7_unpad_full_block" {
   let padded = Bytes::makei(16, fn(_i) { b'\x10' })
-  let unpadded = match pkcs7_unpad(padded) {
-    Ok(b) => b
-    Err(_) => abort("pkcs7_unpad failed")
-  }
+  let unpadded = pkcs7_unpad(padded) catch { _ => abort("pkcs7_unpad failed") }
   assert_eq(unpadded.length(), 0)
 }
 
 ///|
 test "pkcs7_unpad_empty" {
-  match pkcs7_unpad(b"") {
-    Ok(_) => abort("unpad empty: expected error")
-    Err(_) => ()
-  }
+  assert_true(fails_with_invalid_padding(() => ignore(pkcs7_unpad(b""))))
 }
 
 ///|
 test "pkcs7_unpad_invalid_pad_value" {
   // last byte 0x11 (17) > 16 -> invalid
   let bad = Bytes::makei(16, fn(i) { if i == 15 { b'\x11' } else { b'\x01' } })
-  match pkcs7_unpad(bad) {
-    Ok(_) => abort("unpad pad value: expected error")
-    Err(_) => ()
-  }
+  assert_true(fails_with_invalid_padding(() => ignore(pkcs7_unpad(bad))))
 }
 
 ///|
 test "pkcs7_unpad_pad_too_long" {
   // last byte 0x10 (16) but only 1 byte total -> pad_len > length
   let bad = Bytes::makei(1, fn(_) { b'\x10' })
-  match pkcs7_unpad(bad) {
-    Ok(_) => abort("unpad too long: expected error")
-    Err(_) => ()
-  }
+  assert_true(fails_with_invalid_padding(() => ignore(pkcs7_unpad(bad))))
 }
 
 ///|
@@ -112,10 +97,7 @@ test "pkcs7_unpad_wrong_pad_bytes" {
       _ => b'\x00'
     }
   })
-  match pkcs7_unpad(bad) {
-    Ok(_) => abort("unpad wrong bytes: expected error")
-    Err(_) => ()
-  }
+  assert_true(fails_with_invalid_padding(() => ignore(pkcs7_unpad(bad))))
 }
 
 ///|
@@ -127,8 +109,17 @@ test "pkcs7_unpad_wrong_pad_bytes_value" {
   // 6 bytes, last byte = 0x03 -> pad_len = 3, but the two preceding padding
   // bytes are 0x01 0x02 instead of 0x03 -> value mismatch.
   let bad = Bytes::from_array([b'A', b'B', b'C', b'\x01', b'\x02', b'\x03'])
-  match pkcs7_unpad(bad) {
-    Ok(_) => abort("unpad wrong bytes (value): expected error")
-    Err(_) => ()
+  assert_true(fails_with_invalid_padding(() => ignore(pkcs7_unpad(bad))))
+}
+
+///|
+/// Run `f` and report whether it raised `ByteUtilError::InvalidPadding`.
+fn fails_with_invalid_padding(f : () -> Unit raise ByteUtilError) -> Bool {
+  try {
+    f()
+    false
+  } catch {
+    ByteUtilError::InvalidPadding => true
+    _ => false
   }
 }

@@ -97,32 +97,17 @@ test "sm4 block and modes" {
   let iv = @byteutil.hex_to_bytes("000102030405060708090a0b0c0d0e0f")
   let padded = @byteutil.pkcs7_pad(msg, 16)
   let ecb = @sm4.sm4_encrypt_ecb(key, padded)
-  let ecb_plain = match @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_ecb(key, ecb)) {
-    Ok(p) => p
-    Err(_) => abort("unpad failed")
-  }
+  let ecb_plain = @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_ecb(key, ecb))
   assert_true(@byteutil.bytes_eq(ecb_plain, msg))
   let cbc = @sm4.sm4_encrypt_cbc(key, iv, padded)
-  let cbc_plain = match
-    @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_cbc(key, iv, cbc)) {
-    Ok(p) => p
-    Err(_) => abort("unpad failed")
-  }
+  let cbc_plain = @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_cbc(key, iv, cbc))
   assert_true(@byteutil.bytes_eq(cbc_plain, msg))
   // CFB / OFB（128 位反馈，同样按整块处理）
   let cfb = @sm4.sm4_encrypt_cfb(key, iv, padded)
-  let cfb_plain = match
-    @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_cfb(key, iv, cfb)) {
-    Ok(p) => p
-    Err(_) => abort("unpad failed")
-  }
+  let cfb_plain = @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_cfb(key, iv, cfb))
   assert_true(@byteutil.bytes_eq(cfb_plain, msg))
   let ofb = @sm4.sm4_encrypt_ofb(key, iv, padded)
-  let ofb_plain = match
-    @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_ofb(key, iv, ofb)) {
-    Ok(p) => p
-    Err(_) => abort("unpad failed")
-  }
+  let ofb_plain = @byteutil.pkcs7_unpad(@sm4.sm4_decrypt_ofb(key, iv, ofb))
   assert_true(@byteutil.bytes_eq(ofb_plain, msg))
   // GCM 认证加密
   let nonce = @byteutil.hex_to_bytes("000102030405060708090a0b")
