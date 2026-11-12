@@ -242,6 +242,21 @@ RSA / PKCS#1 / DSA / ECDSA 相关（`ParsePKCS1PrivateKey` 等）**不在移植�
 > 下面的拆解按依赖顺序给出层次、文件清单、API 映射与验收标准，
 > 每一层都能**独立编译、独立测试**，不必等上层完成。
 
+### 6.0 依赖策略：全部自研
+
+**结论：`x509` / `pkcs12` / `gmtls` 及其前置的 ASN.1、遗留密码算法层全部在本仓库自研，
+不引入任何外部 mooncakes 依赖**（当前 `moon.mod` 也不依赖核心库之外的任何包）。
+
+社区上确实有 [`oilleelssq-wq/MoonBit-PKI@0.2.0`](https://mooncakes.io/docs/oilleelssq-wq/MoonBit-PKI@0.2.0/x509)
+这类 `x509` 实现，记录在这里仅作**评估结论**，不作为方案：
+
+- 它只覆盖 `gmsm/x509` 的一部分：有 ASN.1 DER 读写、证书 / CSR / CRL 解析，但**没有**证书签发、
+  签名验签（`build_chain` 明确不验签）、SM2 曲线 OID、PKCS#8、PKCS#7；
+- 即便采用，`x509` 仍要自己写「生成 + 签名 + PKCS#8 + PKCS#7 + 独立验链」，`pkcs12` / `gmtls` 也全部要写；
+- 本项目的定位是 `tjfoc/gmsm` 的 MoonBit 移植，保持「核心库之外零依赖」与代码完全可控更重要。
+
+因此 §6.3 只保留**自研**路线；§6.5 的估算按纯自研口径给出。
+
 ### 6.1 先算清楚：缺口规模与依赖
 
 | 包 | Go 非测试 LOC | 直接依赖的 Go 标准库 | MoonBit 预计 LOC（×1.2–1.5） | 原测试 LOC |
@@ -282,7 +297,7 @@ RSA / PKCS#1 / DSA / ECDSA 相关（`ParsePKCS1PrivateKey` 等）**不在移植�
    sm2 / sm3 / sm4 / byteutil (已完成 A 档)      ← 唯一的地基
 ```
 
-- **`asn1`（B1a）是全局咽喉**：`x509`、`pkcs12`、`gmtls`（握手消息、证书、扩展）全部走它。
+- **`asn1`（B1a）是全局咽喉**：`x509`、`pkcs12`、`gmtls`（握手消息、证书、扩展）全部走它，**全部自研**（见 §6.0）。
 - **`crypto`（B1b）** 名字上容易和已有 `sm2/sm3/sm4` 混淆，所以**不建独立顶层包**，而是挂在
   `byteutil` 下的子命名空间（`byteutil/des.mbt`、`byteutil/sha1.mbt` …），避免新增 `crypto` 顶层包与
   `moonbitlang/core` 的未来同名包冲突。
@@ -290,6 +305,8 @@ RSA / PKCS#1 / DSA / ECDSA 相关（`ParsePKCS1PrivateKey` 等）**不在移植�
   > 选一种即可。
 
 ### 6.3 B1a —— 通用 ASN.1 DER 编解码器（前置，约 1,100–1,300 行）
+
+**自研，不依赖外部 ASN.1 库**（依赖策略见 §6.0）。
 
 文件：`byteutil/asn1.mbt`（改写，保留现有 4 个函数做向后兼容）+ `byteutil/asn1_builder.mbt`（新）。
 
@@ -344,14 +361,15 @@ RSA / PKCS#1 / DSA / ECDSA 相关（`ParsePKCS1PrivateKey` 等）**不在移植�
 **目标**：能「生成自签 SM2 证书 → 写成 PEM → 读回 → 解析出字段 → 验签 → PKCS#8 私钥加解密」，
 端到端与 `openssl` / Go 的证书互通。
 
-| 文件 | 内容 | 预处理 |
+| 文件 | 内容 | 对应原文件 |
 | --- | --- | --- |
-| `x509/types.mbt` | `Certificate`、`CertificateRequest`、`Name`、`AttributeTypeAndValue`、`AlgorithmIdentifier`、`PublicKeyAlgorithm` / `SignatureAlgorithm` 枚举、`KeyUsage` / `ExtKeyUsage` 位标志、`UnhandledCriticalExtension`、`InsecureAlgorithmError` 等错误类型 | 从 `x509.go` 的 `type (...) struct` 抽 |
-| `x509/oids.mbt` | OID 常量：`oidSignatureSM2WithSM3 = 1.2.156.10197.1.501`、`oidSignatureWithSM3 = 1.2.156.10197.1.504`（SM3-with-RSA）、`oidPublicKeyECDSA = 1.2.840.10045.2.1`（SM2 复用它 + sm2p256v1 曲线 OID `1.2.156.10197.1.301`）、`oidNamedCurveP256SM2`、X.509 v3 扩展 OID 等 | 从 `x509.go` 的 `oid*` 变量抄 |
+| `x509/types.mbt` | `Certificate`、`CertificateRequest`、`Name`、`AttributeTypeAndValue`、`AlgorithmIdentifier`、`PublicKeyAlgorithm` / `SignatureAlgorithm` 枚举、`KeyUsage` / `ExtKeyUsage` 位标志、`UnhandledCriticalExtension`、`InsecureAlgorithmError` 等错误类型 | `x509.go` 的 `type (...) struct` |
+| `x509/oids.mbt` | OID 常量：`oidSignatureSM2WithSM3 = 1.2.156.10197.1.501`、`oidSignatureWithSM3 = 1.2.156.10197.1.504`（SM3-with-RSA）、`oidPublicKeyECDSA = 1.2.840.10045.2.1`（SM2 复用它 + sm2p256v1 曲线 OID `1.2.156.10197.1.301`）、`oidNamedCurveP256SM2`、X.509 v3 扩展 OID 等 | `x509.go` 的 `oid*` 变量 |
 | `x509/parse.mbt` | `ParseCertificate` / `ParseCertificates`：TBS 结构 `tbsCertificate` → `Certificate`，扩展解析（`basicConstraints`、`keyUsage`、`extKeyUsage`、`SAN`、`subjectKeyId`、`authorityKeyId`） | `x509.go:1250` `parseCertificate` 约 260 行 |
+| `x509/sm2_key.mbt` | `SubjectPublicKeyInfo` ↔ `SM2PublicKey`：`04‖X‖Y` ↔ `decompress_point`；`SM2PublicKey::to_bytes` / `from_bytes`；`sm2p256v1` 曲线 OID 校验 | 新增（`sm2` 侧需补 2 个导出） |
 | `x509/create.mbt` | `CreateCertificate`：`buildExtensions`（约 180 行）+ TBS 组装 + SM2 签名（SM2 不是 digest-then-sign，而是 `ZA‖M`；见 6.5.1） | `x509/utils.go:176` + `x509.go:1629` |
-| `x509/pem.mbt` | `ReadCertificateFromPem` / `WriteCertificateToPem` / `ReadPrivateKeyFromPem` / `WritePrivateKeyToPem` / `ReadPublicKeyFromPem` / `WritePublicKeyToPem` | `x509/utils.go:18–160`，PEM 部分复用 `byteutil/pem.mbt` |
-| `x509/hex.mbt` | `Read/Write{Private,Public}KeyFromHex` | `x509/utils.go:71–130`，30 行 |
+| `x509/pem.mbt` | `ReadCertificateFromPem` / `WriteCertificateToPem` / `ReadPrivateKeyFromPem` / `WritePrivateKeyToPem` / `ReadPublicKeyFromPem` / `WritePublicKeyToPem` | `x509/utils.go:18–160`，复用 `byteutil/pem.mbt` |
+| `x509/hex.mbt` | `Read/Write{Private,Public}KeyFromHex` | `x509/utils.go:71–130`，约 60 行 |
 | `x509/pkcs8.mbt` | `ParseSm2PrivateKey` / `ParseSm2PublicKey` / `MarshalSm2PublicKey` / `ParsePKIXPublicKey` / `MarshalPKIXPublicKey` / `MarshalSm2PrivateKey`（含口令） | `x509/pkcs8.go` 371 行 → 约 500 行 |
 
 **6.5.1 SM2 证书签名的特殊之处（最容易踩坑）**
@@ -462,6 +480,7 @@ Go 的 `crypto.Signer.Sign(rand, digest, opts)` 对 ECDSA 是「对摘要签名�
 
 ### 6.9 工程约定（三个包都要遵守）
 
+- **依赖**：`moon.mod` 保持零外部依赖（见 §6.0），ASN.1 / 遗留密码算法都放在本仓库。
 - **目录**：与 Go 一一对应（`x509/`、`pkcs12/`、`gmtls/`），每个目录一个 `moon.pkg`；
   MoonBit 的包不能有环依赖，因此 `x509` 里的 `pkcs7`、`verify` 都放在同一个包内（规则同 Go）。
 - **错误模型**：Go 用 `error`，MoonBit 用 `suberror`（如 `X509Error`、`Pkcs12Error`、`GmtlsError`），
@@ -487,6 +506,10 @@ Go 的 `crypto.Signer.Sign(rand, digest, opts)` 对 ECDSA 是「对摘要签名�
 ```sh
 # 拉取原项目
 git clone --depth 1 https://github.com/tjfoc/gmsm.git /tmp/gmsm_orig
+
+# 统计三个包依赖的标准库（§6.0 / §6.4 的依据）
+cd /tmp/gmsm_orig
+grep -h '"crypto/\|"golang.org' x509/*.go pkcs12/*.go gmtls/*.go | grep -v _test | sort | uniq -c
 
 # 各包非测试代码行数
 cd /tmp/gmsm_orig
