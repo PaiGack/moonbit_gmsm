@@ -103,6 +103,23 @@ pub fn bytes_eq(a : Bytes, b : Bytes) -> Bool {
 }
 
 ///|
+/// Compare two byte sequences in constant time (with respect to their
+/// contents). Unlike `bytes_eq`, this never returns early on the first
+/// differing byte, so it is safe for comparing MACs, GCM tags and other
+/// secrets where a timing side channel would matter. Lengths are still
+/// compared up front: the length of a tag is public information.
+pub fn ct_eq(a : Bytes, b : Bytes) -> Bool {
+  if a.length() != b.length() {
+    return false
+  }
+  let mut diff : UInt32 = 0U
+  for i = 0; i < a.length(); i = i + 1 {
+    diff = diff | (a[i].to_uint() ^ b[i].to_uint())
+  }
+  diff == 0U
+}
+
+///|
 pub fn bstr(b : Bool) -> String {
   if b {
     "true"

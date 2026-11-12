@@ -166,9 +166,31 @@ test "sm4_gcm_dispatcher" {
   let (c2, t2) = @sm4.sm4_gcm_encrypt(key, iv, plain, aad)
   assert_bytes_eq(c, c2)
   assert_bytes_eq(t, t2)
-  let (p, t3) = @sm4.sm4_gcm(key, iv, c, aad, false)
+  // Bare ciphertext whose length is not block-aligned cannot carry an
+  // appended tag, so the dispatcher refuses it instead of returning
+  // unauthenticated plaintext.
+  let bare : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
+    @sm4.sm4_gcm(key, iv, c, aad, false),
+  ) catch {
+    e => Err(e)
+  }
+  match bare {
+    Ok(_) => abort("sm4_gcm: expected InvalidTag for bare ciphertext")
+    Err(e) => assert_true(e is @sm4.SM4Error::InvalidTag)
+  }
+  // With the tag appended the dispatcher verifies it and returns the
+  // plaintext (with an empty trailing tag).
+  let packet = @byteutil.concat_bytes([c, t])
+  let (p, t3) = @sm4.sm4_gcm(key, iv, packet, aad, false)
   assert_bytes_eq(p, plain)
-  assert_bytes_eq(t3, t)
+  assert_eq(t3.length(), 0)
+  // gmsm compatibility form: block-aligned bare ciphertext is decrypted and
+  // the computed tag is returned for the caller to check.
+  let aligned = hex_to_bytes("000102030405060708090A0B0C0D0E0F")
+  let (p2, t4) = @sm4.sm4_gcm(key, iv, aligned, aad, false)
+  let (c4, tag4) = @sm4.sm4_gcm_encrypt(key, iv, p2, aad)
+  assert_bytes_eq(c4, aligned)
+  assert_bytes_eq(t4, tag4)
 }
 
 ///|

@@ -29,6 +29,8 @@
 
 ### 🟠 高（High）
 
+> **状态：已修复。** 新增 `@sm4.sm4_gcm_decrypt_verify(key, iv, ct, aad, tag)`，内部用新增的 `@byteutil.ct_eq`（常量时间）比较 tag，不符抛 `SM4Error::InvalidTag`，且明文只在校验通过后返回。`sm4_gcm(..., encrypt=false)` 在输入为 `密文‖tag` 时自动调用该接口校验；对于无法携带 tag 的输入（长度 0 或 16 字节对齐）保留 gmsm 兼容行为（返回计算出的 tag），其余情况直接拒绝。`sm4_gcm_decrypt` 作为底层原语保留，注释已指向安全接口。README 示例改用 `sm4_gcm_decrypt_verify`。
+
 #### 2. `sm4_gcm` 解密后不校验 tag，且缺少 AEAD 解接口的默认语义
 
 - [sm4/cipher.mbt:187-204](sm4/cipher.mbt#L187-L204)：`encrypt=false` 时直接返回 `(明文, tag)`，明文在认证之前就已产出。

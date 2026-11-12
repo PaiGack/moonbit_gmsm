@@ -63,6 +63,7 @@ pub suberror SM4Error {
   InvalidData // data length not a multiple of 16
   InvalidIV // IV not empty and length != 16 bytes
   InvalidPadding // PKCS7 unpadding: padding value invalid
+  InvalidTag // GCM tag does not match (authentication failed)
   MissingRandomSource // random source is None (no insecure fallback exists)
 }
 
@@ -666,7 +667,24 @@ pub fn sm4_gcm_encrypt(
 /// `sm4.Sm4GCM` / `GCMDecrypt`, this does **not** verify the tag — the caller
 /// must compare the returned `tag` against the expected value (preferably in
 /// constant time) before trusting `plaintext`.
+///
+/// Raw/low-level entry point kept for gmsm compatibility. Prefer
+/// `sm4_gcm_decrypt_verify`, which refuses to return unauthenticated
+/// plaintext, or `sm4_gcm(..., encrypt = false)`, which verifies and drops
+/// the tag.
 pub fn sm4_gcm_decrypt(
+  key : Bytes,
+  iv : Bytes,
+  ciphertext : Bytes,
+  aad : Bytes,
+) -> (Bytes, Bytes) raise SM4Error {
+  gcm_decrypt_raw(key, iv, ciphertext, aad)
+}
+
+///|
+/// Internal GCM decryption: returns `(plaintext, computed_tag)` without
+/// verifying.
+fn gcm_decrypt_raw(
   key : Bytes,
   iv : Bytes,
   ciphertext : Bytes,
@@ -710,6 +728,29 @@ pub fn sm4_gcm_decrypt(
     plain[base + j] = xored[j]
   }
   (Bytes::makei(l, fn(i) { plain[i] }), Bytes::makei(16, fn(i) { tag[i] }))
+}
+
+///|
+/// SM4 GCM authenticated decryption. Computes the tag over `ciphertext` and
+/// `aad` and compares it with `tag` in constant time **before** the plaintext
+/// is released; raises `SM4Error::InvalidTag` if they differ. This is the
+/// recommended AEAD decryption entry point. `tag` must be 16 bytes (truncated
+/// tags are not supported and are rejected).
+pub fn sm4_gcm_decrypt_verify(
+  key : Bytes,
+  iv : Bytes,
+  ciphertext : Bytes,
+  aad : Bytes,
+  tag : Bytes,
+) -> Bytes raise SM4Error {
+  if tag.length() != 16 {
+    raise SM4Error::InvalidTag
+  }
+  let (plain, computed) = gcm_decrypt_raw(key, iv, ciphertext, aad)
+  if !@byteutil.ct_eq(computed, tag) {
+    raise SM4Error::InvalidTag
+  }
+  plain
 }
 
 ///|

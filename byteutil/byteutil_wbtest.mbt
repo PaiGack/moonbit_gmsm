@@ -16,6 +16,16 @@ test "bytes_eq_branches" {
 }
 
 ///|
+test "ct_eq_branches" {
+  assert_true(ct_eq(b"abc", b"abc"))
+  assert_true(ct_eq(b"", b""))
+  assert_false(ct_eq(b"ab", b"abc"))
+  assert_false(ct_eq(b"abd", b"abc"))
+  // differs only in the last byte
+  assert_false(ct_eq(b"abc", b"ab\x00"))
+}
+
+///|
 test "bstr_branches" {
   assert_eq(bstr(true), "true")
   assert_eq(bstr(false), "false")

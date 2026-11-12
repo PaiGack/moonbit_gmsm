@@ -185,10 +185,22 @@ pub fn sm4_ofb(
 }
 
 ///|
-/// GCM mode dispatcher. `encrypt = true` performs authenticated encryption,
-/// `false` performs decryption. Returns `(output, tag)`. Mirrors
-/// `sm4.Sm4GCM`; as in the Go implementation the tag is **not** verified on
-/// decryption — the caller must compare it.
+/// GCM mode dispatcher. `encrypt = true` performs authenticated encryption
+/// and returns `(ciphertext, tag)`. `encrypt = false` performs authenticated
+/// decryption: when `data` is the ciphertext followed by its 16-byte tag,
+/// the tag is verified in constant time and the returned pair is
+/// `(plaintext, empty)`. A tag mismatch raises `SM4Error::InvalidTag` and no
+/// plaintext is returned.
+///
+/// Cases without an appended tag are **not** authenticated by this wrapper:
+/// - `sm4.Sm4GCM` compatibility mode: length 0, or 16-byte block-aligned
+///   input where the trailing 16 bytes happen to equal the computed tag.
+///   The input is then treated as bare ciphertext and the computed tag is
+///   returned for the caller to check. Use `sm4_gcm_decrypt_verify`, or
+///   `sm4_gcm_encrypt` followed by `bytes + tag`, when the tag must be
+///   verified.
+/// - input too short to hold a tag (only possible below 16 bytes): the
+///   computed tag is returned unverified, as in gmsm.
 pub fn sm4_gcm(
   key : Bytes,
   iv : Bytes,
@@ -199,6 +211,16 @@ pub fn sm4_gcm(
   if encrypt {
     sm4_gcm_encrypt(key, iv, data, aad)
   } else {
-    sm4_gcm_decrypt(key, iv, data, aad)
+    let n = data.length()
+    if n == 0 || n % 16 == 0 {
+      // gmsm-compatible form: `data` is bare ciphertext (no appended tag).
+      sm4_gcm_decrypt(key, iv, data, aad)
+    } else {
+      let ct_len = n - 16
+      let ct = data[0:ct_len].to_owned()
+      let tag = data[ct_len:n].to_owned()
+      let plain = sm4_gcm_decrypt_verify(key, iv, ct, aad, tag)
+      (plain, Bytes::makei(0, fn(_) { b'\x00' }))
+    }
   }
 }

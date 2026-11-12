@@ -49,6 +49,8 @@ pub fn sm4_gcm(Bytes, Bytes, Bytes, Bytes, Bool) -> (Bytes, Bytes) raise SM4Erro
 
 pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
 
+pub fn sm4_gcm_decrypt_verify(Bytes, Bytes, Bytes, Bytes, Bytes) -> Bytes raise SM4Error
+
 pub fn sm4_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
 
 pub let sm4_key_size : Int32
@@ -64,6 +66,7 @@ pub suberror SM4Error {
   InvalidData
   InvalidIV
   InvalidPadding
+  InvalidTag
   MissingRandomSource
 }
 pub fn SM4Error::equal(Self, Self) -> Bool

@@ -26,6 +26,8 @@ pub fn bytes_to_hex(Bytes) -> String
 
 pub fn concat_bytes(Array[Bytes]) -> Bytes
 
+pub fn ct_eq(Bytes, Bytes) -> Bool
+
 pub fn decode_asn1_length(Bytes, Int32) -> (Int32, Int32)
 
 pub fn encode_asn1_integer(Bytes) -> Bytes

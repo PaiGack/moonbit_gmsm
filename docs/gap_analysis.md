@@ -164,7 +164,7 @@
 | 项 | 说明 |
 | --- | --- |
 | SM4 CFB / OFB 只处理整块 | 原 Go 版 `Sm4CFB` / `Sm4OFB` 同样是 `len(inData)/16` 的整块循环，不处理尾部不满块。本仓库 [sm4/cipher.mbt](../sm4/cipher.mbt) 与之一致 |
-| SM4-GCM 解密不校验 tag | 原 Go 版 `Sm4GCM` / `GCMDecrypt` 只返回 tag，由调用方自行比对。本仓库 `sm4_gcm` 行为一致，并已在 [sm4/cipher.mbt](../sm4/cipher.mbt) 注释中说明 |
+| SM4-GCM 解密不校验 tag | 已改为认证优先：新增 `sm4_gcm_decrypt_verify`（常量时间比较，不符抛 `SM4Error::InvalidTag`，不返回明文）与 `@byteutil.ct_eq`。`sm4_gcm(..., false)` 在输入为 `密文‖tag` 时自动校验；仅当输入长度为 0 或 16 字节对齐（即无法携带 tag）时保留 gmsm 兼容行为（当作裸密文、返回计算出的 tag），其余长度一律拒绝，不再产出未认证明文。详见 [sm4/cipher.mbt](../sm4/cipher.mbt) |
 | SM2 `Encrypt` 空明文死循环 | 原 Go 版 KDF 对长度 0 返回 `!ok`，`Encrypt` 会死循环。本仓库 `sm2` 的白盒测试已单独覆盖空明文场景（见 `baseline-go/README.md` 的说明） |
 
 其余已覆盖且语义一致的能力：
