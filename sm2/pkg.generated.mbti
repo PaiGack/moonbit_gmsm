@@ -33,6 +33,8 @@ pub fn private_key_from_bytes(SM2Curve, Bytes) -> SM2PrivateKey raise Sm2Error
 
 pub fn public_key_from_xy(SM2Curve, Bytes, Bytes) -> SM2PublicKey raise Sm2Error
 
+pub fn seed_from_entropy() -> Bytes
+
 pub fn sign_data_to_sign_digit(Bytes) -> (Bytes, Bytes) raise Sm2Error
 
 pub fn sign_digit_to_sign_data(Bytes, Bytes) -> Bytes

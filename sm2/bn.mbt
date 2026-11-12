@@ -622,13 +622,38 @@ fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
 /// (`@env.rand`). Prefer this over `@random.Rand::chacha8()` when the caller
 /// has no secret seed of its own.
 ///
-/// Returns `None` on platforms where the OS entropy source is unavailable
-/// (e.g. `wasm`); in that case the caller must supply its own securely seeded
+/// Returns `None` on platforms where the OS entropy source is unavailable;
+/// in that case the caller must supply its own securely seeded
 /// `@random.Rand`.
+///
+/// `moonbitlang/core/env` has no entropy source on `wasm-gc`, so there the
+/// generator is keyed by `seed_from_entropy`, which also gathers provider
+/// entropy (including `@env.rand` wherever the host supplies it).
 pub fn os_rand() -> @random.Rand? {
-  match @env.rand(32) {
+  match os_entropy() {
     Some(seed) => Some(@random.Rand::chacha8(seed~))
     None => None
+  }
+}
+
+///|
+/// Collect OS entropy for seeding a CSPRNG.
+///
+/// Hybrid of the two kinds of source a host can offer:
+///
+/// - **provider entropy** (`@env.rand`): authoritative where it exists. It is
+///   returned immediately when the host fills it, so `os_rand()` keeps its
+///   previous output on `native`, `js` and `wasm`.
+/// - **seed entropy** (`seed_from_entropy`): used when the host guarantees no
+///   entropy source (`wasm-gc`, whose `@env.rand` always reports
+///   failure/unimplemented). It gathers whatever entropy the environment
+///   exposes, so a `wasm-gc` host that *does* implement `@env.rand` still
+///   contributes to the seed.
+fn os_entropy() -> Bytes? {
+  let provider = @env.rand(32)
+  match provider {
+    Some(seed) => Some(seed)
+    None => Some(seed_from_entropy())
   }
 }
 

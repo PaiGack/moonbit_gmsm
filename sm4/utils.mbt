@@ -215,13 +215,17 @@ pub fn write_key_to_pem_legacy(
 
 ///|
 /// 用操作系统 CSPRNG（`@env.rand`）播种一个 `@random.Rand`，可直接传给
-/// `write_key_to_pem`。平台无 OS 熵源（如 `wasm`）时返回 `None`，
-/// 此时调用方需自行提供安全播种的生成器。
+/// `write_key_to_pem`。平台无 OS 熵源时返回 `None`，此时调用方需自行
+/// 提供安全播种的生成器。
+///
+/// `moonbitlang/core/env` 在 `wasm-gc` 上没有 OS 熵源，此时改用
+/// `@sm2.seed_from_entropy` 混合环境中可获得的熵来播种。
 pub fn os_rand() -> @random.Rand? {
-  match @env.rand(32) {
-    Some(seed) => Some(@random.Rand::chacha8(seed~))
-    None => None
+  let seed = match @env.rand(32) {
+    Some(seed) => seed
+    None => @sm2.seed_from_entropy()
   }
+  Some(@random.Rand::chacha8(seed~))
 }
 
 ///|
