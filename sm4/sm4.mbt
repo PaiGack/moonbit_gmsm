@@ -65,6 +65,7 @@ pub suberror SM4Error {
   InvalidPadding // PKCS7 unpadding: padding value invalid
   InvalidTag // GCM tag does not match (authentication failed)
   MissingRandomSource // random source is None (no insecure fallback exists)
+  InvalidKdfParams // PEM KDF parameters malformed or out of range
 }
 
 ///|

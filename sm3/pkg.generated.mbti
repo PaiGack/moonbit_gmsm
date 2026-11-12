@@ -2,13 +2,28 @@
 package "PaiGack/gmsm/sm3"
 
 // Values
+pub fn hmac_sm3(Bytes, Bytes) -> Bytes
+
 pub fn new() -> SM3
+
+pub fn pbkdf2_hmac_sm3(Bytes, Bytes, Int32, Int32) -> Bytes raise HmacError
+
+pub fn pbkdf2_hmac_sm3_32(Bytes, Bytes, Int32) -> Bytes raise HmacError
 
 pub fn sm3_sum(Bytes) -> Bytes
 
 pub fn sm3_sum_multi(Array[Bytes]) -> Bytes
 
 // Errors
+pub suberror HmacError {
+  InvalidIterations
+  InvalidLength
+}
+#deprecated
+pub fn HmacError::equal(Self, Self) -> Bool
+#deprecated
+pub fn HmacError::not_equal(Self, Self) -> Bool
+pub impl Eq for HmacError
 
 // Types and methods
 pub struct SM3 {

@@ -55,7 +55,15 @@ pub let sm4_key_size : Int32
 
 pub fn sm4_ofb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
+pub let sm4_pem_default_iterations : Int32
+
+pub let sm4_pem_max_iterations : Int32
+
 pub fn write_key_to_pem(Bytes, Bytes, @random.Rand?) -> String raise SM4Error
+
+pub fn write_key_to_pem_legacy(Bytes, Bytes, @random.Rand?) -> String raise SM4Error
+
+pub fn write_key_to_pem_with(Bytes, Bytes, @random.Rand?, Sm4PemEncryption) -> String raise SM4Error
 
 // Errors
 #derive(Eq, @debug.Debug)
@@ -66,6 +74,7 @@ pub suberror SM4Error {
   InvalidPadding
   InvalidTag
   MissingRandomSource
+  InvalidKdfParams
 }
 pub fn SM4Error::equal(Self, Self) -> Bool
 pub fn SM4Error::not_equal(Self, Self) -> Bool
@@ -82,6 +91,16 @@ pub fn SM4Cipher::decrypt(Self, Bytes) -> Bytes raise SM4Error
 pub fn SM4Cipher::encrypt(Self, Bytes) -> Bytes raise SM4Error
 pub fn SM4Cipher::get_iv(Self) -> Bytes
 pub fn SM4Cipher::set_iv(Self, Bytes) -> Unit raise SM4Error
+
+pub(all) enum Sm4PemEncryption {
+  Pbkdf2HmacSm3(Int32)
+  LegacyX509
+}
+#deprecated
+pub fn Sm4PemEncryption::equal(Self, Self) -> Bool
+#deprecated
+pub fn Sm4PemEncryption::not_equal(Self, Self) -> Bool
+pub impl Eq for Sm4PemEncryption
 
 // Type aliases
 pub type SM4Key = Bytes

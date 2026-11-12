@@ -3,4 +3,5 @@ import {
   "moonbitlang/core/env",
   "moonbitlang/core/random",
   "PaiGack/gmsm/byteutil",
+  "PaiGack/gmsm/sm3",
 }
