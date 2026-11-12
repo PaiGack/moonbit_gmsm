@@ -874,3 +874,9 @@ pub fn decompress_point(b : Bytes) -> SM2PublicKey raise Sm2Error {
   }
   public_key_from_xy(curve, @byteutil.bn_to_bytes(x), @byteutil.bn_to_bytes(y))
 }
+
+///|
+pub extend Sm2Error with @debug.Debug::{to_repr}
+
+///|
+pub extend Sm2Error with Eq::{not_equal, equal}

@@ -12,19 +12,18 @@ pub fn sm3_sum_multi(Array[Bytes]) -> Bytes
 
 // Types and methods
 pub struct SM3 {
-  state : FixedArray[UInt]
+  state : FixedArray[UInt32]
   buf : FixedArray[Byte]
-  buf_len : Int
+  buf_len : Int32
   total : UInt64
 }
-pub fn SM3::block_size(Self) -> Int
+pub fn SM3::block_size(Self) -> Int32
 pub fn SM3::finish(Self) -> Bytes
 pub fn SM3::reset(Self) -> Self
-pub fn SM3::size(Self) -> Int
+pub fn SM3::size(Self) -> Int32
 pub fn SM3::sum(Self) -> Bytes
 pub fn SM3::write(Self, Bytes) -> Self
 
 // Type aliases
 
 // Traits
-

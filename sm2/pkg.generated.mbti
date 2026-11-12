@@ -23,9 +23,9 @@ pub fn generate_key(@random.Rand?) -> SM2PrivateKey
 
 pub fn is_on_curve(SM2PublicKey) -> Bool
 
-pub fn key_exchange_a(Int, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
+pub fn key_exchange_a(Int32, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
 
-pub fn key_exchange_b(Int, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
+pub fn key_exchange_b(Int32, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
 
 pub fn private_key_from_bytes(SM2Curve, Bytes) -> SM2PrivateKey raise Sm2Error
 
@@ -54,6 +54,7 @@ pub fn sm2_verify(SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool raise Sm2Err
 pub fn sm2_verify_der(SM2PublicKey, Bytes, Bytes, Bytes) -> Bool raise Sm2Error
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub suberror Sm2Error {
   ZeroParam
   NotOnCurve
@@ -62,7 +63,10 @@ pub suberror Sm2Error {
   InvalidPoint
   InvalidParameter
   KdfZeroKey
-} derive(Eq, @debug.Debug)
+}
+pub fn Sm2Error::equal(Self, Self) -> Bool
+pub fn Sm2Error::not_equal(Self, Self) -> Bool
+pub fn Sm2Error::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) enum CipherMode {
@@ -100,4 +104,3 @@ pub struct SM2PublicKey {
 pub type Bn = FixedArray[UInt64]
 
 // Traits
-

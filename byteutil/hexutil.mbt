@@ -20,7 +20,7 @@ pub fn byte_to_hex(b : Byte) -> String {
 
 ///|
 pub fn bytes_to_hex(b : Bytes) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for i = 0; i < b.length(); i = i + 1 {
     buf.write_string(byte_to_hex(b[i]))
   }

@@ -1,5 +1,4 @@
 import {
-  "moonbitlang/core/random",
   "PaiGack/gmsm/sm4" @gmsm_sm4,
   "PaiGack/gmsm/byteutil",
 }

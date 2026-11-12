@@ -4,7 +4,7 @@
 ///|
 /// Helper: convert bytes to hex string (lowercase).
 fn bytes_to_hex(b : Bytes) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for i in 0..<b.length() {
     buf.write_string(byte_to_hex(b[i]))
   }
@@ -15,7 +15,7 @@ fn bytes_to_hex(b : Bytes) -> String {
 fn byte_to_hex(b : Byte) -> String {
   let hi = (b.to_int() >> 4) & 0xF
   let lo = b.to_int() & 0xF
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   buf.write_char(nibble_to_char(hi))
   buf.write_char(nibble_to_char(lo))
   buf.to_string()
