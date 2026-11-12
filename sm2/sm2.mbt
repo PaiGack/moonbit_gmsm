@@ -46,6 +46,7 @@ pub suberror Sm2Error {
   InvalidPoint
   InvalidParameter
   KdfZeroKey
+  MissingRandomSource // random source is None (no insecure fallback exists)
 }
 
 ///|
@@ -106,11 +107,16 @@ pub fn public_key_from_xy(
 }
 
 ///|
-pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey {
+/// Generate a private key.
+///
+/// `random` is mandatory and must be seeded from a cryptographically secure
+/// source; passing `None` raises `MissingRandomSource`. Do **not** use
+/// `@random.Rand::chacha8()` without an explicit, secret seed.
+pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey raise Sm2Error {
   let curve = sm2_p256()
   let r = match random {
     Some(rr) => rr
-    None => fallback_rand
+    None => raise MissingRandomSource
   }
   let d : Bn = FixedArray::makei(4, fn(_) { 0UL })
   while true {
@@ -233,8 +239,8 @@ pub fn sm2_sign(
   private_key : SM2PrivateKey,
   msg : Bytes,
   uid : Bytes,
-  _random : @random.Rand?,
-) -> (Bytes, Bytes) {
+  random : @random.Rand?,
+) -> (Bytes, Bytes) raise Sm2Error {
   let curve = private_key.curve
   let pubkey = derive_public_key(SM2PrivateKey::{ curve, d: private_key.d, })
   let za_val = za(pubkey.x, pubkey.y, uid)
@@ -257,7 +263,7 @@ pub fn sm2_sign(
   bn_modinv_n(inv, one_plus_d, n)
 
   while true {
-    let k = bn_rand_k(None)
+    let k = bn_rand_k(random)
     let p : SM2Point = point_infinity()
     scalar_base_mult(p, k)
     let (x1, _) = point_to_affine(p)
@@ -486,7 +492,7 @@ pub fn sm2_sign_der(
   msg : Bytes,
   uid : Bytes,
   r : @random.Rand?,
-) -> Bytes {
+) -> Bytes raise Sm2Error {
   let (rv, sv) = sm2_sign(pk, msg, uid, r)
   asn1_encode_signature(rv, sv)
 }
@@ -513,7 +519,7 @@ pub fn sm2_encrypt(
 ) -> Bytes raise Sm2Error {
   let r = match random {
     Some(rr) => rr
-    None => fallback_rand
+    None => raise MissingRandomSource
   }
   let k = bn_rand_k(Some(r))
   let c1_p : SM2Point = point_infinity()

@@ -318,7 +318,7 @@ test "go_sm2_compress_k0" {
   // the recovered y must be the real one: verify a signature with it
   let msg = b"decompressed key check"
   let uid = @sm2.default_uid()
-  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
 }
 
@@ -345,7 +345,7 @@ test "go_sm2_compress_k1" {
   // the recovered y must be the real one: verify a signature with it
   let msg = b"decompressed key check"
   let uid = @sm2.default_uid()
-  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
 }
 
@@ -372,7 +372,7 @@ test "go_sm2_compress_k2" {
   // the recovered y must be the real one: verify a signature with it
   let msg = b"decompressed key check"
   let uid = @sm2.default_uid()
-  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
 }
 
@@ -399,7 +399,7 @@ test "go_sm2_compress_k3" {
   // the recovered y must be the real one: verify a signature with it
   let msg = b"decompressed key check"
   let uid = @sm2.default_uid()
-  let der = @sm2.sm2_sign_der(privkey, msg, uid, None)
+  let der = @sm2.sm2_sign_der(privkey, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_der(back, msg, uid, der))
 }
 

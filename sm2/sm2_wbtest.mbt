@@ -207,10 +207,10 @@ test "ke_x_hat" {
 
 ///|
 fn do_sm2_encrypt_decrypt_c1c3c2() -> Unit raise Error {
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let msg = b"123456"
-  let cipher = sm2_encrypt(public_key, msg, None, C1C3C2)
+  let cipher = sm2_encrypt(public_key, msg, os_rand(), C1C3C2)
   assert_eq(cipher.length(), 1 + 64 + 32 + msg.length())
   assert_eq(cipher[0], b'\x04')
   let decrypted = sm2_decrypt(private_key, cipher, C1C3C2)
@@ -229,10 +229,10 @@ test "sm2_encrypt_decrypt_c1c3c2" {
 
 ///|
 fn do_sm2_encrypt_decrypt_c1c2c3() -> Unit raise Error {
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let msg = b"test message"
-  let cipher = sm2_encrypt(public_key, msg, None, C1C2C3)
+  let cipher = sm2_encrypt(public_key, msg, os_rand(), C1C2C3)
   assert_eq(cipher[0], b'\x04')
   let decrypted = sm2_decrypt(private_key, cipher, C1C2C3)
   for i in 0..<msg.length() {
@@ -249,9 +249,9 @@ test "sm2_encrypt_decrypt_c1c2c3" {
 
 ///|
 fn do_sm2_encrypt_decrypt_empty() -> Unit raise Error {
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
-  let cipher = sm2_encrypt(public_key, b"", None, C1C3C2)
+  let cipher = sm2_encrypt(public_key, b"", os_rand(), C1C3C2)
   let decrypted = sm2_decrypt(private_key, cipher, C1C3C2)
   assert_eq(decrypted.length(), 0)
 }
@@ -273,7 +273,7 @@ test "default_uid_impl_returns_16_bytes" {
 ///|
 test "sm2_encrypt_with_provided_rand" {
   // Exercise the `Some(rand)` branch of sm2_encrypt.
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let r = @random.Rand::chacha8(seed=b"0123456789ABCDEF0123456789ABCDEF")
   let msg = b"deterministic rand"
@@ -287,7 +287,7 @@ test "sm2_encrypt_with_provided_rand" {
 ///|
 test "sm2_decrypt_invalid_cipher_length" {
   // Cipher too short -> InvalidCipher
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let bad = Bytes::makei(10, fn(_) { b'\x00' })
   let r : Result[Unit, Sm2Error] = try {
     ignore(sm2_decrypt(private_key, bad, C1C3C2))
@@ -304,7 +304,7 @@ test "sm2_decrypt_invalid_cipher_length" {
 ///|
 test "sm2_decrypt_invalid_cipher_prefix" {
   // Correct length but wrong prefix byte -> InvalidCipher
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let bad = Bytes::makei(97, fn(_) { b'\x00' })
   let r : Result[Unit, Sm2Error] = try {
     ignore(sm2_decrypt(private_key, bad, C1C3C2))
@@ -321,7 +321,7 @@ test "sm2_decrypt_invalid_cipher_prefix" {
 ///|
 test "sm2_decrypt_point_not_on_curve" {
   // Valid length/prefix but C1 point not on curve -> InvalidCipher
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let bad = Bytes::makei(97, fn(i) { if i == 0 { b'\x04' } else { b'\x01' } })
   let r : Result[Unit, Sm2Error] = try {
     ignore(sm2_decrypt(private_key, bad, C1C3C2))
@@ -337,7 +337,7 @@ test "sm2_decrypt_point_not_on_curve" {
 
 ///|
 test "sm2_verify_invalid_signature_length" {
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let uid = default_uid()
   let r = Bytes::makei(31, fn(_) { b'\x00' }) // wrong length
@@ -356,7 +356,7 @@ test "sm2_verify_invalid_signature_length" {
 
 ///|
 test "sm2_verify_signature_out_of_range" {
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let uid = default_uid()
   // r = n (equal to order) -> out of range -> InvalidSignature
@@ -379,7 +379,7 @@ test "sm2_verify_der_invalid_input" {
   // Malformed DER -> sm2_verify_der returns false (Err branch)
   assert_false(
     sm2_verify_der(
-      derive_public_key(generate_key(None)),
+      derive_public_key(generate_key(os_rand())),
       b"m",
       default_uid(),
       b"garbage",
@@ -481,7 +481,7 @@ test "decompress_point_invalid_input" {
 test "decompress_point_parity_branch" {
   // For a compressed point with prefix 0x03 (odd y), the recovered y must be
   // flipped (covers the bn_sub branch in decompress_point).
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let compressed = compress_point(public_key)
   let odd = compressed[0] == b'\x03'
@@ -517,7 +517,7 @@ test "generate_key_with_provided_rand" {
 ///|
 test "sm2_verify_s_out_of_range" {
   // r valid, s = n (out of range) -> InvalidSignature (sv branch).
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let uid = default_uid()
   let r_one = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
@@ -597,7 +597,7 @@ test "panic_cipher_unmarshal_expected_octet_4" {
 ///|
 test "sm2_verify_t_zero_returns_false" {
   // Pick r = 1, s = n - 1 so that (r + s) mod n == 0 -> t == 0 -> returns false.
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let uid = default_uid()
   let one = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
@@ -646,10 +646,10 @@ test "asn1_decode_signature_bad_second_tag" {
 ///|
 /// Tampering C3 of a valid cipher makes the SM3 check fail -> InvalidCipher (line 724).
 test "sm2_decrypt_tampered_c3" {
-  let private_key = generate_key(None)
+  let private_key = generate_key(os_rand())
   let public_key = derive_public_key(private_key)
   let msg = b"tamper me please!!!"
-  let cipher = sm2_encrypt(public_key, msg, None, C1C3C2)
+  let cipher = sm2_encrypt(public_key, msg, os_rand(), C1C3C2)
   // Flip a byte inside the C3 region (offset 65..96).
   let tampered = Bytes::makei(cipher.length(), fn(i) {
     if i == 70 {

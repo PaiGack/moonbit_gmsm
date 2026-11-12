@@ -65,8 +65,9 @@ pub fn read_key_from_pem(data : String, pwd : Bytes) -> SM4Key raise SM4Error {
 /// 块类型为 `SM4 ENCRYPTED KEY`；否则块类型为 `SM4 KEY`。
 /// 对应 `WriteKeyToPem(key, pwd)`。
 ///
-/// `random` 用于生成加密 IV；生产环境请传入自行播种的生成器，
-/// `None` 时使用进程内共享的备用生成器。
+/// `random` 用于生成加密 IV，加密时必须提供安全播种的生成器；
+/// 传 `None` 会直接 abort（不再有共享的固定种子兜底）。
+/// `pwd` 为空时不产生随机数，可传 `None`。
 pub fn write_key_to_pem(
   key : SM4Key,
   pwd : Bytes,
@@ -80,7 +81,7 @@ pub fn write_key_to_pem(
   } else {
     let r = match random {
       Some(r) => r
-      None => fallback_rand
+      None => raise SM4Error::MissingRandomSource
     }
     let iv = Bytes::makei(sm4_pem_key_len, fn(_) {
       (r.int(limit=256) & 0xFF).to_byte()
@@ -90,8 +91,15 @@ pub fn write_key_to_pem(
 }
 
 ///|
-/// 调用方传入 `None` 时用于生成 PEM IV 的进程内备用生成器。
-let fallback_rand : @random.Rand = @random.Rand::chacha8()
+/// 用操作系统 CSPRNG（`@env.rand`）播种一个 `@random.Rand`，可直接传给
+/// `write_key_to_pem`。平台无 OS 熵源（如 `wasm`）时返回 `None`，
+/// 此时调用方需自行提供安全播种的生成器。
+pub fn os_rand() -> @random.Rand? {
+  match @env.rand(32) {
+    Some(seed) => Some(@random.Rand::chacha8(seed~))
+    None => None
+  }
+}
 
 ///|
 /// 判定 PEM 块是否为加密块，与 Go `x509.IsEncryptedPEMBlock` 一致：

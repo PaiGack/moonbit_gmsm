@@ -138,13 +138,13 @@ test "sm4 block and modes" {
 ```mbt check
 ///|
 test "sm2 sign and encrypt" {
-  let sk = @sm2.generate_key(None)
+  let sk = @sm2.generate_key(@sm2.os_rand())
   let pub_key = @sm2.derive_public_key(sk)
   let uid = @sm2.default_uid()
   let msg = b"hello sm2"
 
   // 裸 (r, s) 签名与 ASN.1 DER 签名
-  let (r, s) = @sm2.sm2_sign(sk, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(sk, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify(pub_key, msg, uid, r, s))
   let der = @sm2.sign_digit_to_sign_data(r, s)
   let (r2, s2) = @sm2.sign_data_to_sign_digit(der)
@@ -154,16 +154,19 @@ test "sm2 sign and encrypt" {
       pub_key,
       msg,
       uid,
-      @sm2.sm2_sign_der(sk, msg, uid, None),
+      @sm2.sm2_sign_der(sk, msg, uid, @sm2.os_rand()),
     ),
   )
 
   // C1C3C2 / C1C2C3 两种密文排布与 ASN.1 密文
-  let ct = @sm2.sm2_encrypt(pub_key, msg, None, @sm2.C1C3C2)
+  let ct = @sm2.sm2_encrypt(pub_key, msg, @sm2.os_rand(), @sm2.C1C3C2)
   assert_true(@byteutil.bytes_eq(@sm2.sm2_decrypt(sk, ct, @sm2.C1C3C2), msg))
   assert_true(
     @byteutil.bytes_eq(
-      @sm2.sm2_decrypt_asn1(sk, @sm2.sm2_encrypt_asn1(pub_key, msg, None)),
+      @sm2.sm2_decrypt_asn1(
+        sk,
+        @sm2.sm2_encrypt_asn1(pub_key, msg, @sm2.os_rand()),
+      ),
       msg,
     ),
   )
@@ -180,7 +183,7 @@ test "sm2 sign and encrypt" {
 ```mbt check
 ///|
 test "sm2 za and digest verify" {
-  let sk = @sm2.generate_key(None)
+  let sk = @sm2.generate_key(@sm2.os_rand())
   let pub_key = @sm2.derive_public_key(sk)
   let uid = @sm2.default_uid()
   let msg = b"hello sm2 digest"
@@ -192,7 +195,7 @@ test "sm2 za and digest verify" {
   assert_true(@byteutil.bytes_eq(digest, pub_key.sm3_digest(msg, b"")))
 
   // 对「已算好的摘要」验签（对应 Go 的 sm2.Verify）
-  let (r, s) = @sm2.sm2_sign(sk, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(sk, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_digest(pub_key, digest, r, s))
 }
 ```
@@ -209,7 +212,7 @@ test "sm4 key pem" {
   assert_true(@byteutil.bytes_eq(@sm4.read_key_from_pem(pem, b""), key))
 
   // 口令加密：块类型为 SM4 ENCRYPTED KEY，内容为 AES-256-CBC 密文
-  let enc = @sm4.write_key_to_pem(key, b"sm4-pwd", None)
+  let enc = @sm4.write_key_to_pem(key, b"sm4-pwd", @sm4.os_rand())
   let block = @byteutil.pem_decode(enc)
   assert_eq(block.type_, "SM4 ENCRYPTED KEY")
   assert_true(@byteutil.bytes_eq(@sm4.read_key_from_pem(enc, b"sm4-pwd"), key))
@@ -221,8 +224,14 @@ test "sm4 key pem" {
 ```mbt check
 ///|
 test "sm2 key exchange" {
-  let (priv_a, rpriv_a) = (@sm2.generate_key(None), @sm2.generate_key(None))
-  let (priv_b, rpriv_b) = (@sm2.generate_key(None), @sm2.generate_key(None))
+  let (priv_a, rpriv_a) = (
+    @sm2.generate_key(@sm2.os_rand()),
+    @sm2.generate_key(@sm2.os_rand()),
+  )
+  let (priv_b, rpriv_b) = (
+    @sm2.generate_key(@sm2.os_rand()),
+    @sm2.generate_key(@sm2.os_rand()),
+  )
   let pub_a = @sm2.derive_public_key(priv_a)
   let pub_b = @sm2.derive_public_key(priv_b)
   let rpub_a = @sm2.derive_public_key(rpriv_a)

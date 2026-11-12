@@ -63,6 +63,7 @@ pub suberror SM4Error {
   InvalidData // data length not a multiple of 16
   InvalidIV // IV not empty and length != 16 bytes
   InvalidPadding // PKCS7 unpadding: padding value invalid
+  MissingRandomSource // random source is None (no insecure fallback exists)
 }
 
 ///|

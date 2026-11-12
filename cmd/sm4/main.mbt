@@ -69,7 +69,11 @@ fn main {
       "0123456789ABCDEFFEDCBA9876543210",
     )
     let plain_pem = @gmsm_sm4.write_key_to_pem(pem_key, b"", None)
-    let enc_pem = @gmsm_sm4.write_key_to_pem(pem_key, b"demo-pwd", None)
+    let enc_pem = @gmsm_sm4.write_key_to_pem(
+      pem_key,
+      b"demo-pwd",
+      @gmsm_sm4.os_rand(),
+    )
     let back1 = @gmsm_sm4.read_key_from_pem(plain_pem, b"")
     let back2 = @gmsm_sm4.read_key_from_pem(enc_pem, b"demo-pwd")
     println("")

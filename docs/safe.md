@@ -6,6 +6,8 @@
 
 ### 🔴 严重（Critical）
 
+> **状态：已修复。** 已删除 `sm2`、`sm4` 中的包级 `fallback_rand`；`generate_key` / `sm2_sign` / `sm2_sign_der` / `sm2_encrypt*` / `write_key_to_pem`（加密路径）在收到 `None` 时抛出 `MissingRandomSource`，不再静默使用固定种子；`sm2_sign` 之前忽略传入的随机源（内部写死 `bn_rand_k(None)`）也已修正。新增 `@sm2.os_rand()` / `@sm4.os_rand()`，用 `@env.rand` 的 OS 熵源播种；README 与 cmd 示例、测试均已改用该入口，并新增回归测试。
+
 #### 1. 默认随机源是确定性伪随机，且暴露给调用方
 
 涉及以下位置：
@@ -103,13 +105,3 @@ SM2 签名和密文通常来自网络或文件（例如加载签名之后才校�
 - **`sm2/curve.mbt` 中的 `fallback` 分支**：`scalar_mult` 在 `k` 为 0 或点是无穷远时没有显式处理（`bn_is_zero(kk)` 时 digits 为空，结果直接为无穷远），目前由上层 `bn_rand_k` 保证非零，但作为公开库缺少防御性检查。
 
 ---
-
-### 建议的修复顺序
-
-1. 移除 `fallback_rand` 默认值、接入 OS CSPRNG，并修正 README 示例（防止私钥泄露）
-2. DER 解析改为结构化错误，补 fuzz 类测试（防止远程 DoS）
-3. 增加常量时间比较，并让 GCM 解密默认校验 tag（防止认证绕过）
-4. 提供 PBKDF2 加密 PEM 格式（防止口令破解）
-5. 其余按中、低优先级逐步处理
-
-需要我从第 1 项或第 2 项开始直接改代码吗？

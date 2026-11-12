@@ -93,7 +93,7 @@ p = FFFFFFFE FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF 00000000 FFFFFFFF FFFFFFFF
 | `bn_modsqr_p(r, a)` | 同上 |
 | `bn_modinv_p(r, a)` | Fermat：`a^(p-2) mod p`（平方-乘 256 轮）；后续可换为 `addchain` |
 | `bn_mod_n(r, a)` | 模曲线阶 n。n < 2^256 但与 NIST P-256 的 n 不同，**不**复用 P-256 约简路径；采用「算到 512-bit 再用 `n` 减几次」朴素方案（gmsm 同款） |
-| `bn_rand_k(random) -> FA[U64]` | 1 ≤ k ≤ n-1（签名随机数，**不是**私钥生成；用 MoonBit `random` 接口；缺省时用 `Rand::chacha8`）。算法：`k = (rand_bytes mod (n-1)) + 1`（与 gmsm `sm2.go:622-637` `randFieldElement` 一致） |
+| `bn_rand_k(random) -> FA[U64]` | 1 ≤ k ≤ n-1（签名随机数，**不是**私钥生成；用 MoonBit `random` 接口；**必须**传入安全播种的随机源，`None` 直接 abort）。算法：`k = (rand_bytes mod (n-1)) + 1`（与 gmsm `sm2.go:622-637` `randFieldElement` 一致） |
 
 #### 2.1.1 模 `p` 快速约简（4 × 64-bit 路径）
 
@@ -344,7 +344,7 @@ pub suberror Sm2Error {
 
 > 与 gmsm 的 `errZeroParam`（sm2.go:65）保持兼容；`InvalidParameter`/`InvalidSignature`/`InvalidPoint`/`KdfZeroKey` 是在 gmsm 错误语义上做的细化（gmsm 全部用 `errors.New("...")`，未细分）。
 
-`@random.Rand?` 是 MoonBit 标准库的伪随机源（`moonbitlang/core/random`），缺省时使用确定性随机源 `zeroReader{}` 跑 KAT，正式运行时使用 `Rand::chacha8(...)`。
+`@random.Rand?` 是 MoonBit 标准库的伪随机源（`moonbitlang/core/random`）。`None` 表示**没有**随机源：库内部一律 abort，不再提供进程内共享的 `Rand::chacha8()` 兜底（其固定默认种子会让私钥、签名 nonce 和临时密钥可预测）。推荐直接使用 `@sm2.os_rand()`（用 `@env.rand` 的 OS 熵源播种），测试需要可复现时传入显式播种的 `Rand::chacha8(seed=...)`。
 
 ## 3. 互操作性与字节序约定
 

@@ -1,18 +1,28 @@
 ///|
 /// SM2 public API tests (blackbox).
 test "sm2_generate_key" {
-  let private_key = @sm2.generate_key(None)
+  // `None` means "no random source": it must not silently fall back to a
+  // process-wide fixed-seed generator.
+  let raised = try {
+    let _ = @sm2.generate_key(None)
+    false
+  } catch {
+    @sm2.MissingRandomSource => true
+    _ => false
+  }
+  assert_true(raised)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   assert_true(@sm2.is_on_curve(public_key))
 }
 
 ///|
 test "sm2_sign_verify_roundtrip" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"hello sm2"
   let uid = @sm2.default_uid()
-  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, @sm2.os_rand())
   assert_eq(r.length(), 32)
   assert_eq(s.length(), 32)
   assert_true(@sm2.sm2_verify(public_key, msg, uid, r, s))
@@ -20,11 +30,11 @@ test "sm2_sign_verify_roundtrip" {
 
 ///|
 test "sm2_verify_tampered_fails" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"hello sm2"
   let uid = @sm2.default_uid()
-  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, @sm2.os_rand())
   let r_tampered = Bytes::makei(32, fn(i) {
     if i == 0 {
       (r[0].to_int() ^ 1).to_byte()
@@ -45,17 +55,17 @@ test "sm2_verify_tampered_fails" {
 
 ///|
 test "sm2_sign_verify_der_roundtrip" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"hello sm2 der"
   let uid = @sm2.default_uid()
-  let der = @sm2.sm2_sign_der(private_key, msg, uid, None)
+  let der = @sm2.sm2_sign_der(private_key, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_der(public_key, msg, uid, der))
 }
 
 ///|
 test "sm2_compress_decompress_roundtrip" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let compressed = @sm2.compress_point(public_key)
   assert_eq(compressed.length(), 33)
@@ -67,13 +77,13 @@ test "sm2_compress_decompress_roundtrip" {
 
 ///|
 test "sm2_key_exchange" {
-  let priv_a = @sm2.generate_key(None)
+  let priv_a = @sm2.generate_key(@sm2.os_rand())
   let pub_a = @sm2.derive_public_key(priv_a)
-  let rpriv_a = @sm2.generate_key(None)
+  let rpriv_a = @sm2.generate_key(@sm2.os_rand())
   let rpub_a = @sm2.derive_public_key(rpriv_a)
-  let priv_b = @sm2.generate_key(None)
+  let priv_b = @sm2.generate_key(@sm2.os_rand())
   let pub_b = @sm2.derive_public_key(priv_b)
-  let rpriv_b = @sm2.generate_key(None)
+  let rpriv_b = @sm2.generate_key(@sm2.os_rand())
   let rpub_b = @sm2.derive_public_key(rpriv_b)
   let ida = b"1234567812345678"
   let idb = b"1234567812345678"
@@ -131,10 +141,10 @@ fn bn_equal(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
 
 ///|
 test "sm2_cipher_marshal_unmarshal" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"asn1 test"
-  let der = @sm2.sm2_encrypt_asn1(public_key, msg, None)
+  let der = @sm2.sm2_encrypt_asn1(public_key, msg, @sm2.os_rand())
   let decrypted = @sm2.sm2_decrypt_asn1(private_key, der)
   for i in 0..<msg.length() {
     assert_eq(decrypted[i], msg[i])
@@ -145,11 +155,11 @@ test "sm2_cipher_marshal_unmarshal" {
 /// The exported ASN.1 signature converters round-trip and interoperate with
 /// `sm2_sign_der` / `sm2_verify_der`.
 test "sm2_sign_digit_data_roundtrip" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"digit/data conversion"
   let uid = @sm2.default_uid()
-  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, @sm2.os_rand())
   let der = @sm2.sign_digit_to_sign_data(r, s)
   assert_true(@sm2.sm2_verify_der(public_key, msg, uid, der))
   let (r2, s2) = @sm2.sign_data_to_sign_digit(der)
@@ -188,11 +198,11 @@ test "sm2_sign_data_to_sign_digit_invalid" {
 ///|
 /// Both raw ciphertext layouts round-trip.
 test "sm2_raw_cipher_modes" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"raw layout roundtrip"
-  let c132 = @sm2.sm2_encrypt(public_key, msg, None, @sm2.C1C3C2)
-  let c123 = @sm2.sm2_encrypt(public_key, msg, None, @sm2.C1C2C3)
+  let c132 = @sm2.sm2_encrypt(public_key, msg, @sm2.os_rand(), @sm2.C1C3C2)
+  let c123 = @sm2.sm2_encrypt(public_key, msg, @sm2.os_rand(), @sm2.C1C2C3)
   assert_eq(c132.length(), 1 + 64 + 32 + msg.length())
   assert_eq(c132[0], b'\x04')
   assert_true(bytes_same(@sm2.sm2_decrypt(private_key, c132, @sm2.C1C3C2), msg))
@@ -212,17 +222,17 @@ test "sm2_raw_cipher_modes" {
 
 ///|
 test "sm2_verify_rejects_wrong_message" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let msg = b"correct message"
   let uid = @sm2.default_uid()
-  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, @sm2.os_rand())
   assert_false(@sm2.sm2_verify(public_key, b"wrong message", uid, r, s))
 }
 
 ///|
 test "sm2_za_is_deterministic_and_uid_sensitive" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let uid = @sm2.default_uid()
   let za1 = public_key.za(uid)
@@ -238,14 +248,14 @@ test "sm2_za_is_deterministic_and_uid_sensitive" {
 
 ///|
 test "sm2_za_matches_signature_hash" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let uid = @sm2.default_uid()
   let msg = b"za consistency"
   let digest = public_key.sm3_digest(msg, uid)
   assert_eq(digest.length(), 32)
   // digest 直接用于摘要验签，结果与消息验签一致
-  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, @sm2.os_rand())
   assert_true(@sm2.sm2_verify_digest(public_key, digest, r, s))
   assert_true(@sm2.sm2_verify(public_key, msg, uid, r, s))
   // 错误摘要必须失败
@@ -255,7 +265,7 @@ test "sm2_za_matches_signature_hash" {
 
 ///|
 test "sm2_sm3_digest_empty_uid_uses_default" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   assert_eq(
     public_key.sm3_digest(b"abc", b""),
@@ -265,7 +275,7 @@ test "sm2_sm3_digest_empty_uid_uses_default" {
 
 ///|
 test "sm2_verify_digest_rejects_bad_scalars" {
-  let private_key = @sm2.generate_key(None)
+  let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
   let digest = public_key.sm3_digest(b"x", @sm2.default_uid())
   let zero = Bytes::makei(32, fn(_) { b'\x00' })
@@ -289,6 +299,11 @@ test "sm2_verify_digest_rejects_bad_scalars" {
   }
   assert_true(r2_raised)
   // 正确签名下的摘要验签确实成立
-  let (r, s) = @sm2.sm2_sign(private_key, b"x", @sm2.default_uid(), None)
+  let (r, s) = @sm2.sm2_sign(
+    private_key,
+    b"x",
+    @sm2.default_uid(),
+    @sm2.os_rand(),
+  )
   assert_true(@sm2.sm2_verify_digest(public_key, digest, r, s))
 }

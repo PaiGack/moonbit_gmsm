@@ -11,6 +11,8 @@ pub fn get_iv() -> Bytes
 
 pub fn new_cipher(Bytes) -> SM4Cipher raise SM4Error
 
+pub fn os_rand() -> @random.Rand?
+
 pub fn read_key_from_pem(String, Bytes) -> Bytes raise SM4Error
 
 pub fn set_iv(Bytes) -> Unit raise SM4Error
@@ -62,6 +64,7 @@ pub suberror SM4Error {
   InvalidData
   InvalidIV
   InvalidPadding
+  MissingRandomSource
 }
 pub fn SM4Error::equal(Self, Self) -> Bool
 pub fn SM4Error::not_equal(Self, Self) -> Bool

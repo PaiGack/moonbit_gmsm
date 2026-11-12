@@ -618,23 +618,33 @@ fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
 }
 
 ///|
-/// Process-wide fallback generator used when the caller passes `None`.
+/// Build a `@random.Rand` backed by the operating system's CSPRNG
+/// (`@env.rand`). Prefer this over `@random.Rand::chacha8()` when the caller
+/// has no secret seed of its own.
 ///
-/// `@random.Rand::chacha8()` is seeded with a *fixed* default seed, so
-/// creating a fresh instance on every call would hand out the very same `k`
-/// every time — fatal for signature nonces and for ephemeral keys. Keeping a
-/// single shared stream at least guarantees that successive draws differ.
-/// Production code should still pass its own properly seeded `@random.Rand`.
-let fallback_rand : @random.Rand = @random.Rand::chacha8()
+/// Returns `None` on platforms where the OS entropy source is unavailable
+/// (e.g. `wasm`); in that case the caller must supply its own securely seeded
+/// `@random.Rand`.
+pub fn os_rand() -> @random.Rand? {
+  match @env.rand(32) {
+    Some(seed) => Some(@random.Rand::chacha8(seed~))
+    None => None
+  }
+}
 
 ///|
 /// Generate random k: 1 ≤ k ≤ n-1
-fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] {
+///
+/// The random source is mandatory: there is deliberately no process-wide
+/// fallback. `@random.Rand::chacha8()` uses a fixed public seed, so using it
+/// as a default (or sharing one stream process-wide) would make signing
+/// nonces, private keys and ephemeral encryption keys predictable.
+fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] raise Sm2Error {
   let n = n_limbs()
   let k : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   let r = match random {
     Some(r) => r
-    None => fallback_rand
+    None => raise MissingRandomSource
   }
   while true {
     let buf = Bytes::makei(32, fn(_i) { (r.int(limit=256) & 0xFF).to_byte() })

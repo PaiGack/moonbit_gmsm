@@ -69,7 +69,7 @@ test "sm4_pem_plain_roundtrip" {
 test "sm4_pem_encrypted_roundtrip" {
   let key : SM4Key = b"0123456789abcdef"
   let pwd = b"sm4-pwd"
-  let pem = write_key_to_pem(key, pwd, None)
+  let pem = write_key_to_pem(key, pwd, os_rand())
   let block = @byteutil.pem_decode(pem)
   assert_eq(block.type_, "SM4 ENCRYPTED KEY")
   assert_eq(block.get_header("Proc-Type"), Some("4,ENCRYPTED"))
@@ -80,7 +80,7 @@ test "sm4_pem_encrypted_roundtrip" {
 ///|
 test "sm4_pem_encrypted_wrong_password" {
   let key : SM4Key = b"0123456789abcdef"
-  let pem = write_key_to_pem(key, b"right", None)
+  let pem = write_key_to_pem(key, b"right", os_rand())
   let r = read_key_from_pem(pem, b"wrong") catch { _ => b"" }
   assert_eq(r.length(), 0)
   // 缺少口令
