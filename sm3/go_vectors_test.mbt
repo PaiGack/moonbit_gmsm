@@ -40,7 +40,7 @@ fn go_nibble_to_char(n : Int32) -> Char {
 fn go_byte_to_hex(b : Byte) -> String {
   let hi = (b.to_int() >> 4) & 0xF
   let lo = b.to_int() & 0xF
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   buf.write_char(go_nibble_to_char(hi))
   buf.write_char(go_nibble_to_char(lo))
   buf.to_string()
@@ -48,7 +48,7 @@ fn go_byte_to_hex(b : Byte) -> String {
 
 ///|
 fn go_bytes_to_hex(b : Bytes) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for i in 0..<b.length() {
     buf.write_string(go_byte_to_hex(b[i]))
   }

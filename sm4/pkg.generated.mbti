@@ -12,7 +12,7 @@ pub fn new_cipher(Bytes) -> SM4Cipher raise SM4Error
 
 pub fn set_iv(Bytes) -> Unit raise SM4Error
 
-pub let sm4_block_size : Int
+pub let sm4_block_size : Int32
 
 pub fn sm4_cbc(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
@@ -46,25 +46,29 @@ pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Er
 
 pub fn sm4_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
 
-pub let sm4_key_size : Int
+pub let sm4_key_size : Int32
 
 pub fn sm4_ofb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
 // Errors
+#derive(Eq, @debug.Debug)
 pub suberror SM4Error {
   InvalidKey
   InvalidData
   InvalidIV
   InvalidPadding
-} derive(Eq, @debug.Debug)
+}
+pub fn SM4Error::equal(Self, Self) -> Bool
+pub fn SM4Error::not_equal(Self, Self) -> Bool
+pub fn SM4Error::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct SM4Cipher {
-  rk : FixedArray[UInt]
-  rk_rev : FixedArray[UInt]
+  rk : FixedArray[UInt32]
+  rk_rev : FixedArray[UInt32]
   iv : FixedArray[Byte]
 }
-pub fn SM4Cipher::block_size(Self) -> Int
+pub fn SM4Cipher::block_size(Self) -> Int32
 pub fn SM4Cipher::decrypt(Self, Bytes) -> Bytes raise SM4Error
 pub fn SM4Cipher::encrypt(Self, Bytes) -> Bytes raise SM4Error
 pub fn SM4Cipher::get_iv(Self) -> Bytes
@@ -73,4 +77,3 @@ pub fn SM4Cipher::set_iv(Self, Bytes) -> Unit raise SM4Error
 // Type aliases
 
 // Traits
-

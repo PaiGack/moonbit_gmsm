@@ -194,13 +194,31 @@ test "sm2 key exchange" {
 使用 [MoonBit 工具链](https://www.moonbitlang.com/download)：
 
 ```bash
-moon check         # 类型 / 语法检查
-moon test          # 运行测试
-moon build         # 编译
+moon version --all  # 确认工具链版本
+moon fmt --check    # 格式检查
+moon check --deny-warn  # 类型 / 语法检查（警告视为错误）
+moon test --deny-warn   # 运行测试
+moon build --target wasm-gc  # 编译（wasm-gc 后端）
+moon build --target native   # 编译（native 后端）
 moon run cmd/sm2  # 运行 sm2 example 入口程序
 moon run cmd/sm3  # 运行 sm3 example 入口程序
 moon run cmd/sm4  # 运行 sm4 example 入口程序
 ```
+
+### 验证环境
+
+源码、依赖与示例均在下列工具链上验证通过（`moon version --all` 实测输出）：
+
+```text
+moon   0.1.20261104 (940aa18 2026-11-04)
+moonc  v0.10.20+65efd5b93 (2026-11-05)
+moonrun 0.1.20261104 (940aa18 2026-11-04)
+```
+
+已验证目标：`wasm-gc` 与 `native` 两种后端均可构建、测试与运行示例；
+未验证 `js` 等其它后端。示例程序仅依赖标准库，无平台相关代码。
+CI（`.github/workflows/ci.yml`）使用同一套工具链安装方式持续执行
+`fmt --check` / `check --deny-warn` / `test` / `build` / `run cmd/*`。
 
 ## 许可证
 

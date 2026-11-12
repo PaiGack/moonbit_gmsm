@@ -45,3 +45,9 @@ pub fn pkcs7_unpad(data : Bytes) -> Result[Bytes, ByteUtilError] {
   }
   Ok(data[0:data.length() - pad_len].to_owned())
 }
+
+///|
+pub extend ByteUtilError with @debug.Debug::{to_repr}
+
+///|
+pub extend ByteUtilError with Eq::{not_equal, equal}

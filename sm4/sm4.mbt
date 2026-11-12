@@ -710,3 +710,9 @@ pub fn sm4_gcm_decrypt(
   }
   (Bytes::makei(l, fn(i) { plain[i] }), Bytes::makei(16, fn(i) { tag[i] }))
 }
+
+///|
+pub extend SM4Error with @debug.Debug::{to_repr}
+
+///|
+pub extend SM4Error with Eq::{not_equal, equal}
