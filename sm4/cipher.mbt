@@ -120,7 +120,8 @@ pub fn sm4_ecb(
   if encrypt {
     sm4_encrypt_ecb(key, @byteutil.pkcs7_pad(data, sm4_block_size))
   } else {
-    @byteutil.pkcs7_unpad(sm4_decrypt_ecb(key, data)) catch {
+    let plain = sm4_decrypt_ecb(key, data)
+    @byteutil.pkcs7_unpad(plain) catch {
       _ => raise SM4Error::InvalidPadding
     }
   }
@@ -138,7 +139,8 @@ pub fn sm4_cbc(
   if encrypt {
     sm4_encrypt_cbc(key, iv, @byteutil.pkcs7_pad(data, sm4_block_size))
   } else {
-    @byteutil.pkcs7_unpad(sm4_decrypt_cbc(key, iv, data)) catch {
+    let plain = sm4_decrypt_cbc(key, iv, data)
+    @byteutil.pkcs7_unpad(plain) catch {
       _ => raise SM4Error::InvalidPadding
     }
   }
@@ -156,7 +158,8 @@ pub fn sm4_cfb(
   if encrypt {
     cfb_core(key, iv, @byteutil.pkcs7_pad(data, sm4_block_size), true)
   } else {
-    @byteutil.pkcs7_unpad(cfb_core(key, iv, data, false)) catch {
+    let plain = cfb_core(key, iv, data, false)
+    @byteutil.pkcs7_unpad(plain) catch {
       _ => raise SM4Error::InvalidPadding
     }
   }
@@ -174,7 +177,8 @@ pub fn sm4_ofb(
   if encrypt {
     ofb_core(key, iv, @byteutil.pkcs7_pad(data, sm4_block_size))
   } else {
-    @byteutil.pkcs7_unpad(ofb_core(key, iv, data)) catch {
+    let plain = ofb_core(key, iv, data)
+    @byteutil.pkcs7_unpad(plain) catch {
       _ => raise SM4Error::InvalidPadding
     }
   }

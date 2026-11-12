@@ -558,6 +558,37 @@ test "cipher_marshal_invalid" {
 }
 
 ///|
+/// `cipher_unmarshal` must locate child tags correctly even when the INTEGER
+/// length field is 2 bytes (x with its high bit set), i.e. the tag is not at
+/// `content_start - 1`. Decoding a marshalled cipher must round-trip.
+test "cipher_unmarshal_long_integer_tag" {
+  // Build a raw cipher whose x starts with 0x80, so the INTEGER needs a
+  // 2-byte content length (0x81 0x21) and the tag is at `content_start - 2`.
+  let xb = Bytes::makei(32, fn(i) { if i == 0 { b'\x80' } else { b'\x11' } })
+  let yb = Bytes::makei(32, fn(i) {
+    (i.reinterpret_as_uint() & 0xFFU).to_byte()
+  })
+  let c3 = Bytes::makei(32, fn(_) { b'\xAA' })
+  let c2 = Bytes::makei(4, fn(_) { b'\xBB' })
+  let raw = @byteutil.concat_bytes([
+    Bytes::from_array([b'\x04']),
+    xb,
+    yb,
+    c3,
+    c2,
+  ])
+  let der = cipher_marshal(raw)
+  // x = 0x80... encodes as 0x02 0x81 0x21 0x00 ...
+  let (xs, xe, xt) = asn1_sequence_children(der, 0, der.length())[0]
+  assert_eq(xt, 0x02)
+  assert_eq(xe - xs, 33)
+  let back = cipher_unmarshal(der) catch {
+    _ => abort("cipher_unmarshal rejected a valid cipher")
+  }
+  assert_eq(back, raw)
+}
+
+///|
 /// Malformed DER inputs must raise `Sm2Error`, never panic or abort.
 fn assert_cipher_unmarshal_raises(der : Bytes) -> Unit raise {
   assert_true(raises_sm2_error(fn() raise { ignore(cipher_unmarshal(der)) }))
@@ -605,11 +636,11 @@ test "cipher_unmarshal_wrong_tags" {
       b'\x01', b'\x00', b'\x02', b'\x00',
     ]),
   )
-  // too many elements
+  // too many elements (five 3-byte children -> SEQUENCE length 15)
   assert_cipher_unmarshal_raises(
     Bytes::from_array([
-      b'\x30', b'\x0C', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x04',
-      b'\x01', b'\x00', b'\x04', b'\x01', b'\x00', b'\x05',
+      b'\x30', b'\x0F', b'\x02', b'\x01', b'\x00', b'\x02', b'\x01', b'\x00', b'\x04',
+      b'\x01', b'\x00', b'\x04', b'\x01', b'\x00', b'\x04', b'\x01', b'\x00',
     ]),
   )
 }

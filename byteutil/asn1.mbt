@@ -104,7 +104,7 @@ pub fn decode_asn1_tlv(
   end_limit : Int32,
 ) -> (Int32, Int32, Int32) raise ByteUtilError {
   let size = data.length()
-  if off < 0 || off >= size || off + 1 >= end_limit || off + 1 >= size {
+  if off < 0 || off + 1 >= size || off + 1 >= end_limit {
     raise ByteUtilError::InvalidDer
   }
   let tag = data[off].to_int()
@@ -151,25 +151,29 @@ pub fn encode_asn1_integer(bytes : Bytes) -> Bytes {
     return Bytes::from_array([b'\x02', b'\x01', b'\x00'])
   }
   let pad = (bytes[start].to_uint() & 0x80U) != 0U
+  // Content as written: a leading 0x00 when the high bit is set, then the
+  // value bytes without their leading zeros.
   let content_len = if pad { remaining + 1 } else { remaining }
   let lb = encode_asn1_length(content_len)
   let total = 1 + lb.length() + content_len
+  let content = Bytes::makei(content_len, fn(i) {
+    if pad {
+      if i == 0 {
+        b'\x00'
+      } else {
+        bytes[start + i - 1]
+      }
+    } else {
+      bytes[start + i]
+    }
+  })
   Bytes::makei(total, fn(i) {
     if i == 0 {
       b'\x02'
     } else if i < 1 + lb.length() {
       lb[i - 1]
     } else {
-      let vi = i - 1 - lb.length()
-      if pad {
-        if vi == 0 {
-          b'\x00'
-        } else {
-          bytes[start + vi - 1]
-        }
-      } else {
-        bytes[start + vi]
-      }
+      content[i - 1 - lb.length()]
     }
   })
 }

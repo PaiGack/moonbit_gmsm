@@ -120,6 +120,37 @@ test "decode_asn1_length_rejects_malformed" {
   }
 }
 
+///|
+/// A child element that ends exactly at the enclosing limit (the length byte
+/// is the last in-bounds byte) is valid; only a missing length byte is an
+/// error.
+test "decode_asn1_tlv_child_ends_at_limit" {
+  // 0x02 0x01 0x05: INTEGER occupying exactly [0, 3)
+  let data = Bytes::from_array([b'\x02', b'\x01', b'\x05'])
+  assert_eq(decode_asn1_tlv(data, 0, 3), (2, 3, 0x02))
+}
+
+///|
+/// An element with a long-form length (2 length bytes) is decoded correctly.
+test "decode_asn1_tlv_long_form_length" {
+  let data = Bytes::makei(133, fn(i) {
+    if i == 0 {
+      b'\x04'
+    } else if i == 1 {
+      b'\x81'
+    } else if i == 2 {
+      b'\x82'
+    } else {
+      b'\xAA'
+    }
+  })
+  // 0x04 0x81 0x82 -> length 130, content [3, 133)
+  let (start, end, tag) = decode_asn1_tlv(data, 0, data.length())
+  assert_eq(start, 3)
+  assert_eq(end, 133)
+  assert_eq(tag, 0x04)
+}
+
 // ----------------------------------------------------------------------------
 // pad_left
 // ----------------------------------------------------------------------------
@@ -294,6 +325,21 @@ test "encode_asn1_integer_high_bit_pad" {
   assert_eq(enc[3], b'\x80')
   for i in 4..<35 {
     assert_eq(enc[i], b'\x00')
+  }
+}
+
+///|
+/// Content of 128 bytes or more uses a long-form length field; the value bytes
+/// must still be copied verbatim right after it.
+test "encode_asn1_integer_long_form_length" {
+  let value = Bytes::makei(130, fn(i) { ((i + 1) & 0xFF).to_byte() })
+  let enc = encode_asn1_integer(value)
+  assert_eq(enc.length(), 3 + 130)
+  assert_eq(enc[0], b'\x02')
+  assert_eq(enc[1], b'\x81')
+  assert_eq(enc[2], b'\x82')
+  for i in 0..<130 {
+    assert_eq(enc[3 + i], value[i])
   }
 }
 

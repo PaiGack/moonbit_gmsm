@@ -463,14 +463,15 @@ fn asn1_expect_tlv(
 /// Parse a full DER SEQUENCE element starting at `off` as `SEQUENCE {
 /// INTEGER / OCTET STRING, ... }`, yielding each child's content range in
 /// order. Every element must fit in its parent and the SEQUENCE must be
-/// well-formed; everything else is reported as `InvalidSignature`.
+/// well-formed; everything else is reported as `InvalidSignature`. Each
+/// yielded element is `(content_start, content_end, tag)`.
 fn asn1_sequence_children(
   der : Bytes,
   off : Int32,
   end_limit : Int32,
-) -> Array[(Int32, Int32)] raise Sm2Error {
+) -> Array[(Int32, Int32, Int32)] raise Sm2Error {
   let (seq_start, seq_end) = asn1_expect_tlv(der, off, end_limit, b'\x30')
-  let children : Array[(Int32, Int32)] = []
+  let children : Array[(Int32, Int32, Int32)] = []
   // Walk with a plain `while` cursor: each step fully validates the next TLV
   // (tag byte present, length parses, content inside the SEQUENCE) before it
   // is recorded, so malformed input raises instead of reading out of bounds.
@@ -492,7 +493,7 @@ fn asn1_sequence_children(
     if end > seq_end {
       raise Sm2Error::InvalidSignature
     }
-    children.push((start, end))
+    children.push((start, end, tag))
     cur = end
   }
   children
@@ -506,8 +507,8 @@ fn asn1_decode_signature(der : Bytes) -> (Bytes, Bytes) raise Sm2Error {
   if children.length() != 2 {
     raise Sm2Error::InvalidSignature
   }
-  let (rs, re) = children[0]
-  let (ss, se) = children[1]
+  let (rs, re, _) = children[0]
+  let (ss, se, _) = children[1]
   let rv = @byteutil.normalize_32(der[rs:re].to_owned()) catch {
     _ => raise Sm2Error::InvalidSignature
   }
@@ -730,23 +731,16 @@ pub fn cipher_unmarshal(der : Bytes) -> Bytes raise Sm2Error {
   let children = asn1_sequence_children(der, 0, der.length()) catch {
     _ => raise Sm2Error::InvalidCipher
   }
-  let nch = children.length()
-  if nch != 4 {
-    raise Sm2Error::InvalidCipher
-  }
   if children.length() != 4 {
     raise Sm2Error::InvalidCipher
   }
-  let (xs, xe) = children[0]
-  let (ys, ye) = children[1]
-  let (c3s, c3e) = children[2]
-  let (c2s, c2e) = children[3]
+  let (xs, xe, xt) = children[0]
+  let (ys, ye, yt) = children[1]
+  let (c3s, c3e, c3t) = children[2]
+  let (c2s, c2e, c2t) = children[3]
   // asn1_sequence_children accepts both INTEGER and OCTET STRING children;
   // verify the layout is INTEGER x, INTEGER y, OCTET STRING C3, OCTET C2.
-  let tags_ok = der[xs - 1].to_int() == 0x02 &&
-    der[ys - 1].to_int() == 0x02 &&
-    der[c3s - 1].to_int() == 0x04 &&
-    der[c2s - 1].to_int() == 0x04
+  let tags_ok = xt == 0x02 && yt == 0x02 && c3t == 0x04 && c2t == 0x04
   if !tags_ok {
     raise Sm2Error::InvalidCipher
   }
