@@ -205,21 +205,6 @@ moon run cmd/sm3  # 运行 sm3 example 入口程序
 moon run cmd/sm4  # 运行 sm4 example 入口程序
 ```
 
-### 验证环境
-
-源码、依赖与示例均在下列工具链上验证通过（`moon version --all` 实测输出）：
-
-```text
-moon   0.1.20261104 (940aa18 2026-11-04)
-moonc  v0.10.20+65efd5b93 (2026-11-05)
-moonrun 0.1.20261104 (940aa18 2026-11-04)
-```
-
-已验证目标：`wasm-gc` 与 `native` 两种后端均可构建、测试与运行示例；
-未验证 `js` 等其它后端。示例程序仅依赖标准库，无平台相关代码。
-CI（`.github/workflows/ci.yml`）使用同一套工具链安装方式持续执行
-`fmt --check` / `check --deny-warn` / `test` / `build` / `run cmd/*`。
-
 ## 许可证
 
 本项目基于 [`tjfoc/gmsm`](https://github.com/tjfoc/gmsm) 移植，遵循 **Apache License 2.0**，与原项目许可证一致。详见 [LICENSE](LICENSE)。
