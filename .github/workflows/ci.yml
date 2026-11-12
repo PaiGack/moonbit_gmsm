@@ -37,6 +37,13 @@ jobs:
 
       - name: moon test
         run: |
+          for target in wasm-gc wasm js native; do
+            echo "== testing $target"
+            moon test --target "$target" --deny-warn
+          done
+
+      - name: moon test coverage
+        run: |
           moon test --deny-warn --enable-coverage
           moon coverage report -f summary
 
@@ -44,10 +51,11 @@ jobs:
 
       - name: moon build
         run: |
-          moon build --target wasm-gc
-          moon build --target native
-          moon build --target wasm-gc --release
-          moon build --target native --release
+          for target in wasm-gc wasm js native; do
+            echo "== building $target"
+            moon build --target "$target"
+            moon build --target "$target" --release
+          done
 
       - name: moon run cmd
         run: |
