@@ -4,19 +4,18 @@ FROM cnbcool/default-dev-env:latest
 
 RUN apt-get update && apt-get install -y gcc libssl-dev strace
 
-RUN curl -fsSL https://cli.moonbitlang.cn/install/unix.sh | bash \
-     && code-server --install-extension moonbit.moonbit-lang
+RUN curl -fsSL https://cli.moonbitlang.cn/install/unix.sh | bash
 
-RUN curl -fsSL https://downloads.claude.ai/claude-code-releases/bootstrap.sh | bash
+RUN curl -fsSL https://downloads.claude.ai/claude-code-releases/bootstrap.sh | bash \
+     && curl -fsSL https://github.com/SaladDay/cc-switch-cli/releases/latest/download/install.sh | bash \
+     && curl -fsSL https://antigravity.google/cli/install.sh | bash
 
-RUN curl -fsSL https://github.com/SaladDay/cc-switch-cli/releases/latest/download/install.sh | bash
 
+RUN wget https://go.dev/dl/go1.27.4.linux-amd64.tar.gz \
+     && rm -rf /usr/local/go && tar -C /usr/local -xzf go1.27.4.linux-amd64.tar.gz \
+     && rm -rf go1.27.4.linux-amd64.tar.gz
 
-RUN wget https://go.dev/dl/go1.26.5.linux-amd64.tar.gz \
-     && rm -rf /usr/local/go && tar -C /usr/local -xzf go1.26.5.linux-amd64.tar.gz \
-     && rm -rf go1.26.5.linux-amd64.tar.gz
-
-ENV PATH="$PATH:/root/.local/bin:/usr/local/go/bin" \
+ENV PATH="$PATH:/root/.local/bin:/usr/local/go/bin:/root/.moon/bin" \
      GOPROXY=https://goproxy.cn,direct
 
 RUN go install golang.org/x/tools/gopls@latest \
@@ -28,5 +27,6 @@ ENV workspace="/workspace"
 RUN code-server --install-extension tamasfe.even-better-toml \
      && code-server --install-extension usernamehw.errorlens \
      && code-server --install-extension chanhx.crabviz \
+     && code-server --install-extension moonbit.moonbit-lang \
      && code-server --install-extension golang.Go \
      && code-server --install-extension Anthropic.claude-code
