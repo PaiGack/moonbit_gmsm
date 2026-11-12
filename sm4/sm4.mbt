@@ -663,22 +663,28 @@ pub fn sm4_gcm_encrypt(
 }
 
 ///|
-/// SM4 GCM decryption. Returns `(plaintext, tag)`. Note: like tjfoc/gmsm
-/// `sm4.Sm4GCM` / `GCMDecrypt`, this does **not** verify the tag — the caller
-/// must compare the returned `tag` against the expected value (preferably in
-/// constant time) before trusting `plaintext`.
+/// SM4 GCM authenticated decryption. Computes the tag over `ciphertext` and
+/// `aad`, compares it with `tag` in constant time, and only then releases the
+/// plaintext. Raises `SM4Error::InvalidTag` if they differ (or if `tag` is not
+/// 16 bytes); no plaintext is returned in that case.
 ///
-/// Raw/low-level entry point kept for gmsm compatibility. Prefer
-/// `sm4_gcm_decrypt_verify`, which refuses to return unauthenticated
-/// plaintext, or `sm4_gcm(..., encrypt = false)`, which verifies and drops
-/// the tag.
+/// This is the recommended AEAD decryption entry point. The raw,
+/// unauthenticated variant is not part of the public API.
 pub fn sm4_gcm_decrypt(
   key : Bytes,
   iv : Bytes,
   ciphertext : Bytes,
   aad : Bytes,
-) -> (Bytes, Bytes) raise SM4Error {
-  gcm_decrypt_raw(key, iv, ciphertext, aad)
+  tag : Bytes,
+) -> Bytes raise SM4Error {
+  if tag.length() != 16 {
+    raise SM4Error::InvalidTag
+  }
+  let (plain, computed) = gcm_decrypt_raw(key, iv, ciphertext, aad)
+  if !@byteutil.ct_eq(computed, tag) {
+    raise SM4Error::InvalidTag
+  }
+  plain
 }
 
 ///|
@@ -728,29 +734,6 @@ fn gcm_decrypt_raw(
     plain[base + j] = xored[j]
   }
   (Bytes::makei(l, fn(i) { plain[i] }), Bytes::makei(16, fn(i) { tag[i] }))
-}
-
-///|
-/// SM4 GCM authenticated decryption. Computes the tag over `ciphertext` and
-/// `aad` and compares it with `tag` in constant time **before** the plaintext
-/// is released; raises `SM4Error::InvalidTag` if they differ. This is the
-/// recommended AEAD decryption entry point. `tag` must be 16 bytes (truncated
-/// tags are not supported and are rejected).
-pub fn sm4_gcm_decrypt_verify(
-  key : Bytes,
-  iv : Bytes,
-  ciphertext : Bytes,
-  aad : Bytes,
-  tag : Bytes,
-) -> Bytes raise SM4Error {
-  if tag.length() != 16 {
-    raise SM4Error::InvalidTag
-  }
-  let (plain, computed) = gcm_decrypt_raw(key, iv, ciphertext, aad)
-  if !@byteutil.ct_eq(computed, tag) {
-    raise SM4Error::InvalidTag
-  }
-  plain
 }
 
 ///|

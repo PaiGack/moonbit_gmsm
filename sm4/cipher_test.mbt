@@ -184,13 +184,19 @@ test "sm4_gcm_dispatcher" {
   let (p, t3) = @sm4.sm4_gcm(key, iv, packet, aad, false)
   assert_bytes_eq(p, plain)
   assert_eq(t3.length(), 0)
-  // gmsm compatibility form: block-aligned bare ciphertext is decrypted and
-  // the computed tag is returned for the caller to check.
-  let aligned = hex_to_bytes("000102030405060708090A0B0C0D0E0F")
-  let (p2, t4) = @sm4.sm4_gcm(key, iv, aligned, aad, false)
-  let (c4, tag4) = @sm4.sm4_gcm_encrypt(key, iv, p2, aad)
-  assert_bytes_eq(c4, aligned)
-  assert_bytes_eq(t4, tag4)
+  // Block-aligned bare ciphertext and empty input also lack a tag and are
+  // rejected rather than returning unauthenticated plaintext.
+  for missing in [c2, hex_to_bytes("000102030405060708090A0B0C0D0E0F"), b""] {
+    let r : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
+      @sm4.sm4_gcm(key, iv, missing, aad, false),
+    ) catch {
+      e => Err(e)
+    }
+    match r {
+      Ok(_) => abort("sm4_gcm: expected InvalidTag for input without tag")
+      Err(e) => assert_true(e is @sm4.SM4Error::InvalidTag)
+    }
+  }
 }
 
 ///|

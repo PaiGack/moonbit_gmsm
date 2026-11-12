@@ -47,9 +47,7 @@ pub fn sm4_encrypt_ofb(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
 pub fn sm4_gcm(Bytes, Bytes, Bytes, Bytes, Bool) -> (Bytes, Bytes) raise SM4Error
 
-pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
-
-pub fn sm4_gcm_decrypt_verify(Bytes, Bytes, Bytes, Bytes, Bytes) -> Bytes raise SM4Error
+pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
 pub fn sm4_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
 

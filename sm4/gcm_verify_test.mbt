@@ -1,5 +1,5 @@
 ///|
-/// GCM tag verification: `sm4_gcm_decrypt_verify` releases plaintext only on
+/// GCM tag verification: `sm4_gcm_decrypt` releases plaintext only on
 /// a matching tag, and `sm4_gcm(..., encrypt = false)` verifies when the tag
 /// is appended.
 
@@ -49,23 +49,23 @@ fn with_byte(b : Bytes, i : Int32, v : Byte) -> Bytes {
 
 ///|
 /// A correct tag decrypts to the original plaintext.
-test "sm4_gcm_decrypt_verify_accepts_valid_tag" {
+test "sm4_gcm_decrypt_accepts_valid_tag" {
   let key = gcm_key()
   let (ct, tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), b"hello gcm", b"aad")
   assert_bytes_eq(
-    @sm4.sm4_gcm_decrypt_verify(key, gcm_nonce(), ct, b"aad", tag),
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), ct, b"aad", tag),
     b"hello gcm",
   )
 }
 
 ///|
 /// A flipped tag byte raises `InvalidTag`.
-test "sm4_gcm_decrypt_verify_rejects_bad_tag" {
+test "sm4_gcm_decrypt_rejects_bad_tag" {
   let key = gcm_key()
   let (ct, tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), b"hello gcm", b"aad")
   let bad_tag = flip_bit(tag, 0)
   let r : Result[Bytes, @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm_decrypt_verify(key, gcm_nonce(), ct, b"aad", bad_tag),
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), ct, b"aad", bad_tag),
   ) catch {
     e => Err(e)
   }
@@ -74,18 +74,18 @@ test "sm4_gcm_decrypt_verify_rejects_bad_tag" {
 
 ///|
 /// Tampered ciphertext or AAD also raises `InvalidTag`.
-test "sm4_gcm_decrypt_verify_rejects_tampered_input" {
+test "sm4_gcm_decrypt_rejects_tampered_input" {
   let key = gcm_key()
   let (ct, tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), b"hello gcm", b"aad")
   let bad_ct = flip_bit(ct, 3)
   let r1 : Result[Bytes, @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm_decrypt_verify(key, gcm_nonce(), bad_ct, b"aad", tag),
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), bad_ct, b"aad", tag),
   ) catch {
     e => Err(e)
   }
   assert_true(as_err(r1) is @sm4.SM4Error::InvalidTag)
   let r2 : Result[Bytes, @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm_decrypt_verify(key, gcm_nonce(), ct, b"other", tag),
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), ct, b"other", tag),
   ) catch {
     e => Err(e)
   }
@@ -94,11 +94,11 @@ test "sm4_gcm_decrypt_verify_rejects_tampered_input" {
 
 ///|
 /// A tag that is not 16 bytes is rejected.
-test "sm4_gcm_decrypt_verify_rejects_short_tag" {
+test "sm4_gcm_decrypt_rejects_short_tag" {
   let key = gcm_key()
   let (ct, _tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), b"hello gcm", b"aad")
   let r : Result[Bytes, @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm_decrypt_verify(key, gcm_nonce(), ct, b"aad", b"0"),
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), ct, b"aad", b"0"),
   ) catch {
     e => Err(e)
   }
@@ -125,13 +125,23 @@ test "sm4_gcm_decrypt_verifies_appended_tag" {
 }
 
 ///|
-/// gmsm compatibility: block-aligned input (no appended tag) is decrypted as
-/// bare ciphertext and the computed tag is returned for the caller.
-test "sm4_gcm_decrypt_gmsm_compat_unaligned" {
+/// Input without an appended tag (block-aligned ciphertext, and empty input)
+/// is rejected by the dispatcher instead of returning unauthenticated
+/// plaintext.
+test "sm4_gcm_decrypt_rejects_missing_tag" {
   let key = gcm_key()
   let pt = Bytes::makei(32, fn(i) { (i * 3).to_byte() })
-  let (ct, tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), pt, b"aad")
-  let (plain, tag2) = @sm4.sm4_gcm(key, gcm_nonce(), ct, b"aad", false)
-  assert_bytes_eq(plain, pt)
-  assert_true(@byteutil.ct_eq(tag, tag2))
+  let (ct, _tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), pt, b"aad")
+  let r1 : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
+    @sm4.sm4_gcm(key, gcm_nonce(), ct, b"aad", false),
+  ) catch {
+    e => Err(e)
+  }
+  assert_true(r1 is Err(@sm4.SM4Error::InvalidTag))
+  let r2 : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
+    @sm4.sm4_gcm(key, gcm_nonce(), b"", b"aad", false),
+  ) catch {
+    e => Err(e)
+  }
+  assert_true(r2 is Err(@sm4.SM4Error::InvalidTag))
 }

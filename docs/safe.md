@@ -29,7 +29,7 @@
 
 ### 🟠 高（High）
 
-> **状态：已修复。** 新增 `@sm4.sm4_gcm_decrypt_verify(key, iv, ct, aad, tag)`，内部用新增的 `@byteutil.ct_eq`（常量时间）比较 tag，不符抛 `SM4Error::InvalidTag`，且明文只在校验通过后返回。`sm4_gcm(..., encrypt=false)` 在输入为 `密文‖tag` 时自动调用该接口校验；对于无法携带 tag 的输入（长度 0 或 16 字节对齐）保留 gmsm 兼容行为（返回计算出的 tag），其余情况直接拒绝。`sm4_gcm_decrypt` 作为底层原语保留，注释已指向安全接口。README 示例改用 `sm4_gcm_decrypt_verify`。
+> **状态：已修复。** `sm4_gcm_decrypt` 改签名并强制校验：`sm4_gcm_decrypt(key, iv, ct, aad, tag) -> Bytes raise`，内部用新增的 `@byteutil.ct_eq`（常量时间）比较 tag，不符（或 tag 非 16 字节）抛 `SM4Error::InvalidTag`，明文只在校验通过后返回。原不校验的 `(平文, tag)` 版本已删除，不再是公开 API。`sm4_gcm(..., encrypt=false)` 要求输入为 `密文‖tag`，必校验后才返回明文，长度不足 16 字节（无法携带 tag）直接拒绝。README 示例已改用新签名。
 
 #### 2. `sm4_gcm` 解密后不校验 tag，且缺少 AEAD 解接口的默认语义
 
@@ -38,7 +38,7 @@
 
 调用方一旦忘记比较 tag（这是常见疏忽），就会被完全绕过认证，产生选择密文攻击。README 示例只用 `bytes_eq(tag, tag2)`，而 `bytes_eq` 也是提前返回的**非常量时间**比较（[byteutil.mbt:93](byteutil/byteutil.mbt#L93)）。
 
-**建议**：提供 `sm4_gcm_decrypt_verify(key, iv, ct, aad, tag) -> Bytes raise`，内部用常量时间比较，tag 不符直接抛错；同时增加常量时间比较函数 `ct_eq`。
+**建议**（已按此实施）：提供 `sm4_gcm_decrypt(key, iv, ct, aad, tag) -> Bytes raise`，内部用常量时间比较，tag 不符直接抛错；同时增加常量时间比较函数 `ct_eq`。
 
 #### 3. DER 解析遇到不可信输入会崩溃（panic / abort），非攻击者可控范围之外几乎必然触发
 

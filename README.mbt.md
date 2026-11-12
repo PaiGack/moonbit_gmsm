@@ -129,7 +129,7 @@ test "sm4 block and modes" {
   let aad = b"header"
   let (gcm_ct, tag) = @sm4.sm4_gcm_encrypt(key, nonce, msg, aad)
   // 解密校验：tag 不符会抛 SM4Error::InvalidTag，不返回明文
-  let plain = @sm4.sm4_gcm_decrypt_verify(key, nonce, gcm_ct, aad, tag)
+  let plain = @sm4.sm4_gcm_decrypt(key, nonce, gcm_ct, aad, tag)
   assert_true(@byteutil.bytes_eq(plain, msg))
 }
 ```

@@ -277,9 +277,7 @@ test "sm4_gcm_kat" {
     let (c, t) = @sm4.sm4_gcm_encrypt(key, iv, pt, aad)
     assert_bytes_eq(c, ct)
     assert_bytes_eq(t, tag)
-    let (p, t2) = @sm4.sm4_gcm_decrypt(key, iv, ct, aad)
-    assert_bytes_eq(p, pt)
-    assert_bytes_eq(t2, tag)
+    assert_bytes_eq(@sm4.sm4_gcm_decrypt(key, iv, ct, aad, tag), pt)
   }
 }
 
@@ -296,9 +294,15 @@ test "sm4_gcm_roundtrip" {
     let aad = Bytes::makei(len % 13, fn(i) { ((i * 5 + 1) & 0xFF).to_byte() })
     let (c, t) = @sm4.sm4_gcm_encrypt(key, iv, pt, aad)
     assert_eq(c.length(), len)
-    let (p, t2) = @sm4.sm4_gcm_decrypt(key, iv, c, aad)
-    assert_bytes_eq(p, pt)
-    assert_bytes_eq(t2, t)
+    assert_bytes_eq(@sm4.sm4_gcm_decrypt(key, iv, c, aad, t), pt)
+    // a wrong tag is rejected instead of returning plaintext
+    let bad_tag = Bytes::makei(16, fn(i) { if i == 0 { 0xFF } else { t[i] } })
+    let r : Result[Bytes, @sm4.SM4Error] = Ok(
+      @sm4.sm4_gcm_decrypt(key, iv, c, aad, bad_tag),
+    ) catch {
+      e => Err(e)
+    }
+    assert_true(r is Err(@sm4.SM4Error::InvalidTag))
   }
 }
 
