@@ -12,7 +12,9 @@
 - `Sm2Sign` / `Sm2Verify` 数字签名（含 Z 值预处理 entl ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ x ‖ y 与 SM3 摘要）；
 - `Encrypt` / `Decrypt` 加解密，支持 C1C3C2 与 C1C2C3 密文排布，对应 `CipherMarshal` / `CipherUnmarshal`；
 - `KeyExchangeA` / `KeyExchangeB` 密钥协商，`Compress` / `Decompress` 公钥压缩 / 解压；
-- ASN.1 签名格式 `SignDigitToSignData` / `SignDataToSignDigit`。
+- ASN.1 签名格式 `SignDigitToSignData` / `SignDataToSignDigit`；
+- `PublicKey::za`（Z 值）、`PublicKey::sm3_digest`（e = SM3(ZA ‖ M)）与
+  `sm2_verify_digest`（对已有摘要验签，对应 Go 的 `ZA` / `Sm3Digest` / `Verify`）。
 
 ### SM3
 
@@ -23,7 +25,15 @@
 
 - `NewCipher` 块加密，对齐 Go `cipher.Block`；
 - `Sm4Ecb` / `Sm4Cbc` / `Sm4Cfb` / `Sm4Ofb` 各模式封装，附带 PKCS7 填充与 `SetIV`；
-- `Sm4Gcm` 对应 `Sm4GCM` / `GCMEncrypt` / `GCMDecrypt`。
+- `Sm4Gcm` 对应 `Sm4GCM` / `GCMEncrypt` / `GCMDecrypt`；
+- `read_key_from_pem` / `write_key_to_pem` 密钥 PEM 读写，对应 Go 的
+  `ReadKeyFromPem` / `WriteKeyToPem`（口令非空时按 Go 旧版 `x509.EncryptPEMBlock`
+  的 `SM4 ENCRYPTED KEY` 格式用 AES-256-CBC 加密，与 gmsm 互通）。
+
+### byteutil
+
+- `base64_encode` / `base64_decode`；
+- `pem_encode` / `pem_encode_simple` / `pem_decode` / `pem_decode_all`。
 
 ## 快速上手
 
@@ -162,6 +172,47 @@ test "sm2 sign and encrypt" {
   let compressed = @sm2.compress_point(pub_key)
   assert_eq(compressed.length(), 33)
   assert_true(@sm2.is_on_curve(@sm2.decompress_point(compressed)))
+}
+```
+
+### SM2 Z 值与摘要验签
+
+```mbt check
+///|
+test "sm2 za and digest verify" {
+  let sk = @sm2.generate_key(None)
+  let pub_key = @sm2.derive_public_key(sk)
+  let uid = @sm2.default_uid()
+  let msg = b"hello sm2 digest"
+
+  // ZA 与 e = SM3(ZA ‖ M) 现在可以从外部取得
+  let za = pub_key.za(uid)
+  assert_eq(za.length(), 32)
+  let digest = pub_key.sm3_digest(msg, uid) // uid 为空时等价于 default_uid()
+  assert_true(@byteutil.bytes_eq(digest, pub_key.sm3_digest(msg, b"")))
+
+  // 对「已算好的摘要」验签（对应 Go 的 sm2.Verify）
+  let (r, s) = @sm2.sm2_sign(sk, msg, uid, None)
+  assert_true(@sm2.sm2_verify_digest(pub_key, digest, r, s))
+}
+```
+
+### SM4 密钥 PEM
+
+```mbt check
+///|
+test "sm4 key pem" {
+  let key : @sm4.SM4Key = b"0123456789abcdef"
+
+  // 不加密
+  let pem = @sm4.write_key_to_pem(key, b"", None)
+  assert_true(@byteutil.bytes_eq(@sm4.read_key_from_pem(pem, b""), key))
+
+  // 口令加密：块类型为 SM4 ENCRYPTED KEY，内容为 AES-256-CBC 密文
+  let enc = @sm4.write_key_to_pem(key, b"sm4-pwd", None)
+  let block = @byteutil.pem_decode(enc)
+  assert_eq(block.type_, "SM4 ENCRYPTED KEY")
+  assert_true(@byteutil.bytes_eq(@sm4.read_key_from_pem(enc, b"sm4-pwd"), key))
 }
 ```
 

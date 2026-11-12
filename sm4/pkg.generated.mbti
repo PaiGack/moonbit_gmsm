@@ -3,12 +3,15 @@ package "PaiGack/gmsm/sm4"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/random",
 }
 
 // Values
 pub fn get_iv() -> Bytes
 
 pub fn new_cipher(Bytes) -> SM4Cipher raise SM4Error
+
+pub fn read_key_from_pem(String, Bytes) -> Bytes raise SM4Error
 
 pub fn set_iv(Bytes) -> Unit raise SM4Error
 
@@ -50,6 +53,8 @@ pub let sm4_key_size : Int32
 
 pub fn sm4_ofb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 
+pub fn write_key_to_pem(Bytes, Bytes, @random.Rand?) -> String raise SM4Error
+
 // Errors
 #derive(Eq, @debug.Debug)
 pub suberror SM4Error {
@@ -75,5 +80,6 @@ pub fn SM4Cipher::get_iv(Self) -> Bytes
 pub fn SM4Cipher::set_iv(Self, Bytes) -> Unit raise SM4Error
 
 // Type aliases
+pub type SM4Key = Bytes
 
 // Traits

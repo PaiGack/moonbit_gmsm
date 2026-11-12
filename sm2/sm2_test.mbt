@@ -219,3 +219,76 @@ test "sm2_verify_rejects_wrong_message" {
   let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
   assert_false(@sm2.sm2_verify(public_key, b"wrong message", uid, r, s))
 }
+
+///|
+test "sm2_za_is_deterministic_and_uid_sensitive" {
+  let private_key = @sm2.generate_key(None)
+  let public_key = @sm2.derive_public_key(private_key)
+  let uid = @sm2.default_uid()
+  let za1 = public_key.za(uid)
+  let za2 = public_key.za(uid)
+  assert_eq(za1.length(), 32)
+  assert_eq(za1, za2)
+  // 不同 uid 得到不同 Z 值
+  let za3 = public_key.za(b"other-uid")
+  assert_false(za1 == za3)
+  // 空 uid 是合法的（ENTLA = 0）
+  assert_eq(public_key.za(b"").length(), 32)
+}
+
+///|
+test "sm2_za_matches_signature_hash" {
+  let private_key = @sm2.generate_key(None)
+  let public_key = @sm2.derive_public_key(private_key)
+  let uid = @sm2.default_uid()
+  let msg = b"za consistency"
+  let digest = public_key.sm3_digest(msg, uid)
+  assert_eq(digest.length(), 32)
+  // digest 直接用于摘要验签，结果与消息验签一致
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, None)
+  assert_true(@sm2.sm2_verify_digest(public_key, digest, r, s))
+  assert_true(@sm2.sm2_verify(public_key, msg, uid, r, s))
+  // 错误摘要必须失败
+  let wrong = public_key.sm3_digest(b"another message", uid)
+  assert_false(@sm2.sm2_verify_digest(public_key, wrong, r, s))
+}
+
+///|
+test "sm2_sm3_digest_empty_uid_uses_default" {
+  let private_key = @sm2.generate_key(None)
+  let public_key = @sm2.derive_public_key(private_key)
+  assert_eq(
+    public_key.sm3_digest(b"abc", b""),
+    public_key.sm3_digest(b"abc", @sm2.default_uid()),
+  )
+}
+
+///|
+test "sm2_verify_digest_rejects_bad_scalars" {
+  let private_key = @sm2.generate_key(None)
+  let public_key = @sm2.derive_public_key(private_key)
+  let digest = public_key.sm3_digest(b"x", @sm2.default_uid())
+  let zero = Bytes::makei(32, fn(_) { b'\x00' })
+  // r = 0 属于非法标量，抛出错误
+  let mut r1_raised = false
+  let _ = @sm2.sm2_verify_digest(public_key, digest, zero, zero) catch {
+    _ => {
+      r1_raised = true
+      false
+    }
+  }
+  assert_true(r1_raised)
+  // 摘要超过 32 字节属于参数错误，同样抛出
+  let long_digest = Bytes::makei(33, fn(i) { (i & 0xFF).to_byte() })
+  let mut r2_raised = false
+  let _ = @sm2.sm2_verify_digest(public_key, long_digest, zero, zero) catch {
+    _ => {
+      r2_raised = true
+      false
+    }
+  }
+  assert_true(r2_raised)
+  // 正确签名下的摘要验签确实成立
+  let (r, s) = @sm2.sm2_sign(private_key, b"x", @sm2.default_uid(), None)
+  assert_true(@sm2.sm2_verify_digest(public_key, digest, r, s))
+}

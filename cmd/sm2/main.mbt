@@ -30,7 +30,15 @@ fn main {
     println("Signature s   : " + @byteutil.bytes_to_hex(s))
     println("Verify        : " + @byteutil.bstr(verified))
 
-    // 3. ASN.1 DER signature
+    // 3. ZA / sm3_digest and digest verification
+    let za = pubk.za(uid)
+    let digest = pubk.sm3_digest(msg, uid)
+    let digest_ok = @gmsm_sm2.sm2_verify_digest(pubk, digest, r, s)
+    println("ZA            : " + @byteutil.bytes_to_hex(za))
+    println("e = SM3(ZA||M): " + @byteutil.bytes_to_hex(digest))
+    println("Verify digest : " + @byteutil.bstr(digest_ok))
+
+    // 4. ASN.1 DER signature
     let der = @gmsm_sm2.sm2_sign_der(pri, msg, uid, None)
     let der_ok = @gmsm_sm2.sm2_verify_der(pubk, msg, uid, der)
     println("DER sign len  : " + der.length().to_string())

@@ -108,18 +108,52 @@ type Sm2KexVector struct {
 	S1     string `json:"s1"`
 	S2     string `json:"s2"`
 }
+type Sm2ZaVector struct {
+	Name  string `json:"name"`
+	PubX  string `json:"pub_x"`
+	PubY  string `json:"pub_y"`
+	PrivD string `json:"priv_d"`
+	UID   string `json:"uid"`
+	// DigestUID is the uid actually passed to sm3_digest(): the default uid
+	// when UID is empty, exactly like gmsm's Sm3Digest.
+	DigestUID string `json:"digest_uid"`
+	Msg       string `json:"msg"`
+	ZA        string `json:"za"`
+	Digest    string `json:"digest"` // Sm3Digest(msg, uid); empty uid => default uid
+}
+type Sm2DigSigVector struct {
+	Name   string `json:"name"`
+	PubX   string `json:"pub_x"`
+	PubY   string `json:"pub_y"`
+	PrivD  string `json:"priv_d"`
+	UID    string `json:"uid"`
+	Msg    string `json:"msg"`
+	Digest string `json:"digest"` // Verify(pub, digest, r, s) == true
+	Wrong  string `json:"wrong"`  // Verify(pub, wrong, r, s) == false
+	R      string `json:"r"`
+	S      string `json:"s"`
+}
+type Sm4PemVector struct {
+	Name string `json:"name"`
+	Key  string `json:"key"` // hex
+	Pwd  string `json:"pwd"` // hex, empty for an unencrypted key
+	Pem  string `json:"pem"`
+}
 type Vectors struct {
-	Sm3      []Sm3Vector         `json:"sm3"`
-	Sm3Multi []Sm3MultiVector    `json:"sm3_multi"`
-	Sm4Blk   []Sm4BlockVector    `json:"sm4_block"`
-	Sm4Ecb   []Sm4EcbVector      `json:"sm4_ecb"`
-	Sm4Cbc   []Sm4CbcVector      `json:"sm4_cbc"`
-	Sm4Mode  []Sm4ModeVector     `json:"sm4_mode"`
-	Sm2Enc   []Sm2EncVector      `json:"sm2_encrypt"`
-	Sm2Sig   []Sm2SigVector      `json:"sm2_sign"`
-	Sm2Cmp   []Sm2CompressVector `json:"sm2_compress"`
-	Sm2Raw   []Sm2RawVector      `json:"sm2_raw_cipher"`
-	Sm2Kex   []Sm2KexVector      `json:"sm2_key_exchange"`
+	Sm3       []Sm3Vector         `json:"sm3"`
+	Sm3Multi  []Sm3MultiVector    `json:"sm3_multi"`
+	Sm4Blk    []Sm4BlockVector    `json:"sm4_block"`
+	Sm4Ecb    []Sm4EcbVector      `json:"sm4_ecb"`
+	Sm4Cbc    []Sm4CbcVector      `json:"sm4_cbc"`
+	Sm4Mode   []Sm4ModeVector     `json:"sm4_mode"`
+	Sm2Enc    []Sm2EncVector      `json:"sm2_encrypt"`
+	Sm2Sig    []Sm2SigVector      `json:"sm2_sign"`
+	Sm2Cmp    []Sm2CompressVector `json:"sm2_compress"`
+	Sm2Raw    []Sm2RawVector      `json:"sm2_raw_cipher"`
+	Sm2Kex    []Sm2KexVector      `json:"sm2_key_exchange"`
+	Sm2Za     []Sm2ZaVector       `json:"sm2_za"`
+	Sm2DigSig []Sm2DigSigVector   `json:"sm2_digest_sign"`
+	Sm4Pem    []Sm4PemVector      `json:"sm4_pem"`
 }
 
 // V accumulates the oracle vectors; populated by the gen* functions and written
@@ -198,6 +232,8 @@ func TestMain(m *testing.M) {
 	genSm3Multi()
 	genSm4Modes()
 	genSm2Extra()
+	genSm2FullAPI()
+	genSm4Pem()
 	code := m.Run()
 	if code == 0 {
 		if err := writeDocs(); err != nil {
@@ -306,7 +342,26 @@ func writeDocs() error {
 		fmt.Fprintf(&b, "| %s | %d | %s | %s | %s | %s | %s | %s | %s |\n",
 			v.Name, v.Klen, v.PrivA, v.PrivB, v.RPrivA, v.RPrivB, v.K, v.S1, v.S2)
 	}
+	b.WriteString("\n### ZA and Sm3Digest (empty uid in `uid` means the default uid is used)\n\n")
+	b.WriteString("| name | priv_d | uid (hex) | digest uid (hex) | msg (hex) | ZA (hex) | SM3(ZA‖msg) (hex) |\n|---|---|---|---|---|---|---|\n")
+	for _, v := range V.Sm2Za {
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s |\n", v.Name, v.PrivD, v.UID, v.DigestUID, v.Msg, v.ZA, v.Digest)
+	}
+	b.WriteString("\n`Sm3Digest` returns `big.Int.Bytes()` and therefore drops leading zero bytes; compare after left-padding to 32 bytes.\n")
+
+	b.WriteString("\n### digest verification (`sm2.Verify(pub, hash, r, s)`)\n\n")
+	b.WriteString("| name | digest (hex) | wrong digest (hex) | r (hex) | s (hex) |\n|---|---|---|---|---|\n")
+	for _, v := range V.Sm2DigSig {
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", v.Name, v.Digest, v.Wrong, v.R, v.S)
+	}
 	b.WriteString("\n")
+
+	b.WriteString("## SM4 key PEM (gmsm `sm4/utils.go`)\n\n")
+	b.WriteString("The encrypted block uses the legacy RFC 1423 `Proc-Type: 4,ENCRYPTED` /\n")
+	b.WriteString("`DEK-Info: AES-256-CBC,<iv>` headers (deprecated `x509.EncryptPEMBlock`).\n\n")
+	for _, v := range V.Sm4Pem {
+		fmt.Fprintf(&b, "### %s (key %s, pwd %s)\n\n```\n%s```\n\n", v.Name, v.Key, v.Pwd, v.Pem)
+	}
 
 	return os.WriteFile(filepath.Join(r, "docs", "sm_vectors.md"), []byte(b.String()), 0o644)
 }
@@ -355,7 +410,7 @@ fn go_nibble_to_char(n : Int) -> Char {
 fn go_byte_to_hex(b : Byte) -> String {
   let hi = (b.to_int() >> 4) & 0xF
   let lo = b.to_int() & 0xF
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   buf.write_char(go_nibble_to_char(hi))
   buf.write_char(go_nibble_to_char(lo))
   buf.to_string()
@@ -363,7 +418,7 @@ fn go_byte_to_hex(b : Byte) -> String {
 
 ///|
 fn go_bytes_to_hex(b : Bytes) -> String {
-  let buf = StringBuilder::new()
+  let buf = StringBuilder()
   for i = 0; i < b.length(); i = i + 1 {
     buf.write_string(go_byte_to_hex(b[i]))
   }
@@ -423,6 +478,15 @@ func writeMoonbit() error {
 			// gmsm's Sm4Cbc / Sm4CFB / Sm4OFB after SetIV.
 			fmt.Fprintf(&b, "\n///|\ntest %q {\n  let key = go_hex_to_bytes(%q)\n  @sm4.set_iv(go_hex_to_bytes(%q))\n  let plain = go_hex_to_bytes(%q)\n  let cipher = %s(key, plain, true)\n  assert_eq(go_bytes_to_hex(cipher), %q)\n  let back = %s(key, cipher, false)\n  assert_eq(go_bytes_to_hex(back), %q)\n}\n",
 				"go_sm4_"+v.Name, v.Key, v.IV, v.Plain, fn, v.Cipher, fn, v.Plain)
+		}
+		for _, v := range V.Sm4Pem {
+			name := "go_sm4_pem_" + v.Name
+			pwd := "b\"\""
+			if v.Pwd != "" {
+				pwd = fmt.Sprintf("go_hex_to_bytes(%q)", v.Pwd)
+			}
+			fmt.Fprintf(&b, "\n///|\ntest %q {\n  let pwd : Bytes = %s\n  let pem = %q\n  let got = @sm4.read_key_from_pem(pem, pwd)\n  assert_eq(go_bytes_to_hex(got), %q)\n  // writing with the same password must reproduce a PEM MoonBit can read back\n  let again = @sm4.write_key_to_pem(got, pwd, None)\n  assert_eq(go_bytes_to_hex(@sm4.read_key_from_pem(again, pwd)), %q)\n}\n",
+				name, pwd, v.Pem, v.Key, v.Key)
 		}
 		if err := os.WriteFile(filepath.Join(r, "sm4", "go_vectors_test.mbt"), []byte(b.String()), 0o644); err != nil {
 			return err
@@ -488,6 +552,22 @@ fn go_load_pub(x : Bytes, y : Bytes) -> @sm2.SM2PublicKey {
 				name, v.IDA, v.IDB, v.PrivA, v.PrivB, v.PubAX, v.PubAY, v.PubBX, v.PubBY,
 				v.RPrivA, v.RPrivB, v.RPubAX, v.RPubAY, v.RPubBX, v.RPubBY,
 				v.Klen, v.K, v.S1, v.S2, v.Klen, v.K, v.S1, v.S2)
+		}
+		for _, v := range V.Sm2Za {
+			name := "go_sm2_za_" + v.Name
+			fmt.Fprintf(&b, "\n///|\ntest %q {\n  let pubkey = go_load_pub(go_hex_to_bytes(%q), go_hex_to_bytes(%q))\n  let uid = go_hex_to_bytes(%q)\n  let msg = go_hex_to_bytes(%q)\n  let digest_uid = go_hex_to_bytes(%q)\n  assert_eq(go_bytes_to_hex(pubkey.za(uid)), %q)\n  assert_eq(go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)), %q)\n  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest\n  let za = pubkey.za(digest_uid)\n  assert_eq(go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))), %q)\n}\n",
+				name, v.PubX, v.PubY, v.UID, v.Msg, v.DigestUID, v.ZA, v.Digest, v.Digest)
+		}
+		// Sm3Digest with an empty uid must behave like the default uid.
+		if len(V.Sm2Za) > 0 {
+			v := V.Sm2Za[0]
+			fmt.Fprintf(&b, "\n///|\ntest %q {\n  let pubkey = go_load_pub(go_hex_to_bytes(%q), go_hex_to_bytes(%q))\n  let msg = go_hex_to_bytes(%q)\n  let explicit = pubkey.sm3_digest(msg, @sm2.default_uid())\n  let implicit = pubkey.sm3_digest(msg, b\"\")\n  assert_eq(go_bytes_to_hex(explicit), go_bytes_to_hex(implicit))\n  assert_eq(go_bytes_to_hex(explicit), %q)\n}\n",
+				"go_sm2_sm3digest_default_uid", v.PubX, v.PubY, v.Msg, v.Digest)
+		}
+		for _, v := range V.Sm2DigSig {
+			name := "go_sm2_verify_digest_" + v.Name
+			fmt.Fprintf(&b, "\n///|\ntest %q {\n  let pubkey = go_load_pub(go_hex_to_bytes(%q), go_hex_to_bytes(%q))\n  let digest = go_hex_to_bytes(%q)\n  let wrong = go_hex_to_bytes(%q)\n  let r = go_hex_to_bytes(%q)\n  let s = go_hex_to_bytes(%q)\n  assert_true(@sm2.sm2_verify_digest(pubkey, digest, r, s))\n  assert_false(@sm2.sm2_verify_digest(pubkey, wrong, r, s))\n  // sm3_digest() must produce the same hash gmsm's Sm3Digest produced\n  let digest2 = pubkey.sm3_digest(go_hex_to_bytes(%q), go_hex_to_bytes(%q))\n  assert_eq(go_bytes_to_hex(digest2), go_bytes_to_hex(digest))\n  // the signature over the digest covers the same message\n  assert_true(@sm2.sm2_verify(pubkey, go_hex_to_bytes(%q), go_hex_to_bytes(%q), r, s))\n}\n",
+				name, v.PubX, v.PubY, v.Digest, v.Wrong, v.R, v.S, v.Msg, v.UID, v.Msg, v.UID)
 		}
 		if err := os.WriteFile(filepath.Join(r, "sm2", "go_vectors_test.mbt"), []byte(b.String()), 0o644); err != nil {
 			return err

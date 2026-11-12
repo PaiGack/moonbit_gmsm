@@ -50,7 +50,7 @@ func genSm4() {
 		cbc48[i] = byte((i*3 + 7) & 0xFF)
 	}
 	V.Sm4Cbc = append(V.Sm4Cbc, Sm4CbcVector{
-		Name: "48B", Key: hexb(key), IV: hexb(iv), 		Plain: hexb(cbc48), Cipher: hexb(rawSm4Cbc(key, iv, cbc48)),
+		Name: "48B", Key: hexb(key), IV: hexb(iv), Plain: hexb(cbc48), Cipher: hexb(rawSm4Cbc(key, iv, cbc48)),
 	})
 }
 

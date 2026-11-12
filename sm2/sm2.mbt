@@ -137,8 +137,41 @@ pub fn is_on_curve(public_key : SM2PublicKey) -> Bool {
 }
 
 ///|
+/// Default user ID `1234567812345678` (16 bytes), mirroring gmsm.
 pub fn default_uid() -> Bytes {
   default_uid_impl()
+}
+
+///|
+/// ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA), the public
+/// identity hash of GM/T 0003-2012. Mirrors `sm2.ZA(pub, uid)`.
+///
+/// The `uid` is used verbatim; pass `default_uid()` for the default identity.
+/// Raises `InvalidParameter` when `uid` is 8192 bytes or longer (and therefore
+/// ENTLA no longer fits in 16 bits).
+pub fn SM2PublicKey::za(
+  self : SM2PublicKey,
+  uid : Bytes,
+) -> Bytes raise Sm2Error {
+  if uid.length() >= 8192 {
+    raise Sm2Error::InvalidParameter
+  }
+  za(self.x, self.y, uid)
+}
+
+///|
+/// e = SM3(ZA ‖ msg), returned as 32 big-endian bytes. Mirrors
+/// `PublicKey.Sm3Digest(msg, uid)`.
+///
+/// An empty `uid` selects `default_uid()`, matching gmsm.
+pub fn SM2PublicKey::sm3_digest(
+  self : SM2PublicKey,
+  msg : Bytes,
+  uid : Bytes,
+) -> Bytes raise Sm2Error {
+  let uid = if uid.length() == 0 { default_uid_impl() } else { uid }
+  let za_val = self.za(uid)
+  @sm3.sm3_sum(@byteutil.concat_bytes([za_val, msg]))
 }
 
 ///|
@@ -280,22 +313,45 @@ pub fn sm2_sign(
 }
 
 ///|
-pub fn sm2_verify(
+/// Verify a signature over an already computed digest `e = SM3(ZA ‖ msg)`.
+/// Mirrors `sm2.Verify(pub, hash, r, s)`.
+///
+/// `digest` is interpreted as a big-endian integer (shorter inputs behave as
+/// if left-padded with zeros), so `sm3_digest()`'s 32-byte output is accepted
+/// directly. Raises `InvalidSignature` when `r` / `s` are not 32-byte scalars
+/// in `[1, n-1]`, and `InvalidParameter` when `digest` is longer than 32 bytes.
+pub fn sm2_verify_digest(
   public_key : SM2PublicKey,
-  msg : Bytes,
-  uid : Bytes,
+  digest : Bytes,
   r : Bytes,
   s : Bytes,
 ) -> Bool raise Sm2Error {
-  let curve = public_key.curve
-  let n = curve.n
   if r.length() != 32 || s.length() != 32 {
     raise Sm2Error::InvalidSignature
   }
+  if digest.length() > 32 {
+    raise Sm2Error::InvalidParameter
+  }
+  let e : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  @byteutil.bn_from_bytes(e, digest, 0)
   let rv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   let sv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   @byteutil.bn_from_bytes(rv, r, 0)
   @byteutil.bn_from_bytes(sv, s, 0)
+  verify_with_e(public_key, e, rv, sv)
+}
+
+///|
+/// Shared verification core: checks the scalars `(rv, sv)` against the message
+/// hash `e` (as a 256-bit integer) using GM/T 0003-2012 section 7's equation
+/// `r == (e + x1) mod n`. `rv` / `sv` must already fit in 32 bytes.
+fn verify_with_e(
+  public_key : SM2PublicKey,
+  e : Bn,
+  rv : Bn,
+  sv : Bn,
+) -> Bool raise Sm2Error {
+  let n = public_key.curve.n
   if bn_is_zero(rv) || !bn_lt(rv, n) {
     raise Sm2Error::InvalidSignature
   }
@@ -316,9 +372,6 @@ pub fn sm2_verify(
   if bn_is_zero(t) {
     return false
   }
-
-  let za_val = za(public_key.x, public_key.y, uid)
-  let e = msg_hash(za_val, msg)
 
   let sg : SM2Point = point_infinity()
   scalar_base_mult(sg, sv)
@@ -343,6 +396,29 @@ pub fn sm2_verify(
   let r_res : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_mod_n(r_res, e8)
   bn_eq(r_res, rv)
+}
+
+///|
+/// Verify a signature over a message, i.e. over `e = SM3(ZA ‖ msg)`.
+///
+/// Note: `r` / `s` must be exactly 32 bytes. Raises `InvalidSignature` when
+/// they are not valid scalars and `InvalidParameter` when `uid` is too long.
+pub fn sm2_verify(
+  public_key : SM2PublicKey,
+  msg : Bytes,
+  uid : Bytes,
+  r : Bytes,
+  s : Bytes,
+) -> Bool raise Sm2Error {
+  if r.length() != 32 || s.length() != 32 {
+    raise Sm2Error::InvalidSignature
+  }
+  let e = msg_hash(public_key.za(uid), msg)
+  let rv : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  let sv : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  @byteutil.bn_from_bytes(rv, r, 0)
+  @byteutil.bn_from_bytes(sv, s, 0)
+  verify_with_e(public_key, e, rv, sv)
 }
 
 ///|

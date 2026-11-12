@@ -49,7 +49,7 @@ fn go_byte_to_hex(b : Byte) -> String {
 ///|
 fn go_bytes_to_hex(b : Bytes) -> String {
   let buf = StringBuilder()
-  for i in 0..<b.length() {
+  for i = 0; i < b.length(); i = i + 1 {
     buf.write_string(go_byte_to_hex(b[i]))
   }
   buf.to_string()
@@ -334,5 +334,19 @@ test "go_sm4_ofb_30B" {
   assert_eq(
     go_bytes_to_hex(back),
     "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+  )
+}
+
+///|
+test "go_sm4_pem_plain" {
+  let pwd : Bytes = b""
+  let pem = "-----BEGIN SM4 KEY-----\nASNFZ4mrze/+3LqYdlQyEA==\n-----END SM4 KEY-----\n"
+  let got = @sm4.read_key_from_pem(pem, pwd)
+  assert_eq(go_bytes_to_hex(got), "0123456789abcdeffedcba9876543210")
+  // writing with the same password must reproduce a PEM MoonBit can read back
+  let again = @sm4.write_key_to_pem(got, pwd, None)
+  assert_eq(
+    go_bytes_to_hex(@sm4.read_key_from_pem(again, pwd)),
+    "0123456789abcdeffedcba9876543210",
   )
 }

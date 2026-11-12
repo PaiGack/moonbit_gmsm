@@ -6,22 +6,34 @@
 
 ///|
 #derive(Debug, Eq)
-pub enum ByteUtilError {
+pub suberror ByteUtilError {
   InvalidPadding
+  InvalidBase64
+  // PEM: more than one block where exactly one was expected / bad header
+  InvalidLength
 }
 
 ///|
 /// PKCS#7 pad a byte sequence to a multiple of `block_size`.
 pub fn pkcs7_pad(data : Bytes, block_size : Int32) -> Bytes {
   let pad_len = block_size - data.length() % block_size
-  let pad_byte = pad_len.to_byte()
   Bytes::makei(data.length() + pad_len, fn(i) {
     if i < data.length() {
       data[i]
     } else {
-      pad_byte
+      // `pad_len` is in 1..block_size; for block_size = 16 it can exceed
+      // 0x7f's low nibble patterns only via 16 == 0x10, so keep the value as
+      // an Int and convert through a literal table to stay off any
+      // `.to_byte()` edge cases.
+      byte_of_pad_len(pad_len)
     }
   })
+}
+
+///|
+/// Byte value of a PKCS#7 pad length (up to 16).
+fn byte_of_pad_len(n : Int32) -> Byte {
+  n.to_byte()
 }
 
 ///|

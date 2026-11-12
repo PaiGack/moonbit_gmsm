@@ -10,6 +10,12 @@
 | 点运算 | `point_infinity`, `point_is_infinity`, `point_set_infinity`, `point_copy`, `point_to_affine`, `point_add`, `point_add_affine`, `point_double`, `point_neg`, `point_eq`, `scalar_mult`, `scalar_base_mult` | 曲线运算内部细节 |
 | 辅助 | `za`, `msg_hash`, `kdf`, `ke_x_hat`, `int_to_bytes_be`, `point_is_on_curve_affine` | 密码学原语内部步骤 |
 
+> **例外（有意保留的公开 API）**：`za` / `msg_hash` 确实属于协议层的可复用原语，而非大数运算细节。
+> 对外暴露的是 `SM2PublicKey::za(uid)` 与 `SM2PublicKey::sm3_digest(msg, uid)` 两个方法
+> （对应 Go 的 `ZA` / `Sm3Digest`），底层的 `za` / `msg_hash` 函数仍保持私有。
+> 配合 `sm2_verify_digest`（对应 Go 的 `Verify`），这三项是 `x509` 验签的必需能力，
+> 详见 [`gap_analysis.md`](../gap_analysis.md) §3.1。`kdf` / `ke_x_hat` 仍应保持私有。
+
 相比之下，`sm3` 的 API 面很干净（仅 `new`/`sm3_sum`/`sm3_sum_multi` + 6 个方法），是好的范例。
 
 **建议**：将这些降级为包内私有（去掉 `pub`），只保留 `sm2_sign`/`sm2_verify`/`sm2_encrypt`/`sm2_decrypt`/`generate_key`/`derive_public_key` 等高层 API。

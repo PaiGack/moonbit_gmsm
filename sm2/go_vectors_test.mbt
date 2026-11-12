@@ -49,7 +49,7 @@ fn go_byte_to_hex(b : Byte) -> String {
 ///|
 fn go_bytes_to_hex(b : Bytes) -> String {
   let buf = StringBuilder()
-  for i in 0..<b.length() {
+  for i = 0; i < b.length(); i = i + 1 {
     buf.write_string(go_byte_to_hex(b[i]))
   }
   buf.to_string()
@@ -309,7 +309,7 @@ test "go_sm2_compress_k0" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i in 1..<33 {
+  for i = 1; i < 33; i = i + 1 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -336,7 +336,7 @@ test "go_sm2_compress_k1" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i in 1..<33 {
+  for i = 1; i < 33; i = i + 1 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -363,7 +363,7 @@ test "go_sm2_compress_k2" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i in 1..<33 {
+  for i = 1; i < 33; i = i + 1 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -390,7 +390,7 @@ test "go_sm2_compress_k3" {
   )
   assert_eq(comp.length(), 33)
   assert_eq(comp[0].to_int(), go_comp[0].to_int() + 2)
-  for i in 1..<33 {
+  for i = 1; i < 33; i = i + 1 {
     assert_eq(comp[i], go_comp[i])
   }
   let back = @sm2.decompress_point(comp)
@@ -684,5 +684,539 @@ test "go_sm2_kex_k1" {
   assert_eq(
     go_bytes_to_hex(s2b),
     "93da960f0aeed58f06caa4d9fe8b5104194b9b10ea7b0fe7ff3c1024357619b0",
+  )
+}
+
+///|
+test "go_sm2_za_default-empty" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("31323334353637383132333435363738")
+  let msg = go_hex_to_bytes("")
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "5b32bfe35482899b195d72c09d33ccdb465b2ded883240ff91f120a68bc91de8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "6de8668eed258c84116a0cc5796d51f750501bd42ac0b00f1a5d39f40de61d06",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "6de8668eed258c84116a0cc5796d51f750501bd42ac0b00f1a5d39f40de61d06",
+  )
+}
+
+///|
+test "go_sm2_za_default-abc" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("31323334353637383132333435363738")
+  let msg = go_hex_to_bytes("616263")
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "5b32bfe35482899b195d72c09d33ccdb465b2ded883240ff91f120a68bc91de8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "e2631e76cf38546aa6cf0fba91a4894fec7ff65c7cdb9da0246417fcb1867b95",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "e2631e76cf38546aa6cf0fba91a4894fec7ff65c7cdb9da0246417fcb1867b95",
+  )
+}
+
+///|
+test "go_sm2_za_default-hello" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("31323334353637383132333435363738")
+  let msg = go_hex_to_bytes("68656c6c6f20736d3220646967657374")
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "5b32bfe35482899b195d72c09d33ccdb465b2ded883240ff91f120a68bc91de8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "c9277d81ab30a79213b91f7e0836ce86cb71844933a69367f8defaf84cc2510e",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "c9277d81ab30a79213b91f7e0836ce86cb71844933a69367f8defaf84cc2510e",
+  )
+}
+
+///|
+test "go_sm2_za_default-long" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("31323334353637383132333435363738")
+  let msg = go_hex_to_bytes(
+    "6d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e62697421",
+  )
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "5b32bfe35482899b195d72c09d33ccdb465b2ded883240ff91f120a68bc91de8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "1b8b57375c2951efb184973bdf67140ea51c553b4535f7e0a2d8c3eebbb12666",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "1b8b57375c2951efb184973bdf67140ea51c553b4535f7e0a2d8c3eebbb12666",
+  )
+}
+
+///|
+test "go_sm2_za_empty-empty" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("")
+  let msg = go_hex_to_bytes("")
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "c13adcc1829f563f2a01ef3c4e0685647bf32a650a35273443150d44f5809ff8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "6de8668eed258c84116a0cc5796d51f750501bd42ac0b00f1a5d39f40de61d06",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "6de8668eed258c84116a0cc5796d51f750501bd42ac0b00f1a5d39f40de61d06",
+  )
+}
+
+///|
+test "go_sm2_za_empty-abc" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("")
+  let msg = go_hex_to_bytes("616263")
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "c13adcc1829f563f2a01ef3c4e0685647bf32a650a35273443150d44f5809ff8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "e2631e76cf38546aa6cf0fba91a4894fec7ff65c7cdb9da0246417fcb1867b95",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "e2631e76cf38546aa6cf0fba91a4894fec7ff65c7cdb9da0246417fcb1867b95",
+  )
+}
+
+///|
+test "go_sm2_za_empty-hello" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("")
+  let msg = go_hex_to_bytes("68656c6c6f20736d3220646967657374")
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "c13adcc1829f563f2a01ef3c4e0685647bf32a650a35273443150d44f5809ff8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "c9277d81ab30a79213b91f7e0836ce86cb71844933a69367f8defaf84cc2510e",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "c9277d81ab30a79213b91f7e0836ce86cb71844933a69367f8defaf84cc2510e",
+  )
+}
+
+///|
+test "go_sm2_za_empty-long" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("")
+  let msg = go_hex_to_bytes(
+    "6d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e62697421",
+  )
+  let digest_uid = go_hex_to_bytes("31323334353637383132333435363738")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "c13adcc1829f563f2a01ef3c4e0685647bf32a650a35273443150d44f5809ff8",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "1b8b57375c2951efb184973bdf67140ea51c553b4535f7e0a2d8c3eebbb12666",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "1b8b57375c2951efb184973bdf67140ea51c553b4535f7e0a2d8c3eebbb12666",
+  )
+}
+
+///|
+test "go_sm2_za_custom-empty" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  let msg = go_hex_to_bytes("")
+  let digest_uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "9e2041b8ca61760bdfaa028d7fdd1ca001a72ee97bca140689a41d4d803088be",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "28484dd546c521e18a347a4c93403d5c98486cb1227c021eed86faa199d782a3",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "28484dd546c521e18a347a4c93403d5c98486cb1227c021eed86faa199d782a3",
+  )
+}
+
+///|
+test "go_sm2_za_custom-abc" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  let msg = go_hex_to_bytes("616263")
+  let digest_uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "9e2041b8ca61760bdfaa028d7fdd1ca001a72ee97bca140689a41d4d803088be",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "b0e6e42985f73a59e757250d74f286b74b77c7f481b07a757ff647f03ae552c8",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "b0e6e42985f73a59e757250d74f286b74b77c7f481b07a757ff647f03ae552c8",
+  )
+}
+
+///|
+test "go_sm2_za_custom-hello" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  let msg = go_hex_to_bytes("68656c6c6f20736d3220646967657374")
+  let digest_uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "9e2041b8ca61760bdfaa028d7fdd1ca001a72ee97bca140689a41d4d803088be",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "953b9c0df9c25aec9dedf675878d146c5f3d7fa2f5ddfa4bd8ddd6ac0b443cf5",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "953b9c0df9c25aec9dedf675878d146c5f3d7fa2f5ddfa4bd8ddd6ac0b443cf5",
+  )
+}
+
+///|
+test "go_sm2_za_custom-long" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  let msg = go_hex_to_bytes(
+    "6d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e62697421",
+  )
+  let digest_uid = go_hex_to_bytes("736d322d63726f73732d756964")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "9e2041b8ca61760bdfaa028d7fdd1ca001a72ee97bca140689a41d4d803088be",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "a75b5f431d545b0f1b29ce108ce75d35cc9f573a2f037788712b8c2903b13de7",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "a75b5f431d545b0f1b29ce108ce75d35cc9f573a2f037788712b8c2903b13de7",
+  )
+}
+
+///|
+test "go_sm2_za_alice-empty" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  let msg = go_hex_to_bytes("")
+  let digest_uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "e26365b8b0ea5502da5225e6c61bc4f34d43a63398b3bb411786b68753ac175c",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "b76541a198566a0a9b05807d1caee6a2f1b5f003641d3bb9c5d854847bb5999f",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "b76541a198566a0a9b05807d1caee6a2f1b5f003641d3bb9c5d854847bb5999f",
+  )
+}
+
+///|
+test "go_sm2_za_alice-abc" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  let msg = go_hex_to_bytes("616263")
+  let digest_uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "e26365b8b0ea5502da5225e6c61bc4f34d43a63398b3bb411786b68753ac175c",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "44d33260fabbd969faf12654849727357faa83f4e7ae13433dd0ec21a3c46dab",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "44d33260fabbd969faf12654849727357faa83f4e7ae13433dd0ec21a3c46dab",
+  )
+}
+
+///|
+test "go_sm2_za_alice-hello" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  let msg = go_hex_to_bytes("68656c6c6f20736d3220646967657374")
+  let digest_uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "e26365b8b0ea5502da5225e6c61bc4f34d43a63398b3bb411786b68753ac175c",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "dce014ef493298722ae87d0cdcf275771616b3a027dbda829fca2f1b602451e7",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "dce014ef493298722ae87d0cdcf275771616b3a027dbda829fca2f1b602451e7",
+  )
+}
+
+///|
+test "go_sm2_za_alice-long" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  let msg = go_hex_to_bytes(
+    "6d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e626974216d6f6f6e62697421",
+  )
+  let digest_uid = go_hex_to_bytes("414c494345313233405941484f4f2e434f4d")
+  assert_eq(
+    go_bytes_to_hex(pubkey.za(uid)),
+    "e26365b8b0ea5502da5225e6c61bc4f34d43a63398b3bb411786b68753ac175c",
+  )
+  assert_eq(
+    go_bytes_to_hex(pubkey.sm3_digest(msg, digest_uid)),
+    "09201df7c274511d2d02f3e5bc368323aa702f17b767c4562cb8a0720ca6e4d7",
+  )
+  // digest = SM3(ZA(digest_uid) ‖ msg), as in gmsm's Sm3Digest
+  let za = pubkey.za(digest_uid)
+  assert_eq(
+    go_bytes_to_hex(@sm3.sm3_sum(@byteutil.concat_bytes([za, msg]))),
+    "09201df7c274511d2d02f3e5bc368323aa702f17b767c4562cb8a0720ca6e4d7",
+  )
+}
+
+///|
+test "go_sm2_sm3digest_default_uid" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let msg = go_hex_to_bytes("")
+  let explicit = pubkey.sm3_digest(msg, @sm2.default_uid())
+  let implicit = pubkey.sm3_digest(msg, b"")
+  assert_eq(go_bytes_to_hex(explicit), go_bytes_to_hex(implicit))
+  assert_eq(
+    go_bytes_to_hex(explicit),
+    "6de8668eed258c84116a0cc5796d51f750501bd42ac0b00f1a5d39f40de61d06",
+  )
+}
+
+///|
+test "go_sm2_verify_digest_default-uid" {
+  let pubkey = go_load_pub(
+    go_hex_to_bytes(
+      "32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7",
+    ),
+    go_hex_to_bytes(
+      "bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0",
+    ),
+  )
+  let digest = go_hex_to_bytes(
+    "db8dda9fc057ee8398f1cec51834f0b6877c093e98fc9b125fb9a3544d5f7f95",
+  )
+  let wrong = go_hex_to_bytes(
+    "3315b0e3c7b404476a54dbc24ef28b94e56fe560fa6f62ab0a4887374cd0975f",
+  )
+  let r = go_hex_to_bytes(
+    "6c4f55cccd37fb91540d8a7e55deae4eb922771d6c3e68fbd7fb1168dfd05e6e",
+  )
+  let s = go_hex_to_bytes(
+    "c65c68f752fa80293b2fc73af1029840ab7c21a77ebbb1500d63e24bf09027eb",
+  )
+  assert_true(@sm2.sm2_verify_digest(pubkey, digest, r, s))
+  assert_false(@sm2.sm2_verify_digest(pubkey, wrong, r, s))
+  // sm3_digest() must produce the same hash gmsm's Sm3Digest produced
+  let digest2 = pubkey.sm3_digest(
+    go_hex_to_bytes("766572696679206120707265636f6d707574656420646967657374"),
+    go_hex_to_bytes("31323334353637383132333435363738"),
+  )
+  assert_eq(go_bytes_to_hex(digest2), go_bytes_to_hex(digest))
+  // the signature over the digest covers the same message
+  assert_true(
+    @sm2.sm2_verify(
+      pubkey,
+      go_hex_to_bytes("766572696679206120707265636f6d707574656420646967657374"),
+      go_hex_to_bytes("31323334353637383132333435363738"),
+      r,
+      s,
+    ),
   )
 }

@@ -5,6 +5,12 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
 You can browse and install extra skills here:
 <https://github.com/moonbitlang/skills>
 
+
+## 重要
+- 永远使用中文回复
+- 永远使用 Read/Write/Edit 读写文档，代码等文件
+
+
 ## Project Structure
 
 - MoonBit packages are organized per directory; each directory contains a

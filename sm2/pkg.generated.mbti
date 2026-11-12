@@ -53,6 +53,8 @@ pub fn sm2_verify(SM2PublicKey, Bytes, Bytes, Bytes, Bytes) -> Bool raise Sm2Err
 
 pub fn sm2_verify_der(SM2PublicKey, Bytes, Bytes, Bytes) -> Bool raise Sm2Error
 
+pub fn sm2_verify_digest(SM2PublicKey, Bytes, Bytes, Bytes) -> Bool raise Sm2Error
+
 // Errors
 #derive(Eq, @debug.Debug)
 pub suberror Sm2Error {
@@ -99,6 +101,8 @@ pub struct SM2PublicKey {
   x : FixedArray[UInt64]
   y : FixedArray[UInt64]
 }
+pub fn SM2PublicKey::sm3_digest(Self, Bytes, Bytes) -> Bytes raise Sm2Error
+pub fn SM2PublicKey::za(Self, Bytes) -> Bytes raise Sm2Error
 
 // Type aliases
 pub type Bn = FixedArray[UInt64]

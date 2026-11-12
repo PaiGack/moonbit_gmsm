@@ -64,6 +64,22 @@ fn main {
       @byteutil.bstr(@byteutil.bytes_eq(unpadded, b"short")),
     )
 
+    // 5. Key PEM round-trip (plain + password protected)
+    let pem_key : @gmsm_sm4.SM4Key = @byteutil.hex_to_bytes(
+      "0123456789ABCDEFFEDCBA9876543210",
+    )
+    let plain_pem = @gmsm_sm4.write_key_to_pem(pem_key, b"", None)
+    let enc_pem = @gmsm_sm4.write_key_to_pem(pem_key, b"demo-pwd", None)
+    let back1 = @gmsm_sm4.read_key_from_pem(plain_pem, b"")
+    let back2 = @gmsm_sm4.read_key_from_pem(enc_pem, b"demo-pwd")
+    println("")
+    println(
+      "PEM (SM4 KEY) : " + @byteutil.bstr(@byteutil.bytes_eq(back1, pem_key)),
+    )
+    println(
+      "PEM (encrypted): " + @byteutil.bstr(@byteutil.bytes_eq(back2, pem_key)),
+    )
+
     println("========== SM4 Demo Done ==========")
   } catch {
     _ => println("Error occurred during SM4 demo")

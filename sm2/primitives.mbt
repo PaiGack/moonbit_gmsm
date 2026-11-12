@@ -28,7 +28,9 @@ fn gy_bytes() -> Bytes {
 }
 
 ///|
-/// Compute ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA)
+/// Compute ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA).
+///
+/// Public counterpart of `sm2.ZA(pub, uid)`; see `SM2PublicKey::za`.
 fn za(xA : FixedArray[UInt64], yA : FixedArray[UInt64], uid : Bytes) -> Bytes {
   if uid.length() >= 8192 {
     abort("Sm2Error::InvalidParameter: uid too long")

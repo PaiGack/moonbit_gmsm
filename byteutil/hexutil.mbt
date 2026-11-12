@@ -48,8 +48,12 @@ pub fn hex_to_bytes(s : String) -> Bytes {
   }
   let n = len / 2
   Bytes::makei(n, fn(i) {
-    let hi = hex_nibble(s[i * 2])
-    let lo = hex_nibble(s[i * 2 + 1])
-    ((hi << 4) | lo).to_byte()
+    // `hex_nibble` yields Int32; shift as Int so high nibbles (>= 8) do not
+    // sign-extend, and mask to a byte.
+    let hi : Int32 = hex_nibble(s[i * 2])
+    let lo : Int32 = hex_nibble(s[i * 2 + 1])
+    // Use UInt to build the byte value: signed Int shifts/sign-extension have
+    // been unreliable in some backends for values above 0x7f.
+    ((hi.reinterpret_as_uint() << 4) | lo.reinterpret_as_uint()).to_byte()
   })
 }

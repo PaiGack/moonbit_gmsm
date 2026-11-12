@@ -19,13 +19,14 @@
 | --- | --- | --- |
 | 曲线与点 | `P256Sm2`、`IsOnCurve`、`Add`、`Double`、`ScalarMult`、`ScalarBaseMult` | `sm2_p256()`、`SM2Point` 上的方法 |
 | 密钥对 | `GenerateKey`、`Public()` | `generate_key(random)`、`derive_public_key(d)` |
-| 签名（内部 r,s） | `Sm2Sign`、`Sm2Verify`、`Sm3Digest` | `sm2_sign(...)`、`sm2_verify(...)` |
+| 签名（内部 r,s） | `Sm2Sign`、`Sm2Verify`、`Sm3Digest` | `sm2_sign(...)`、`sm2_verify(...)`、`SM2PublicKey::sm3_digest(msg, uid)` |
+| 摘要验签 | `Verify(pub, hash, r, s)` | `sm2_verify_digest(pub, digest, r, s)` |
 | 签名（ASN.1 DER） | `SignDigitToSignData`、`SignDataToSignDigit` | `sm2_sign_der(...)`、`sm2_verify_der(...)` |
 | 加解密 | `Encrypt`、`Decrypt`（C1C3C2 / C1C2C3） | `sm2_encrypt(...)`、`sm2_decrypt(...)` |
 | 加解密（ASN.1） | `EncryptAsn1`、`DecryptAsn1`、`CipherMarshal`、`CipherUnmarshal` | `sm2_encrypt_asn1(...)`、`sm2_decrypt_asn1(...)` |
 | 密钥协商 | `KeyExchangeA`、`KeyExchangeB`、`keXHat`、`ZA` | `key_exchange_a/b(...)`、`ke_x_hat(x)` |
 | 公钥压缩 | `Compress`、`Decompress` | `compress_point(p)`、`decompress_point(b)` |
-| 辅助 | `kdf`、`zeroByteSlice`、`ZA`、`msgHash` | `kdf(...)`、`za(pub, uid)` |
+| 辅助 | `kdf`、`zeroByteSlice`、`ZA`、`msgHash` | 内部 `kdf(...)`、`za(x, y, uid)`、`msg_hash(za, msg)`；对外暴露 `SM2PublicKey::za(uid)` |
 
 ### 1.2 非目标
 
@@ -262,6 +263,22 @@ pub fn sm2_verify(
   r : Bytes,
   s : Bytes,
 ) -> Bool
+
+// 摘要验签（对应 Go 的 Verify(pub, hash, r, s)）
+pub fn sm2_verify_digest(
+  public_key : SM2PublicKey,
+  digest : Bytes, // e = SM3(ZA ‖ M)，最多 32 字节
+  r : Bytes,
+  s : Bytes,
+) -> Bool raise Sm2Error
+
+// Z 值与 e = SM3(ZA ‖ M)（对应 Go 的 ZA / Sm3Digest）
+pub fn SM2PublicKey::za(self : SM2PublicKey, uid : Bytes) -> Bytes raise Sm2Error
+pub fn SM2PublicKey::sm3_digest(
+  self : SM2PublicKey,
+  msg : Bytes,
+  uid : Bytes, // 空时等价于 default_uid()
+) -> Bytes raise Sm2Error
 
 // 签名（ASN.1 DER 形式）
 pub fn sm2_sign_der(...) -> Bytes raise Sm2Error

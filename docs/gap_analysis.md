@@ -9,6 +9,8 @@
 > - 本文件是**静态 API 对照**结论；`docs/spec/` 下的规范文件描述实现契约，`docs/sm_vectors.md`
 >   描述跨语言测试向量，两者与本文件互补。
 
+> **进度更新（2026-11-12）**：阶段 A（A1–A7）已完成，详见 §5「阶段 A 完成情况」。
+
 ## 0. 结论速览
 
 原项目 23,371 行 Go 代码中，**核心算法（`sm2` / `sm3` / `sm4`）仅占 3,317 行（14%）**，
@@ -29,9 +31,9 @@
 
 | 原 Go 包 | Go 非测试 LOC | 本仓库对应 | MoonBit LOC | 状态 |
 | --- | ---: | --- | ---: | --- |
-| `sm2/` | 1,925 | `sm2/` | 2,071 | ✅ 核心算法齐全，**3 个导出缺失** |
+| `sm2/` | 1,925 | `sm2/` | 2,071 | ✅ 核心算法齐全，**3 个导出缺失**（2026-11-12 已补齐 `za` / `sm3_digest` / `verify_digest`） |
 | `sm3/` | 259 | `sm3/` | 329 | ✅ 完全对齐 |
-| `sm4/` | 1,133 | `sm4/` + `byteutil/pkcs7` | 922 + 53 | ✅ 基本对齐，**缺 PEM** |
+| `sm4/` | 1,133 | `sm4/` + `byteutil/pkcs7` | 922 + 53 | ✅ 基本对齐（2026-11-12 已补齐 PEM 密钥读写，`padding` 流式版仍未做） |
 | `x509/` | 5,527 | — | — | ❌ **完全缺失** |
 | `pkcs12/` | 1,641 | — | — | ❌ **完全缺失** |
 | `gmtls/` | 12,886 | — | — | ❌ **完全缺失** |
@@ -65,7 +67,8 @@
 
 **前置依赖（必须先补）**：本仓库 `byteutil/asn1.mbt` 目前只有四个零散函数
 （`encode_asn1_integer` / `encode_asn1_octet_string` / `encode_asn1_length` / `decode_asn1_length`），
-**没有通用 ASN.1 DER 解析器与构造器，也没有 base64 与 PEM 编码**。`x509` 必须建立在这层之上。
+**没有通用 ASN.1 DER 解析器与构造器**。`x509` 必须建立在这层之上。
+（2026-11-12：base64 与 PEM 已补齐，DER 解析器仍待实现。）
 
 ### 2.2 `gmtls` —— GMTLS 1.3（12,886 行，工作量最大）
 
@@ -104,9 +107,9 @@
 
 | 原 Go 导出 | Go 位置 | 本仓库现状 | 影响 |
 | --- | --- | --- | --- |
-| `ZA(pub, uid) ([]byte, error)` | `sm2/sm2.go:443` | `za()` 私有（`sm2/primitives.mbt:32`） | 外部无法单独计算 Z 值；Z 值是 SM2 规范（GM/T 0003-2012）的**公开组成部分**，跨语言互操作需要 |
-| `Verify(pub, hash, r, s) bool` | `sm2/sm2.go:224` | **无对应** | 只能验签「消息」，无法验签「已算好的摘要」。**这是 x509 验证证书签名（对 TBS 字节摘要验签）的刚需** |
-| `PublicKey.Sm3Digest(msg, uid) ([]byte, error)` | `sm2/sm2.go:104` | `msg_hash()` 私有（`sm2/primitives.mbt:64`） | 外部无法取 e = SM3(ZA ‖ M) |
+| `ZA(pub, uid) ([]byte, error)` | `sm2/sm2.go:443` | ✅ `SM2PublicKey::za(uid)` | 已补齐 |
+| `Verify(pub, hash, r, s) bool` | `sm2/sm2.go:224` | ✅ `sm2_verify_digest(pub, digest, r, s)` | 已补齐，满足 x509 验签前置 |
+| `PublicKey.Sm3Digest(msg, uid) ([]byte, error)` | `sm2/sm2.go:104` | ✅ `SM2PublicKey::sm3_digest(msg, uid)` | 已补齐 |
 | `crypto.Signer` / `crypto.Verifier` 适配 | `sm2/sm2.go:76,84` | 由 `sm2_sign_der` / `sm2_verify_der` 部分替代 | 缺一个统一的「签名者」抽象，`x509` 签发时需要 |
 
 > **与 `docs/spec/spec_003_idioms.md` 的关系**：该文把 `za` / `msg_hash` / `kdf` / `ke_x_hat`
@@ -120,15 +123,15 @@
 
 原项目 `sm4/utils.go` 自带一套 PEM 支持，本仓库 `sm4` 包完全没有：
 
-| 原 Go API | 说明 |
-| --- | --- |
-| `type SM4Key []byte` | 密钥类型 |
-| `ReadKeyFromPem(data, pwd)` | 从 PEM 读取密钥，`pwd` 非空时按 pem block 加密解密 |
-| `ReadKeyFromPemFile(file, pwd)` | 同上，文件版本 |
-| `WriteKeyToPem(key, pwd)` | 写出 PEM |
-| `WriteKeyToPemFile(file, key, pwd)` | 同上，文件版本 |
+| 原 Go API | 本仓库对应 | 状态 |
+| --- | --- | --- |
+| `type SM4Key []byte` | `pub type SM4Key = Bytes` | ✅ |
+| `ReadKeyFromPem(data, pwd)` | `read_key_from_pem(data : String, pwd : Bytes)` | ✅ |
+| `ReadKeyFromPemFile(file, pwd)` | 无（核心库暂无 `fs`，由调用方读文件） | ⏳ |
+| `WriteKeyToPem(key, pwd)` | `write_key_to_pem(key, pwd, random?)`（多一个 IV 随机源参数） | ✅ |
+| `WriteKeyToPemFile(file, key, pwd)` | 无（同上） | ⏳ |
 
-> 依赖 `byteutil` 的 base64 + PEM 支持（见 §2.1 前置依赖）。
+> 依赖 `byteutil` 的 base64 + PEM 支持（见 §2.1 前置依赖），两者均已补齐。
 
 ### 3.3 SM4 —— `padding` 子包（流式 IO 版）
 
@@ -187,6 +190,35 @@
 | A7 | `sm4` 增加 PEM 密钥读写（`sm4_key` 类型 + 4 个函数） | `sm4/utils.mbt`（新） | 约 80 行 |
 
 > A2 是 `x509` 验签的**硬前置**：证书签名是对 TBS 字节的摘要验签，不走 `msg ‖ uid` 路径。
+
+#### 阶段 A 完成情况（2026-11-12）
+
+| 序号 | 事项 | 实际落地 | 状态 |
+| --- | --- | --- | --- |
+| A1 | 导出 Z 值 | `SM2PublicKey::za(uid) -> Bytes raise Sm2Error`（`sm2/sm2.mbt`），私有 `za()` 保持不变 | ✅ |
+| A2 | 摘要验签 | `sm2_verify_digest(pub, digest, r, s)`，与 `sm2_verify` 共用 `verify_with_e` 内核 | ✅ |
+| A3 | e = SM3(ZA ‖ M) | `SM2PublicKey::sm3_digest(msg, uid)`，`uid` 为空时同 Go 一样改用默认 uid | ✅ |
+| A4 | base64 | `byteutil/base64.mbt`：`base64_encode` / `base64_decode` | ✅ |
+| A5 | PEM | `byteutil/pem.mbt`：`pem_encode` / `pem_encode_simple` / `pem_decode` / `pem_decode_all`，支持 RFC 1423 头部 | ✅ |
+| A6 | 通用 ASN.1 DER | **未做**：本轮只补 SM2 / SM4 相关能力，DER 解析器留给 `x509` 阶段一起设计 | ⏳ |
+| A7 | SM4 密钥 PEM | `sm4/utils.mbt`：`read_key_from_pem` / `write_key_to_pem`（`SM4Key = Bytes`） | ✅ |
+
+补充说明：
+
+- A7 的口令加密格式与 gmsm 完全一致（`SM4 ENCRYPTED KEY` + `Proc-Type` / `DEK-Info`
+  头部 + AES-256-CBC，密钥为口令补零到 32 字节），因此需要实现一个最小的
+  AES-256（`sm4/aes.mbt`），并用 FIPS-197 附录 C.3 的已知答案做了单元测试。
+- 「文件版本」的 `ReadKeyFromPemFile` / `WriteKeyToPemFile` 没有移植：当前工具链的
+  核心库没有 `fs` 包，MoonBit 侧改为调用方自行读文件后传给上面两个函数。
+- 新 API 都有跨语言测试向量：`sm2_za` / `sm2_digest_sign` 两组向量由
+  `baseline-go` 的 oracle 生成（见 `baseline-go/full_api_test.go`）；SM4 加密 PEM
+  之所以没有固定向量，是因为 gmsm 的 IV 取自 `crypto/rand.Reader`，无法在不同进程间复现，
+  改为 MoonBit 侧「写→读」往返测试覆盖。
+- 新增的 `sm2_verify_digest` 也让 §3.1 提到的 `x509` 验签硬前置得以满足。
+- 工具链提示：本版本的 MoonBit 编译器中，在 `raise` 函数的 `for` / `while` **循环体内**
+  直接 `raise`，会导致后续数值比较求值异常（表现为 `114 > 16` 之类的比较结果错误，
+  且不报编译警告）。新增代码统一采用「循环内记录失败标志、循环之后统一抛出」的写法，
+  例如 `sm4/utils.mbt` 的 `pkcs7_unpad_key`。
 
 ### 阶段 B —— `x509` 包（依赖 A5 / A6）
 

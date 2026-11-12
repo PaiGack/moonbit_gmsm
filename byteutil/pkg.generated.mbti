@@ -6,6 +6,10 @@ import {
 }
 
 // Values
+pub fn base64_decode(String) -> Bytes raise ByteUtilError
+
+pub fn base64_encode(Bytes) -> String
+
 pub fn block_to_words(Bytes) -> FixedArray[UInt32]
 
 pub fn bn_from_bytes(FixedArray[UInt64], Bytes, Int32) -> Unit
@@ -48,6 +52,14 @@ pub fn normalize_32(Bytes) -> Bytes
 
 pub fn pad_left(Bytes, Int32) -> Bytes
 
+pub fn pem_decode(String) -> PemBlock raise ByteUtilError
+
+pub fn pem_decode_all(String) -> Array[PemBlock] raise ByteUtilError
+
+pub fn pem_encode(String, Array[(String, String)], Bytes) -> String
+
+pub fn pem_encode_simple(String, Bytes) -> String
+
 pub fn pkcs7_pad(Bytes, Int32) -> Bytes
 
 pub fn pkcs7_unpad(Bytes) -> Result[Bytes, ByteUtilError]
@@ -59,16 +71,25 @@ pub fn words_to_block(FixedArray[UInt32]) -> Bytes
 pub fn xor_bytes(Bytes, Bytes) -> Bytes
 
 // Errors
-
-// Types and methods
 #derive(Eq, @debug.Debug)
-pub enum ByteUtilError {
+pub suberror ByteUtilError {
   InvalidPadding
+  InvalidBase64
+  InvalidLength
 }
 pub fn ByteUtilError::equal(Self, Self) -> Bool
 pub fn ByteUtilError::not_equal(Self, Self) -> Bool
 pub fn ByteUtilError::to_repr(Self) -> @debug.Repr
 
+// Types and methods
+pub(all) struct PemBlock {
+  type_ : String
+  headers : Array[(String, String)]
+  bytes : Bytes
+}
+pub fn PemBlock::get_header(Self, String) -> String?
+
 // Type aliases
+pub type Headers = Array[(String, String)]
 
 // Traits
