@@ -320,7 +320,7 @@ fn scalar_mult(result : SM2Point, k : FixedArray[UInt64], p : SM2Point) -> Unit 
   }
 
   // 2. Generate the width-4 wNAF digits of kk (index 0 = least significant).
-  let digits : Array[Int] = []
+  let digits : Array[Int32] = []
   while !bn_is_zero(kk) {
     if bn_is_odd(kk) {
       let u = bn_low_bits(kk, 4)

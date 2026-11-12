@@ -9,19 +9,19 @@
 
 ///|
 /// SM4 block length in bytes (mirrors `sm4.BlockSize`).
-pub let sm4_block_size : Int = 16
+pub let sm4_block_size : Int32 = 16
 
 ///|
 /// SM4 key length in bytes.
-pub let sm4_key_size : Int = 16
+pub let sm4_key_size : Int32 = 16
 
 ///|
 /// A pre-expanded SM4 key. Mirrors the `cipher.Block` value returned by
 /// `sm4.NewCipher`: the round keys are derived once and can then be reused
 /// for any number of single-block operations.
 pub struct SM4Cipher {
-  rk : FixedArray[UInt]
-  rk_rev : FixedArray[UInt]
+  rk : FixedArray[UInt32]
+  rk_rev : FixedArray[UInt32]
   iv : FixedArray[Byte]
 }
 
@@ -32,13 +32,13 @@ pub fn new_cipher(key : Bytes) -> SM4Cipher raise SM4Error {
     raise SM4Error::InvalidKey
   }
   let rk = sm4_expand_key(key)
-  let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
-  SM4Cipher::{ rk, rk_rev, iv: FixedArray::makei(16, fn(_) { b'\x00' }) }
+  let rk_rev : FixedArray[UInt32] = FixedArray::makei(32, fn(i) { rk[31 - i] })
+  SM4Cipher::{ rk, rk_rev, iv: FixedArray::makei(16, fn(_) { b'\x00' }), }
 }
 
 ///|
 /// Block length in bytes (16). Mirrors `cipher.Block.BlockSize`.
-pub fn SM4Cipher::block_size(_self : SM4Cipher) -> Int {
+pub fn SM4Cipher::block_size(_self : SM4Cipher) -> Int32 {
   sm4_block_size
 }
 

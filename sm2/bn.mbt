@@ -111,7 +111,7 @@ fn mul_128(a : UInt64, b : UInt64) -> (UInt64, UInt64) {
 fn acc_add_shifted(
   acc : FixedArray[UInt64],
   value : UInt64,
-  bits : Int,
+  bits : Int32,
 ) -> Unit {
   if value == 0UL {
     return
@@ -135,7 +135,7 @@ fn acc_add_shifted(
 fn acc_sub_shifted(
   acc : FixedArray[UInt64],
   value : UInt64,
-  bits : Int,
+  bits : Int32,
 ) -> Unit {
   if value == 0UL {
     return
@@ -156,7 +156,7 @@ fn acc_sub_shifted(
 
 ///|
 /// Add value at limb position with carry propagation (9-limb acc)
-fn acc_add_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
+fn acc_add_at(acc : FixedArray[UInt64], idx : Int32, value : UInt64) -> Unit {
   let mut s = acc[idx] + value
   acc[idx] = s
   let mut i = idx + 1
@@ -171,7 +171,7 @@ fn acc_add_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
 
 ///|
 /// Subtract value at limb position with borrow propagation (9-limb acc)
-fn acc_sub_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
+fn acc_sub_at(acc : FixedArray[UInt64], idx : Int32, value : UInt64) -> Unit {
   if value == 0UL {
     return
   }
@@ -194,7 +194,7 @@ fn acc_sub_at(acc : FixedArray[UInt64], idx : Int, value : UInt64) -> Unit {
 
 ///|
 /// Recursively reduce a term: coeff * 2^power mod p
-fn reduce_term(acc : FixedArray[UInt64], coeff : UInt64, power : Int) -> Unit {
+fn reduce_term(acc : FixedArray[UInt64], coeff : UInt64, power : Int32) -> Unit {
   if coeff == 0UL {
     return
   }
@@ -213,7 +213,7 @@ fn reduce_term(acc : FixedArray[UInt64], coeff : UInt64, power : Int) -> Unit {
 fn reduce_term_neg(
   acc : FixedArray[UInt64],
   coeff : UInt64,
-  power : Int,
+  power : Int32,
 ) -> Unit {
   if coeff == 0UL {
     return
@@ -233,7 +233,7 @@ fn reduce_term_neg(
 fn reduce_term_pos(
   acc : FixedArray[UInt64],
   coeff : UInt64,
-  power : Int,
+  power : Int32,
 ) -> Unit {
   if coeff == 0UL {
     return
@@ -379,7 +379,7 @@ fn bn_shr_1(r : FixedArray[UInt64], a : FixedArray[UInt64]) -> Unit {
 
 ///|
 /// Low `w` bits of a 256-bit value as an Int (w <= 8).
-fn bn_low_bits(a : FixedArray[UInt64], w : Int) -> Int {
+fn bn_low_bits(a : FixedArray[UInt64], w : Int32) -> Int32 {
   let mask : UInt64 = (1UL << w) - 1UL
   (a[0] & mask).to_int()
 }
@@ -387,7 +387,11 @@ fn bn_low_bits(a : FixedArray[UInt64], w : Int) -> Int {
 ///|
 /// Add a small signed integer `d` (|d| < 2^31) to a 256-bit value.
 /// Used by the wNAF digit loop (k = (k - digit) / 2).
-fn bn_add_int(r : FixedArray[UInt64], a : FixedArray[UInt64], d : Int) -> Unit {
+fn bn_add_int(
+  r : FixedArray[UInt64],
+  a : FixedArray[UInt64],
+  d : Int32,
+) -> Unit {
   // NOTE: carry/borrow must be computed BEFORE writing to r[i], because the
   // wNAF digit loop calls this in-place (r === a). Writing first would clobber
   // the source value and produce wrong carry propagation.
@@ -446,7 +450,7 @@ fn bn_add(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
-) -> UInt {
+) -> UInt32 {
   let mut carry : UInt64 = 0UL
   for i in 0..<4 {
     let sum = a[i] + b[i] + carry
@@ -467,7 +471,7 @@ fn bn_sub(
   r : FixedArray[UInt64],
   a : FixedArray[UInt64],
   b : FixedArray[UInt64],
-) -> UInt {
+) -> UInt32 {
   let mut borrow : UInt64 = 0UL
   for i in 0..<4 {
     let ai = a[i]

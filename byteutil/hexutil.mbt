@@ -3,11 +3,11 @@
 /// pure functions in each.
 
 ///|
-pub fn nibble_to_char(n : Int) -> Char {
+pub fn nibble_to_char(n : Int32) -> Char {
   if n < 10 {
-    Int::unsafe_to_char(n + '0'.to_int())
+    Int32::unsafe_to_char(n + '0'.to_int())
   } else {
-    Int::unsafe_to_char(n - 10 + 'a'.to_int())
+    Int32::unsafe_to_char(n - 10 + 'a'.to_int())
   }
 }
 
@@ -28,7 +28,7 @@ pub fn bytes_to_hex(b : Bytes) -> String {
 }
 
 ///|
-pub fn hex_nibble(c : UInt16) -> Int {
+pub fn hex_nibble(c : UInt16) -> Int32 {
   if c >= 48 && c <= 57 {
     (c - 48).to_int()
   } else if c >= 65 && c <= 70 {

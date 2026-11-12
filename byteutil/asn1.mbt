@@ -6,7 +6,7 @@
 
 ///|
 /// Left-pad a byte sequence with zero bytes up to `target` length.
-pub fn pad_left(data : Bytes, target : Int) -> Bytes {
+pub fn pad_left(data : Bytes, target : Int32) -> Bytes {
   if data.length() >= target {
     return data
   }
@@ -22,7 +22,7 @@ pub fn pad_left(data : Bytes, target : Int) -> Bytes {
 
 ///|
 /// Encode an ASN.1 length field (definite, short or long form).
-pub fn encode_asn1_length(len : Int) -> Bytes {
+pub fn encode_asn1_length(len : Int32) -> Bytes {
   if len < 128 {
     return Bytes::from_array([len.to_byte()])
   }
@@ -44,7 +44,7 @@ pub fn encode_asn1_length(len : Int) -> Bytes {
 ///|
 /// Decode an ASN.1 length field starting at `off`.
 /// Returns `(length, number_of_bytes_consumed)`.
-pub fn decode_asn1_length(data : Bytes, off : Int) -> (Int, Int) {
+pub fn decode_asn1_length(data : Bytes, off : Int32) -> (Int32, Int32) {
   if off >= data.length() {
     abort("ASN.1: out of bounds")
   }
@@ -56,7 +56,7 @@ pub fn decode_asn1_length(data : Bytes, off : Int) -> (Int, Int) {
   if num_bytes == 0 || off + 1 + num_bytes > data.length() {
     abort("ASN.1: invalid long length")
   }
-  let mut len : Int = 0
+  let mut len : Int32 = 0
   for i in 0..<num_bytes {
     len = (len << 8) | data[off + 1 + i].to_int()
   }

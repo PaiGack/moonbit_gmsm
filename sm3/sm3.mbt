@@ -3,7 +3,7 @@
 
 ///|
 /// SM3 initial value (IV)
-let iv : FixedArray[UInt] = [
+let iv : FixedArray[UInt32] = [
   0x7380166fU, 0x4914b2b9U, 0x172442d7U, 0xda8a0600U, 0xa96f30bcU, 0x163138aaU, 0xe38dee4dU,
   0xb0fb0e4eU,
 ]
@@ -11,9 +11,9 @@ let iv : FixedArray[UInt] = [
 ///|
 /// SM3 streaming hash context.
 pub struct SM3 {
-  state : FixedArray[UInt]
+  state : FixedArray[UInt32]
   buf : FixedArray[Byte]
-  buf_len : Int
+  buf_len : Int32
   total : UInt64
 }
 
@@ -91,19 +91,19 @@ pub fn SM3::write(self : SM3, data : Bytes) -> SM3 {
     buf_len = remaining
   }
 
-  SM3::{ state, buf, buf_len, total }
+  SM3::{ state, buf, buf_len, total, }
 }
 
 ///|
 /// Return the digest length in bytes (32), mirroring `hash.Hash.Size`.
-pub fn SM3::size(_self : SM3) -> Int {
+pub fn SM3::size(_self : SM3) -> Int32 {
   32
 }
 
 ///|
 /// Return the internal block length in bytes (64), mirroring
 /// `hash.Hash.BlockSize`.
-pub fn SM3::block_size(_self : SM3) -> Int {
+pub fn SM3::block_size(_self : SM3) -> Int32 {
   64
 }
 
@@ -119,7 +119,7 @@ pub fn SM3::reset(self : SM3) -> SM3 {
   for i in 0..<64 {
     buf[i] = b'\x00'
   }
-  SM3::{ state, buf, buf_len: 0, total: 0UL }
+  SM3::{ state, buf, buf_len: 0, total: 0UL, }
 }
 
 ///|
@@ -141,9 +141,9 @@ pub fn SM3::finish(self : SM3) -> Bytes {
 /// Shared finalization: apply the SM3 padding rules to `buf` and emit the
 /// big-endian digest of `state`.
 fn finalize(
-  state : FixedArray[UInt],
+  state : FixedArray[UInt32],
   buf : FixedArray[Byte],
-  buf_len_init : Int,
+  buf_len_init : Int32,
   total : UInt64,
 ) -> Bytes {
   let mut buf_len = buf_len_init
@@ -185,7 +185,7 @@ fn finalize(
 
 ///|
 /// SM3 constant T_j.
-fn tj(j : Int) -> UInt {
+fn tj(j : Int32) -> UInt32 {
   if j < 16 {
     0x79cc4519U
   } else {
@@ -195,7 +195,7 @@ fn tj(j : Int) -> UInt {
 
 ///|
 /// SM3 boolean function FF_j.
-fn ff(j : Int, x : UInt, y : UInt, z : UInt) -> UInt {
+fn ff(j : Int32, x : UInt32, y : UInt32, z : UInt32) -> UInt32 {
   if j < 16 {
     x ^ y ^ z
   } else {
@@ -205,7 +205,7 @@ fn ff(j : Int, x : UInt, y : UInt, z : UInt) -> UInt {
 
 ///|
 /// SM3 boolean function GG_j.
-fn gg(j : Int, x : UInt, y : UInt, z : UInt) -> UInt {
+fn gg(j : Int32, x : UInt32, y : UInt32, z : UInt32) -> UInt32 {
   if j < 16 {
     x ^ y ^ z
   } else {
@@ -215,23 +215,27 @@ fn gg(j : Int, x : UInt, y : UInt, z : UInt) -> UInt {
 
 ///|
 /// SM3 permutation function P_0.
-fn p0(x : UInt) -> UInt {
+fn p0(x : UInt32) -> UInt32 {
   x ^ @byteutil.rotl(x, 9) ^ @byteutil.rotl(x, 17)
 }
 
 ///|
 /// SM3 permutation function P_1.
-fn p1(x : UInt) -> UInt {
+fn p1(x : UInt32) -> UInt32 {
   x ^ @byteutil.rotl(x, 15) ^ @byteutil.rotl(x, 23)
 }
 
 ///|
 /// SM3 compression function. Processes one 64-byte block from a Bytes source.
-fn compress(state : FixedArray[UInt], block : Bytes, offset? : Int = 0) -> Unit {
+fn compress(
+  state : FixedArray[UInt32],
+  block : Bytes,
+  offset~ : Int32 = 0,
+) -> Unit {
   // Message expansion: W[0..67]
-  let w : FixedArray[UInt] = FixedArray::makei(68, fn(_i) { 0U })
+  let w : FixedArray[UInt32] = FixedArray::makei(68, fn(_i) { 0U })
   // Message expansion: W'[0..63]
-  let w1 : FixedArray[UInt] = FixedArray::makei(64, fn(_i) { 0U })
+  let w1 : FixedArray[UInt32] = FixedArray::makei(64, fn(_i) { 0U })
 
   for j in 0..<16 {
     w[j] = @byteutil.get_u32_be(block, offset + j * 4)
@@ -253,14 +257,14 @@ fn compress(state : FixedArray[UInt], block : Bytes, offset? : Int = 0) -> Unit 
 ///|
 /// SM3 compression function for FixedArray[Byte].
 fn compress_fixed(
-  state : FixedArray[UInt],
+  state : FixedArray[UInt32],
   block : FixedArray[Byte],
-  offset? : Int = 0,
+  offset~ : Int32 = 0,
 ) -> Unit {
   // Message expansion: W[0..67]
-  let w : FixedArray[UInt] = FixedArray::makei(68, fn(_i) { 0U })
+  let w : FixedArray[UInt32] = FixedArray::makei(68, fn(_i) { 0U })
   // Message expansion: W'[0..63]
-  let w1 : FixedArray[UInt] = FixedArray::makei(64, fn(_i) { 0U })
+  let w1 : FixedArray[UInt32] = FixedArray::makei(64, fn(_i) { 0U })
 
   for j in 0..<16 {
     w[j] = @byteutil.get_u32_be_fa(block, offset + j * 4)
@@ -282,9 +286,9 @@ fn compress_fixed(
 ///|
 /// SM3 compression rounds (shared between Bytes and FixedArray paths).
 fn compress_rounds(
-  state : FixedArray[UInt],
-  w : FixedArray[UInt],
-  w1 : FixedArray[UInt],
+  state : FixedArray[UInt32],
+  w : FixedArray[UInt32],
+  w1 : FixedArray[UInt32],
 ) -> Unit {
   let mut a = state[0]
   let mut b = state[1]

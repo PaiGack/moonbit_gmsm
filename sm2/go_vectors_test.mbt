@@ -5,7 +5,7 @@
 /// reproduces the Go reference output.
 
 ///|
-fn go_hex_nibble(c : UInt16) -> Int {
+fn go_hex_nibble(c : UInt16) -> Int32 {
   if c >= 48 && c <= 57 {
     (c - 48).to_int()
   } else if c >= 65 && c <= 70 {
@@ -28,11 +28,11 @@ fn go_hex_to_bytes(s : String) -> Bytes {
 }
 
 ///|
-fn go_nibble_to_char(n : Int) -> Char {
+fn go_nibble_to_char(n : Int32) -> Char {
   if n < 10 {
-    Int::unsafe_to_char(n + '0'.to_int())
+    Int32::unsafe_to_char(n + '0'.to_int())
   } else {
-    Int::unsafe_to_char(n - 10 + 'a'.to_int())
+    Int32::unsafe_to_char(n - 10 + 'a'.to_int())
   }
 }
 

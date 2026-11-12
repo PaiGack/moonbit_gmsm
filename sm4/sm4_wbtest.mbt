@@ -77,9 +77,9 @@ test "process_block_encrypt_decrypt" {
   ])
 
   let rk = sm4_expand_key(key)
-  let rk_rev : FixedArray[UInt] = FixedArray::makei(32, fn(i) { rk[31 - i] })
+  let rk_rev : FixedArray[UInt32] = FixedArray::makei(32, fn(i) { rk[31 - i] })
 
-  let x : FixedArray[UInt] = FixedArray::makei(4, fn(i) {
+  let x : FixedArray[UInt32] = FixedArray::makei(4, fn(i) {
     @byteutil.get_u32_be(data, i * 4)
   })
   let cipher = sm4_process_block(x, rk)
@@ -94,7 +94,7 @@ test "process_block_encrypt_decrypt" {
 /// Key expansion: invalid key length must raise SM4Error::InvalidKey.
 test "key_expansion_invalid_key" {
   let bad_key = Bytes::makei(15, fn(i) { i.to_byte() }) // wrong length
-  let r : Result[FixedArray[UInt], SM4Error] = try {
+  let r : Result[FixedArray[UInt32], SM4Error] = try {
     let rk = sm4_expand_key(bad_key)
     Ok(rk)
   } catch {

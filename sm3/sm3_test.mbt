@@ -22,11 +22,11 @@ fn byte_to_hex(b : Byte) -> String {
 }
 
 ///|
-fn nibble_to_char(n : Int) -> Char {
+fn nibble_to_char(n : Int32) -> Char {
   if n < 10 {
-    Int::unsafe_to_char(n + '0'.to_int())
+    Int32::unsafe_to_char(n + '0'.to_int())
   } else {
-    Int::unsafe_to_char(n - 10 + 'a'.to_int())
+    Int32::unsafe_to_char(n - 10 + 'a'.to_int())
   }
 }
 

@@ -14,7 +14,7 @@
 
 ///|
 /// 32-bit left rotation.
-pub fn rotl(x : UInt, n : Int) -> UInt {
+pub fn rotl(x : UInt32, n : Int32) -> UInt32 {
   let n = n % 32
   (x << n) | (x >> (32 - n))
 }
@@ -22,7 +22,7 @@ pub fn rotl(x : UInt, n : Int) -> UInt {
 ///|
 /// Read a 32-bit unsigned integer from `buf` at `offset` in big-endian byte
 /// order.
-pub fn get_u32_be(buf : Bytes, offset : Int) -> UInt {
+pub fn get_u32_be(buf : Bytes, offset : Int32) -> UInt32 {
   (buf[offset].to_uint().land(0xffU) << 24) |
   (buf[offset + 1].to_uint().land(0xffU) << 16) |
   (buf[offset + 2].to_uint().land(0xffU) << 8) |
@@ -32,7 +32,7 @@ pub fn get_u32_be(buf : Bytes, offset : Int) -> UInt {
 ///|
 /// Read a 64-bit unsigned integer from `buf` at `offset` in big-endian byte
 /// order.
-pub fn get_u64_be(buf : Bytes, offset : Int) -> UInt64 {
+pub fn get_u64_be(buf : Bytes, offset : Int32) -> UInt64 {
   (buf[offset].to_uint64() << 56) |
   (buf[offset + 1].to_uint64() << 48) |
   (buf[offset + 2].to_uint64() << 40) |
@@ -47,7 +47,7 @@ pub fn get_u64_be(buf : Bytes, offset : Int) -> UInt64 {
 /// Read a 32-bit unsigned integer from a `FixedArray[Byte]` at `offset` in
 /// big-endian byte order. This is the `FixedArray[Byte]` counterpart of
 /// `get_u32_be`.
-pub fn get_u32_be_fa(buf : FixedArray[Byte], offset : Int) -> UInt {
+pub fn get_u32_be_fa(buf : FixedArray[Byte], offset : Int32) -> UInt32 {
   (buf[offset].to_uint().land(0xffU) << 24) |
   (buf[offset + 1].to_uint().land(0xffU) << 16) |
   (buf[offset + 2].to_uint().land(0xffU) << 8) |
@@ -56,7 +56,7 @@ pub fn get_u32_be_fa(buf : FixedArray[Byte], offset : Int) -> UInt {
 
 ///|
 /// Convert 32 bytes (big-endian) to 4 × 64-bit limbs (little-endian).
-pub fn bn_from_bytes(r : FixedArray[UInt64], b : Bytes, off : Int) -> Unit {
+pub fn bn_from_bytes(r : FixedArray[UInt64], b : Bytes, off : Int32) -> Unit {
   r[0] = get_u64_be(b, off + 24)
   r[1] = get_u64_be(b, off + 16)
   r[2] = get_u64_be(b, off + 8)
@@ -75,13 +75,13 @@ pub fn bn_to_bytes(r : FixedArray[UInt64]) -> Bytes {
 
 ///|
 /// Convert a 16-byte block into 4 big-endian 32-bit words.
-pub fn block_to_words(b : Bytes) -> FixedArray[UInt] {
+pub fn block_to_words(b : Bytes) -> FixedArray[UInt32] {
   FixedArray::makei(4, fn(i) { get_u32_be(b, i * 4) })
 }
 
 ///|
 /// Convert 4 big-endian 32-bit words back into a 16-byte block.
-pub fn words_to_block(w : FixedArray[UInt]) -> Bytes {
+pub fn words_to_block(w : FixedArray[UInt32]) -> Bytes {
   Bytes::makei(16, fn(i) {
     let word = w[i / 4]
     let shift = 24 - i % 4 * 8
@@ -114,7 +114,7 @@ pub fn bstr(b : Bool) -> String {
 ///|
 /// Concatenate a list of byte segments into a single byte sequence.
 pub fn concat_bytes(segments : Array[Bytes]) -> Bytes {
-  let mut total : Int = 0
+  let mut total : Int32 = 0
   for i in 0..<segments.length() {
     total = total + segments[i].length()
   }
@@ -134,7 +134,7 @@ pub fn concat_bytes(segments : Array[Bytes]) -> Bytes {
 
 ///|
 /// Encode an integer as 4-byte big-endian.
-pub fn int_to_bytes_be(n : Int) -> Bytes {
+pub fn int_to_bytes_be(n : Int32) -> Bytes {
   Bytes::from_array([
     ((n >> 24) & 0xFF).to_byte(),
     ((n >> 16) & 0xFF).to_byte(),

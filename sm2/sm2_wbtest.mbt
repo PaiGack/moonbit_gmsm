@@ -681,7 +681,7 @@ test "compress_point_odd_y" {
       0UL
     }
   })
-  let pk = SM2PublicKey::{ curve, x: curve.gx, y: odd_y }
+  let pk = SM2PublicKey::{ curve, x: curve.gx, y: odd_y, }
   let comp = compress_point(pk)
   assert_eq(comp[0], b'\x03')
 }
@@ -709,7 +709,7 @@ test "decompress_point_flip_parity" {
   let y_odd : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
   bn_sub(y_odd, curve.p, curve.gy) |> ignore
   assert_true((y_odd[0] & 1UL) == 1UL)
-  let pk = SM2PublicKey::{ curve, x: curve.gx, y: y_odd }
+  let pk = SM2PublicKey::{ curve, x: curve.gx, y: y_odd, }
   let comp = compress_point(pk)
   assert_eq(comp[0], b'\x03')
   let dec = decompress_point(comp)

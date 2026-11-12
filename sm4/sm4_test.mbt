@@ -16,7 +16,7 @@ fn hex_to_bytes(s : String) -> Bytes {
 }
 
 ///|
-fn hex_nibble(c : UInt16) -> Int {
+fn hex_nibble(c : UInt16) -> Int32 {
   if c >= 48 && c <= 57 {
     (c - 48).to_int()
   } else if c >= 65 && c <= 70 {

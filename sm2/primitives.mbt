@@ -71,7 +71,7 @@ fn msg_hash(za_val : Bytes, msg : Bytes) -> FixedArray[UInt64] {
 
 ///|
 /// KDF (Key Derivation Function)
-fn kdf(length : Int, parts : Array[Bytes]) -> (Bytes, Bool) {
+fn kdf(length : Int32, parts : Array[Bytes]) -> (Bytes, Bool) {
   if length == 0 {
     return (b"", true)
   }
@@ -80,7 +80,7 @@ fn kdf(length : Int, parts : Array[Bytes]) -> (Bytes, Bool) {
   let ct = (length + 31) / 32
 
   let mut all_zero = true
-  let mut counter : Int = 1
+  let mut counter : Int32 = 1
   let chunks : Array[Bytes] = []
 
   for _ in 0..<ct {

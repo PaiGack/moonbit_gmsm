@@ -37,6 +37,7 @@ pub(all) enum CipherMode {
 }
 
 ///|
+#derive(Debug, Eq)
 pub suberror Sm2Error {
   ZeroParam
   NotOnCurve
@@ -45,7 +46,7 @@ pub suberror Sm2Error {
   InvalidPoint
   InvalidParameter
   KdfZeroKey
-} derive(Debug, Eq)
+}
 
 ///|
 pub fn sm2_p256() -> SM2Curve {
@@ -82,7 +83,7 @@ pub fn private_key_from_bytes(
   if bn_is_zero(dv) || !bn_lt(dv, curve.n) {
     raise Sm2Error::ZeroParam
   }
-  SM2PrivateKey::{ curve, d: dv }
+  SM2PrivateKey::{ curve, d: dv, }
 }
 
 ///|
@@ -101,7 +102,7 @@ pub fn public_key_from_xy(
   if !point_is_on_curve_affine(xv, yv) {
     raise Sm2Error::NotOnCurve
   }
-  SM2PublicKey::{ curve, x: xv, y: yv }
+  SM2PublicKey::{ curve, x: xv, y: yv, }
 }
 
 ///|
@@ -119,7 +120,7 @@ pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey {
       break
     }
   }
-  SM2PrivateKey::{ curve, d }
+  SM2PrivateKey::{ curve, d, }
 }
 
 ///|
@@ -127,7 +128,7 @@ pub fn derive_public_key(private_key : SM2PrivateKey) -> SM2PublicKey {
   let p : SM2Point = point_infinity()
   scalar_base_mult(p, private_key.d)
   let (x, y) = point_to_affine(p)
-  SM2PublicKey::{ curve: private_key.curve, x, y }
+  SM2PublicKey::{ curve: private_key.curve, x, y, }
 }
 
 ///|
@@ -202,7 +203,7 @@ pub fn sm2_sign(
   _random : @random.Rand?,
 ) -> (Bytes, Bytes) {
   let curve = private_key.curve
-  let pubkey = derive_public_key(SM2PrivateKey::{ curve, d: private_key.d })
+  let pubkey = derive_public_key(SM2PrivateKey::{ curve, d: private_key.d, })
   let za_val = za(pubkey.x, pubkey.y, uid)
   let e = msg_hash(za_val, msg)
   let n = curve.n
@@ -662,7 +663,7 @@ fn point_from_pubkey(pk : SM2PublicKey) -> SM2Point {
 
 ///|
 pub fn key_exchange_a(
-  klen : Int,
+  klen : Int32,
   ida : Bytes,
   idb : Bytes,
   priA : SM2PrivateKey,
@@ -727,7 +728,7 @@ pub fn key_exchange_a(
 
 ///|
 pub fn key_exchange_b(
-  klen : Int,
+  klen : Int32,
   ida : Bytes,
   idb : Bytes,
   priB : SM2PrivateKey,

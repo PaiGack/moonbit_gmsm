@@ -5,13 +5,14 @@
 /// lives next to its only caller.
 
 ///|
+#derive(Debug, Eq)
 pub enum ByteUtilError {
   InvalidPadding
-} derive(Debug, Eq)
+}
 
 ///|
 /// PKCS#7 pad a byte sequence to a multiple of `block_size`.
-pub fn pkcs7_pad(data : Bytes, block_size : Int) -> Bytes {
+pub fn pkcs7_pad(data : Bytes, block_size : Int32) -> Bytes {
   let pad_len = block_size - data.length() % block_size
   let pad_byte = pad_len.to_byte()
   Bytes::makei(data.length() + pad_len, fn(i) {
