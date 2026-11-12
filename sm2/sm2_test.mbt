@@ -64,6 +64,26 @@ test "sm2_sign_verify_der_roundtrip" {
 }
 
 ///|
+test "os_rand_seed_from_entropy" {
+  // `seed_from_entropy` is the fallback seed on platforms without OS entropy
+  // (`wasm-gc`); it must return a distinct 32-byte seed on every call.
+  let a = @sm2.seed_from_entropy()
+  let b = @sm2.seed_from_entropy()
+  assert_eq(a.length(), 32)
+  assert_false(@byteutil.bytes_eq(a, b))
+  // `os_rand` works on every supported target, including `wasm-gc`.
+  let r = @sm2.os_rand()
+  assert_true(
+    match r {
+      Some(_) => true
+      None => false
+    },
+  )
+  let private_key = @sm2.generate_key(r)
+  assert_true(@sm2.is_on_curve(@sm2.derive_public_key(private_key)))
+}
+
+///|
 test "sm2_compress_decompress_roundtrip" {
   let private_key = @sm2.generate_key(@sm2.os_rand())
   let public_key = @sm2.derive_public_key(private_key)
