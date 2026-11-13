@@ -119,8 +119,15 @@ pub fn decode_asn1_tlv(
 /// Normalize a non-negative ASN.1 INTEGER content to exactly 32 bytes: strip
 /// leading zero bytes (sign padding), then left-pad with zeros.
 ///
-/// Raises `InvalidDer` for negative values (high bit set without a
-/// leading `0x00`) and for values wider than 32 bytes.
+/// Strict DER minimal encoding: `00 00 01` (redundant leading zero) and
+/// `00 80` (a zero that is not needed to keep the value positive) are
+/// rejected, so one value has exactly one accepted encoding. This is what
+/// stops a signature / ciphertext from being re-encoded in an equivalent but
+/// byte-different form.
+///
+/// Raises `InvalidDer` for negative values (high bit set without a leading
+/// `0x00`), for non-minimal encodings, for an empty content and for values
+/// wider than 32 bytes.
 pub fn normalize_32(data : Bytes) -> Bytes raise ByteUtilError {
   if data.length() == 0 {
     raise ByteUtilError::InvalidDer
@@ -132,6 +139,14 @@ pub fn normalize_32(data : Bytes) -> Bytes raise ByteUtilError {
   let mut start = 0
   while start < data.length() && data[start] == b'\x00' {
     start = start + 1
+  }
+  // A leading zero is only legal in front of a byte whose high bit is set;
+  // anywhere else it is a redundant, non-minimal encoding.
+  if start > 1 {
+    raise ByteUtilError::InvalidDer
+  }
+  if start == 1 && (data[1].to_uint() & 0x80U) == 0U {
+    raise ByteUtilError::InvalidDer
   }
   if data.length() - start > 32 {
     raise ByteUtilError::InvalidDer

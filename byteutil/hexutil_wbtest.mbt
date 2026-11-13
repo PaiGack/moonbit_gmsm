@@ -77,9 +77,9 @@ test "panic_hex_nibble_invalid_chars" {
 
 ///|
 test "hex_to_bytes_single_byte" {
-  assert_eq(hex_to_bytes("ab"), b"\xab")
-  assert_eq(hex_to_bytes("AB"), b"\xab")
-  assert_eq(hex_to_bytes("0f"), b"\x0f")
+  assert_eq(hex_to_bytes_unchecked("ab"), b"\xab")
+  assert_eq(hex_to_bytes_unchecked("AB"), b"\xab")
+  assert_eq(hex_to_bytes_unchecked("0f"), b"\x0f")
 }
 
 ///|
@@ -100,7 +100,7 @@ test "hex_to_bytes_full_byte_range" {
     "d0d1d2d3d4d5d6d7d8d9dadbdcdddedf" +
     "e0e1e2e3e4e5e6e7e8e9eaebecedeeef" +
     "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
-  let b = hex_to_bytes(hex)
+  let b = hex_to_bytes_unchecked(hex)
   assert_eq(b.length(), 256)
   for i in 0..<256 {
     assert_eq(b[i], i.to_byte())
@@ -109,28 +109,40 @@ test "hex_to_bytes_full_byte_range" {
 
 ///|
 test "hex_to_bytes_empty" {
-  assert_eq(hex_to_bytes(""), b"")
-  assert_eq(hex_to_bytes("").length(), 0)
+  assert_eq(hex_to_bytes_unchecked(""), b"")
+  assert_eq(hex_to_bytes_unchecked("").length(), 0)
 }
 
 ///|
 test "hex_to_bytes_mixed_case" {
   // Both upper- and lower-case hex digits are accepted; round-trip back
   // to hex always uses lowercase.
-  let b = hex_to_bytes("01aBcD")
+  let b = hex_to_bytes_unchecked("01aBcD")
   assert_eq(b, Bytes::from_array([b'\x01', b'\xAB', b'\xCD']))
   assert_eq(bytes_to_hex(b), "01abcd")
 }
 
 ///|
-/// Expecting panic: `hex_to_bytes` with an odd-length string -> abort.
-test "panic_hex_to_bytes_odd_length" {
-  ignore(hex_to_bytes("abc"))
+test "hex_to_bytes_rejects_bad_input_without_aborting" {
+  // Odd length and non-hex characters are reported as `InvalidHex` instead of
+  // aborting the process: hex usually arrives from config files / argv.
+  assert_true(hex_error("abc") is Some(ByteUtilError::InvalidHex))
+  assert_true(hex_error("zz") is Some(ByteUtilError::InvalidHex))
+  assert_true(hex_error("0g") is Some(ByteUtilError::InvalidHex))
+  assert_true(hex_error("  ") is Some(ByteUtilError::InvalidHex))
+  // Valid input still round-trips through the raising entry point.
+  assert_eq(hex_to_bytes("0fF0") catch { _ => b"" }, b"\x0f\xf0")
+}
+
+///|
+fn hex_error(s : String) -> ByteUtilError? {
+  let _ = hex_to_bytes(s) catch { e => return Some(e) }
+  None
 }
 
 ///|
 test "hex_roundtrip_random" {
   // Deterministic pseudo-random bytes; verify encoding -> decoding is identity.
   let b = Bytes::makei(64, fn(i) { ((i * 31 + 17) & 0xFF).to_byte() })
-  assert_eq(hex_to_bytes(bytes_to_hex(b)), b)
+  assert_eq(hex_to_bytes_unchecked(bytes_to_hex(b)), b)
 }

@@ -6,9 +6,15 @@ fn main {
   try {
     println("========== SM4 Demo (GM/T 0002-2012) ==========")
 
-    let key = @byteutil.hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
-    let plain = @byteutil.hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
-    let iv = @byteutil.hex_to_bytes("00000000000000000000000000000000")
+    let key = @byteutil.hex_to_bytes_unchecked(
+      "0123456789ABCDEFFEDCBA9876543210",
+    )
+    let plain = @byteutil.hex_to_bytes_unchecked(
+      "0123456789ABCDEFFEDCBA9876543210",
+    )
+    let iv = @byteutil.hex_to_bytes_unchecked(
+      "00000000000000000000000000000000",
+    )
 
     // 1. Single block encryption (KAT from GM/T 0002-2012 Appendix A)
     let cipher = @gmsm_sm4.sm4_encrypt_block(key, plain)
@@ -59,7 +65,7 @@ fn main {
     )
 
     // 5. Key PEM round-trip (plain + password protected)
-    let pem_key : @gmsm_sm4.SM4Key = @byteutil.hex_to_bytes(
+    let pem_key : @gmsm_sm4.SM4Key = @byteutil.hex_to_bytes_unchecked(
       "0123456789ABCDEFFEDCBA9876543210",
     )
     let plain_pem = @gmsm_sm4.write_key_to_pem(pem_key, b"", None)

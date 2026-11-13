@@ -240,38 +240,53 @@ test "normalize_32_shorter_pads_left" {
 
 ///|
 test "normalize_32_strip_one_leading_zero" {
-  // 33 bytes: b[0] = 0x00, b[1..32] = 0x01..0x20
-  let b = Bytes::makei(33, fn(i) { if i == 0 { b'\x00' } else { i.to_byte() } })
-  let n = normalize_32_ok(b)
-  assert_eq(n.length(), 32)
-  // After stripping exactly one leading zero, the remaining 32 bytes are
-  // copied verbatim (no padding needed because data.length() == target).
-  assert_eq(n[0], b'\x01')
-  assert_eq(n[1], b'\x02')
-  assert_eq(n[31], b'\x20')
-}
-
-///|
-test "normalize_32_strip_many_leading_zeros" {
-  // 40 bytes, the first 9 are 0x00; remaining bytes are 0..30.
-  let b = Bytes::makei(40, fn(i) {
-    if i < 9 {
+  // 33 bytes: b[0] = 0x00, b[1..32] = 0x80..; the second byte has the high
+  // bit set, so the leading zero is required to keep the value positive.
+  let b = Bytes::makei(33, fn(i) {
+    if i == 0 {
       b'\x00'
     } else {
-      (i - 9).to_byte()
+      (i + 0x7F).to_byte()
     }
   })
   let n = normalize_32_ok(b)
   assert_eq(n.length(), 32)
-  // After stripping 9 leading zeros we have 31 bytes left; pad_left adds one
-  // leading 0x00, so n[0] = 0x00 and the last byte is still 30 = 0x1e.
-  assert_eq(n[0], b'\x00')
-  assert_eq(n[31], b'\x1E')
+  // After stripping exactly one leading zero, the remaining 32 bytes are
+  // copied verbatim (no padding needed because data.length() == target).
+  assert_eq(n[0], b'\x80')
+  assert_eq(n[1], b'\x81')
+  assert_eq(n[31], b'\x9F')
+}
+
+///|
+test "normalize_32_rejects_redundant_leading_zeros" {
+  // A leading zero in front of a value whose high bit is clear is a
+  // non-minimal (non-canonical) DER encoding and must be rejected: otherwise
+  // the same INTEGER could be written in several byte-different ways.
+  assert_true(fails_with_invalid_der(() => ignore(normalize_32(b"\x00\x01"))))
+  assert_true(
+    fails_with_invalid_der(() => ignore(normalize_32(b"\x00\x00\x01"))),
+  )
+  assert_true(
+    fails_with_invalid_der(() => {
+      ignore(normalize_32(Bytes::makei(40, fn(_) { b'\x00' })))
+    }),
+  )
+  // `00 80` is the one leading zero that is NOT redundant.
+  let n = normalize_32_ok(b"\x00\x80")
+  assert_eq(n[30], b'\x00')
+  assert_eq(n[31], b'\x80')
 }
 
 ///|
 test "normalize_32_already_32" {
-  let b = Bytes::makei(32, fn(i) { (i.reinterpret_as_uint() & 0xFFU).to_byte() })
+  // Both DER constraints must hold: a leading byte >= 0x80 would be a
+  // negative INTEGER, and a leading 0x00 in front of a low byte would be a
+  // redundant (non-minimal) encoding. So start at 0x01 and keep the high bit
+  // clear.
+  let b = Bytes::makei(32, fn(i) {
+    ((i.reinterpret_as_uint() & 0x7FU) | 0x01U).to_byte()
+  })
   let n = normalize_32_ok(b)
   assert_eq(n.length(), 32)
   for i in 0..<32 {

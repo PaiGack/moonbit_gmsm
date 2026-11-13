@@ -66,12 +66,17 @@ pub fn base64_encode(data : Bytes) -> String {
 }
 
 ///|
-/// Decode a standard base64 string. Whitespace is ignored; any other
-/// non-alphabet character, or a malformed length/padding, raises
+/// Decode a standard base64 string.
+///
+/// Whitespace is ignored, so a PEM body can be fed in directly. Padding is
+/// optional (`YWJjZA` and `YWJjZA==` both decode to `abcd`), matching Go's
+/// `base64.StdEncoding` readers which accept unpadded input; when padding IS
+/// present it must be complete and at the very end. Anything else — a
+/// non-alphabet character, a `=` inside the data, more than two `=` — raises
 /// `ByteUtilError::InvalidBase64`.
 pub fn base64_decode(s : String) -> Bytes raise ByteUtilError {
   let n = s.length()
-  // First pass: count significant characters so we can size the output.
+  // Six-bit values of the significant characters, -1 for `=`.
   let chars : Array[Int32] = []
   // Built once per call: a 256-entry table is cheap next to the decoding.
   let table = base64_decode_table()
@@ -91,6 +96,7 @@ pub fn base64_decode(s : String) -> Bytes raise ByteUtilError {
       pad = pad + 1
       chars.push(-1)
     } else if cu < 256 && table[cu] != b'\xff' {
+      // Data after padding means the `=` was not at the end.
       if pad > 0 {
         raise ByteUtilError::InvalidBase64
       }
@@ -100,24 +106,50 @@ pub fn base64_decode(s : String) -> Bytes raise ByteUtilError {
     }
   }
   let total = chars.length()
-  if total % 4 != 0 {
-    // Like Go's encoding/base64.StdEncoding, require full padding.
-    raise ByteUtilError::InvalidBase64
+  if total == 0 {
+    return Bytes::makei(0, fn(_) { b'\x00' })
   }
   if pad > 2 {
     raise ByteUtilError::InvalidBase64
   }
-  if pad > 0 && total == 0 {
+  // With padding the group count must be a multiple of 4 (and a single
+  // trailing character is never legal); without padding a leftover of 1 six-
+  // bit value cannot represent a whole byte.
+  let groups = (total + 3) / 4
+  if pad > 0 && total % 4 != 0 {
     raise ByteUtilError::InvalidBase64
   }
-  let out_len = total / 4 * 3 - pad
+  if total % 4 == 1 {
+    raise ByteUtilError::InvalidBase64
+  }
+  // Without padding the final group carries 2 or 3 significant characters;
+  // everything past that is an artefact of rounding up to a whole group.
+  let out_len = if pad > 0 {
+    groups * 3 - pad
+  } else {
+    match total % 4 {
+      2 => total / 4 * 3 + 1
+      3 => total / 4 * 3 + 2
+      _ => total / 4 * 3
+    }
+  }
   Bytes::makei(out_len, fn(i) {
     let q = i / 3
     let r = i % 3
     let c0 = chars[q * 4]
-    let c1 = chars[q * 4 + 1]
-    let c2 = if chars[q * 4 + 2] < 0 { 0 } else { chars[q * 4 + 2] }
-    let c3 = if chars[q * 4 + 3] < 0 { 0 } else { chars[q * 4 + 3] }
+    // Missing characters (unpadded tail) decode as zero bits; the low bits of
+    // the last value are unused, so any value there is discarded below.
+    let c1 = if q * 4 + 1 < total { chars[q * 4 + 1] } else { 0 }
+    let c2 = if q * 4 + 2 < total && chars[q * 4 + 2] > 0 {
+      chars[q * 4 + 2]
+    } else {
+      0
+    }
+    let c3 = if q * 4 + 3 < total && chars[q * 4 + 3] > 0 {
+      chars[q * 4 + 3]
+    } else {
+      0
+    }
     let v = if r == 0 {
       (c0 << 2) | (c1 >> 4)
     } else if r == 1 {

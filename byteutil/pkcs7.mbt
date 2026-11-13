@@ -9,6 +9,8 @@
 pub suberror ByteUtilError {
   InvalidPadding
   InvalidBase64
+  // Hex text: odd length or a character outside 0-9a-fA-F
+  InvalidHex
   // PEM: more than one block where exactly one was expected / bad header
   InvalidLength
   // ASN.1 DER: malformed tag / length / INTEGER content

@@ -10,10 +10,10 @@ fn test_rand() -> @random.Rand? {
 ///|
 test "aes256_fips197_block" {
   // FIPS-197 附录 C.3：AES-256 单块
-  let key = @byteutil.hex_to_bytes(
+  let key = @byteutil.hex_to_bytes_unchecked(
     "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
   )
-  let pt = @byteutil.hex_to_bytes("00112233445566778899aabbccddeeff")
+  let pt = @byteutil.hex_to_bytes_unchecked("00112233445566778899aabbccddeeff")
   let w = aes256_expand_key(key)
   let ct = aes256_encrypt_block(w, pt)
   assert_eq(@byteutil.bytes_to_hex(ct), "8ea2b7ca516745bfeafc49904b496089")
@@ -25,10 +25,10 @@ test "aes256_fips197_block" {
 
 ///|
 test "aes256_cbc_roundtrip" {
-  let key = @byteutil.hex_to_bytes(
+  let key = @byteutil.hex_to_bytes_unchecked(
     "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
   )
-  let iv = @byteutil.hex_to_bytes("0f0e0d0c0b0a09080706050403020100")
+  let iv = @byteutil.hex_to_bytes_unchecked("0f0e0d0c0b0a09080706050403020100")
   for len in 1..<5 {
     let pt = Bytes::makei(len * 16, fn(i) { ((i * 13 + 7) & 0xFF).to_byte() })
     let ct = aes256_cbc_encrypt_raw(key, iv, pt)
@@ -110,10 +110,10 @@ test "sm4_pem_encrypted_custom_iterations" {
     key,
     pwd,
     test_rand(),
-    Sm4PemEncryption::Pbkdf2HmacSm3(1000),
+    Sm4PemEncryption::Pbkdf2HmacSm3(200_000),
   )
   let block = @byteutil.pem_decode(pem)
-  assert_eq(block.get_header("SM4-KDF-Iterations"), Some("1000"))
+  assert_eq(block.get_header("SM4-KDF-Iterations"), Some("200000"))
   assert_eq(read_key_from_pem(pem, pwd), key)
 }
 
@@ -147,7 +147,7 @@ test "sm4_pem_encrypted_rejects_tampered_ciphertext" {
     key,
     pwd,
     test_rand(),
-    Sm4PemEncryption::Pbkdf2HmacSm3(100),
+    Sm4PemEncryption::Pbkdf2HmacSm3(200_000),
   )
   let block = @byteutil.pem_decode(pem)
   // 翻转密文首字节
@@ -161,7 +161,7 @@ test "sm4_pem_encrypted_rejects_tampered_ciphertext" {
   let headers : @byteutil.Headers = [
     ("Proc-Type", "4,ENCRYPTED"),
     ("DEK-Info", block.get_header("DEK-Info").unwrap()),
-    ("SM4-KDF-Iterations", "100"),
+    ("SM4-KDF-Iterations", "200000"),
   ]
   let bad = @byteutil.pem_encode("SM4 ENCRYPTED KEY", headers, ct)
   let e = try {
@@ -180,7 +180,7 @@ test "sm4_pem_encrypted_rejects_bad_kdf_params" {
     key,
     b"pwd",
     test_rand(),
-    Sm4PemEncryption::Pbkdf2HmacSm3(100),
+    Sm4PemEncryption::Pbkdf2HmacSm3(200_000),
   )
   let block = @byteutil.pem_decode(pem)
   let dek = block.get_header("DEK-Info").unwrap()
@@ -197,6 +197,38 @@ test "sm4_pem_encrypted_rejects_bad_kdf_params" {
     err => Some(err)
   }
   assert_eq(e1, Some(SM4Error::InvalidKdfParams))
+  // 低于下限：接受它等于默默接受一个几乎不设防的口令加密
+  let weak = @byteutil.pem_encode(
+    "SM4 ENCRYPTED KEY",
+    [
+      ("Proc-Type", "4,ENCRYPTED"),
+      ("DEK-Info", dek),
+      ("SM4-KDF-Iterations", "1000"),
+    ],
+    block.bytes,
+  )
+  let e_weak = try {
+    ignore(read_key_from_pem(weak, b"pwd"))
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e_weak, Some(SM4Error::InvalidKdfParams))
+  // 写入端同样拒绝过小的迭代次数
+  let e_write = try {
+    ignore(
+      write_key_to_pem_with(
+        key,
+        b"pwd",
+        test_rand(),
+        Sm4PemEncryption::Pbkdf2HmacSm3(1000),
+      ),
+    )
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e_write, Some(SM4Error::InvalidKdfParams))
   // 超出上限
   let huge = @byteutil.pem_encode(
     "SM4 ENCRYPTED KEY",

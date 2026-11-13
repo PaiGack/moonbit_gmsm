@@ -7,7 +7,10 @@ import {
 }
 
 // Values
+#deprecated
 pub fn get_iv() -> Bytes
+
+pub fn get_iv_unchecked() -> Bytes
 
 pub fn new_cipher(Bytes) -> SM4Cipher raise SM4Error
 
@@ -15,7 +18,10 @@ pub fn os_rand() -> @random.Rand?
 
 pub fn read_key_from_pem(String, Bytes) -> Bytes raise SM4Error
 
+#deprecated
 pub fn set_iv(Bytes) -> Unit raise SM4Error
+
+pub fn set_iv_unchecked(Bytes) -> Unit raise SM4Error
 
 pub let sm4_block_size : Int32
 
@@ -45,11 +51,16 @@ pub fn sm4_encrypt_ecb(Bytes, Bytes) -> Bytes raise SM4Error
 
 pub fn sm4_encrypt_ofb(Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
+#deprecated
 pub fn sm4_gcm(Bytes, Bytes, Bytes, Bytes, Bool) -> (Bytes, Bytes) raise SM4Error
 
 pub fn sm4_gcm_decrypt(Bytes, Bytes, Bytes, Bytes, Bytes) -> Bytes raise SM4Error
 
+pub fn sm4_gcm_decrypt_legacy(Bytes, Bytes, Bytes, Bytes, Bytes) -> Bytes raise SM4Error
+
 pub fn sm4_gcm_encrypt(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
+
+pub fn sm4_gcm_encrypt_legacy(Bytes, Bytes, Bytes, Bytes) -> (Bytes, Bytes) raise SM4Error
 
 pub let sm4_key_size : Int32
 
@@ -58,6 +69,8 @@ pub fn sm4_ofb(Bytes, Bytes, Bool) -> Bytes raise SM4Error
 pub let sm4_pem_default_iterations : Int32
 
 pub let sm4_pem_max_iterations : Int32
+
+pub let sm4_pem_min_iterations : Int32
 
 pub fn write_key_to_pem(Bytes, Bytes, @random.Rand?) -> String raise SM4Error
 
@@ -91,6 +104,7 @@ pub fn SM4Cipher::decrypt(Self, Bytes) -> Bytes raise SM4Error
 pub fn SM4Cipher::encrypt(Self, Bytes) -> Bytes raise SM4Error
 pub fn SM4Cipher::get_iv(Self) -> Bytes
 pub fn SM4Cipher::set_iv(Self, Bytes) -> Unit raise SM4Error
+pub fn SM4Cipher::wipe(Self) -> Unit
 
 pub(all) enum Sm4PemEncryption {
   Pbkdf2HmacSm3(Int32)

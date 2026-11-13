@@ -120,7 +120,7 @@ test "go_sm4_cbc_48B" {
 ///|
 test "go_sm4_ecb_empty" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("")
   let cipher = @sm4.sm4_ecb(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "002a8a4efa863ccad024ac0300bb40d2")
@@ -131,7 +131,7 @@ test "go_sm4_ecb_empty" {
 ///|
 test "go_sm4_ecb_5B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("68656c6c6f")
   let cipher = @sm4.sm4_ecb(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "db0669bd841e5450ec1652ecd42b6d60")
@@ -142,7 +142,7 @@ test "go_sm4_ecb_5B" {
 ///|
 test "go_sm4_ecb_16B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
   let cipher = @sm4.sm4_ecb(key, plain, true)
   assert_eq(
@@ -156,7 +156,7 @@ test "go_sm4_ecb_16B" {
 ///|
 test "go_sm4_ecb_30B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes(
     "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
   )
@@ -175,7 +175,7 @@ test "go_sm4_ecb_30B" {
 ///|
 test "go_sm4_cbc_empty" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("")
   let cipher = @sm4.sm4_cbc(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "4b910651754b5553f10cfa0c8a09e9e5")
@@ -186,7 +186,7 @@ test "go_sm4_cbc_empty" {
 ///|
 test "go_sm4_cbc_5B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("68656c6c6f")
   let cipher = @sm4.sm4_cbc(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "1342ad943c12b3c9ceb95e227b901d0b")
@@ -197,7 +197,7 @@ test "go_sm4_cbc_5B" {
 ///|
 test "go_sm4_cbc_16B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
   let cipher = @sm4.sm4_cbc(key, plain, true)
   assert_eq(
@@ -211,7 +211,7 @@ test "go_sm4_cbc_16B" {
 ///|
 test "go_sm4_cbc_30B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes(
     "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
   )
@@ -230,7 +230,7 @@ test "go_sm4_cbc_30B" {
 ///|
 test "go_sm4_cfb_empty" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("")
   let cipher = @sm4.sm4_cfb(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "16888c712db678bd3a9de792f1b8e97a")
@@ -241,7 +241,7 @@ test "go_sm4_cfb_empty" {
 ///|
 test "go_sm4_cfb_5B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("68656c6c6f")
   let cipher = @sm4.sm4_cfb(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "6efdf00d52ad63a62186fc89eaa3f261")
@@ -252,7 +252,7 @@ test "go_sm4_cfb_5B" {
 ///|
 test "go_sm4_cfb_16B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
   let cipher = @sm4.sm4_cfb(key, plain, true)
   assert_eq(
@@ -266,7 +266,7 @@ test "go_sm4_cfb_16B" {
 ///|
 test "go_sm4_cfb_30B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes(
     "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
   )
@@ -285,7 +285,7 @@ test "go_sm4_cfb_30B" {
 ///|
 test "go_sm4_ofb_empty" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("")
   let cipher = @sm4.sm4_ofb(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "16888c712db678bd3a9de792f1b8e97a")
@@ -296,7 +296,7 @@ test "go_sm4_ofb_empty" {
 ///|
 test "go_sm4_ofb_5B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("68656c6c6f")
   let cipher = @sm4.sm4_ofb(key, plain, true)
   assert_eq(go_bytes_to_hex(cipher), "6efdf00d52ad63a62186fc89eaa3f261")
@@ -307,7 +307,7 @@ test "go_sm4_ofb_5B" {
 ///|
 test "go_sm4_ofb_16B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
   let cipher = @sm4.sm4_ofb(key, plain, true)
   assert_eq(
@@ -321,7 +321,7 @@ test "go_sm4_ofb_16B" {
 ///|
 test "go_sm4_ofb_30B" {
   let key = go_hex_to_bytes("0123456789abcdeffedcba9876543210")
-  @sm4.set_iv(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
+  @sm4.set_iv_unchecked(go_hex_to_bytes("000102030405060708090a0b0c0d0e0f"))
   let plain = go_hex_to_bytes(
     "070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
   )

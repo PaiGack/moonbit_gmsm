@@ -1,5 +1,16 @@
 ## 一、架构层面：公共 API 过度暴露
 
+> **状态（2026-11-13 复核）：本节描述的主要问题已经解决。**
+> `sm2/pkg.generated.mbti` 现在只导出 `sm2_sign` / `sm2_verify` /
+> `sm2_encrypt` / `sm2_decrypt` / `generate_key` / `derive_public_key` /
+> `compress_point` / `decompress_point` / `key_exchange_a` / `key_exchange_b` /
+> `cipher_marshal` / `cipher_unmarshal` / `sign_*` / `sm2_p256` /
+> `private_key_from_bytes` / `public_key_from_xy` 等高层入口，以及
+> `SM2Curve` 这个 `pub(all)` struct 和 `os_rand` / `seed_from_entropy`。
+> 下表列出的 `bn_*` / `point_*` / `za` / `msg_hash` / `kdf` / `ke_x_hat`
+> **都已经不是 `pub`**，因此下面这份「不应 `pub` 的函数」清单里，**反例已不成立**——
+> 保留它只是为了说明当时的判断依据，不要再当作待办事项。
+
 **skill 依据**：`moonbit-refactoring` — "Minimize public API: remove `pub` from helpers; keep only required exports"
 
 `sm2/pkg.generated.mbti` 暴露了 **40+ 个公开函数**，其中大量是内部实现细节，不应对外可见：
@@ -167,13 +178,13 @@ let z : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
 
 | 位置 | 当前方式 | 问题 |
 |------|---------|------|
-| `asn1_decode_signature` | 返回 `Result[(Bytes, Bytes), String]` | 用 String 而非已有错误类型 |
-| `cipher_marshal` / `cipher_unmarshal` | `abort("invalid cipher")` | 应 `raise Sm2Error` |
-| `normalize_32` | `abort("integer too large")` | 应 `raise` |
-| `decode_asn1_length` | `abort("ASN.1: out of bounds")` | 应 `raise` |
+| `asn1_decode_signature` | `raise Sm2Error::InvalidSignature` | ✅ 已修（原为 `Result[..., String]`） |
+| `cipher_marshal` / `cipher_unmarshal` | `raise Sm2Error` | ✅ 已修（原为 `abort`） |
+| `normalize_32` | `raise ByteUtilError::InvalidDer`，并校验最小编码 | ✅ 已修（原为 `abort`） |
+| `decode_asn1_length` | `raise ByteUtilError::InvalidDer` | ✅ 已修（原为 `abort`） |
 | `sm2_sign` 中 KDF 失败 | 不可能发生但用 `abort("unreachable")` | 可接受 |
-| `key_exchange_a/b` 中 KDF 失败 | `abort("KDF all-zero key")` | 应 `raise` |
-| `hexutil.hex_nibble` | `abort("invalid hex char")` | 应 `raise` |
+| `key_exchange_a/b` 中 KDF 失败 | `raise Sm2Error::KdfZeroKey`，函数签名补 `raise Sm2Error` | ✅ 已修（原为 `abort`） |
+| `hexutil.hex_nibble` | 保留 `abort` 作为内部辅助；对外入口 `hex_to_bytes` 抛 `ByteUtilError::InvalidHex` | ✅ 已修 |
 
 `asn1_decode_signature` 已正确返回 `Result`，但 `cipher_marshal`/`cipher_unmarshal` 对同样的 ASN.1 解析错误却用 `abort`，风格不统一。
 
@@ -214,7 +225,7 @@ FixedArray::from_array([
 | 3 | `sm3.mbt:189` | 用 `.land(0xffU)` 方法，而 `sm4.mbt:82` 用直接 `<< 24`（因 `to_uint()` 已保证 0-255），风格不一致 |
 | 4 | 已修正 | `sm2_error_zero_random()`、`cipher_mode_c1c2c3()` 等零参数构造包装已删除。`CipherMode` 是 `pub(all)`、`Sm2Error` 是 `pub suberror`，调用方直接写 `@sm2.C1C3C2` 即可，对应 gmsm `sm2.go:35` 直接使用 `C1C3C2` 常量的写法。这类包装原本只为压制 `unused_constructor` 警告，不属于 deprecated 代码，不应放入 `deprecated.mbt` |
 | 5 | `sm4.mbt:163` | `let n = 4` 常量只用一次，可内联 |
-| 6 | `sm4/cipher.mbt:91` | `default_iv` 是包级可变全局状态，不符合 MoonBit 函数式偏好 |
+| 6 | `sm4/cipher.mbt` | `default_iv` 是包级可变全局状态，不符合 MoonBit 函数式偏好。**已加 `#deprecated`**，指向显式 IV 入口（仍保留以兼容 gmsm） |
 | 7 | `sm2` 类型 | `pub type Bn = FixedArray[UInt64]` 定义了别名，但代码中 `Bn` 和 `FixedArray[UInt64]` 混用，未统一 |
 
 ---

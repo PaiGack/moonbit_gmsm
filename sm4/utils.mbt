@@ -77,6 +77,11 @@ pub let sm4_pem_default_iterations : Int32 = 600000
 pub let sm4_pem_max_iterations : Int32 = 10_000_000
 
 ///|
+/// 允许的最小迭代次数。低于此值的文件不可能是本库写出的，接受它等于默默
+/// 接受一个几乎不设防的口令加密格式，因此读取时直接拒绝。
+pub let sm4_pem_min_iterations : Int32 = 100_000
+
+///|
 /// IV 派生的域分隔标签。
 let sm4_pem_iv_label : Bytes = b"SM4-PEM-IV"
 
@@ -117,6 +122,10 @@ pub impl Eq for Sm4PemEncryption with fn equal(self, other) {
 ///|
 /// 从 PEM 文本读取 SM4 密钥。加密块需要 `pwd`；未加密块忽略 `pwd`。
 /// 对应 `ReadKeyFromPem(data, pwd)`。
+///
+/// 注意：未加密块（`SM4 KEY`）里就是明文密钥，传了 `pwd` 也**不会**解密，
+/// 因此传口令并不代表内容被加密过；判断依据请用 `@byteutil.pem_decode`
+/// 之后的 `Proc-Type` 头，或对 `SM4 ENCRYPTED KEY` 的块类型检查。
 ///
 /// 加密块会按 `DEK-Info` 自动识别安全格式（`SM4-CBC,PBKDF2-HMAC-SM3,...`）
 /// 或旧格式（`AES-256-CBC,...`）并解密；读取旧格式时不受时间攻击保护，
@@ -189,7 +198,8 @@ pub fn write_key_to_pem_with(
   }
   match encryption {
     Pbkdf2HmacSm3(iterations) => {
-      if iterations < 1 || iterations > sm4_pem_max_iterations {
+      if iterations < sm4_pem_min_iterations ||
+        iterations > sm4_pem_max_iterations {
         raise SM4Error::InvalidKdfParams
       }
       let salt = random_bytes(random, sm4_pem_salt_len)
@@ -350,8 +360,13 @@ fn pkcs7_pad_key(data : Bytes) -> Bytes {
 /// 后续的数值比较求值；改为先记录校验结果，循环结束后统一抛出。
 fn pkcs7_unpad_key(data : Bytes) -> Bytes raise SM4Error {
   let n = data.length()
+  // Check the length *before* touching the last byte: `data[n - 1]` with
+  // `n == 0` reads out of bounds.
+  if n == 0 || n % sm4_pem_key_len != 0 {
+    raise SM4Error::InvalidPadding
+  }
   let tail = data[n - 1].to_int()
-  let mut ok = n != 0 && n % sm4_pem_key_len == 0
+  let mut ok = true
   ok = ok && tail != 0 && tail <= sm4_pem_key_len
   // 从尾部向前核对 `tail` 个字节，计数到达 tail 即停止。
   let mut checked = 0
@@ -473,7 +488,8 @@ fn decrypt_pem_block(
           }
         None => raise SM4Error::InvalidKdfParams
       }
-      if iterations < 1 {
+      if iterations < sm4_pem_min_iterations ||
+        iterations > sm4_pem_max_iterations {
         raise SM4Error::InvalidKdfParams
       }
       decrypt_pem_block_pbkdf2(block, pwd, salt, iterations)

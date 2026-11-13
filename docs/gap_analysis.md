@@ -131,8 +131,21 @@
 | `type SM4Key []byte` | `pub type SM4Key = Bytes` | ✅ |
 | `ReadKeyFromPem(data, pwd)` | `read_key_from_pem(data : String, pwd : Bytes)` | ✅ |
 | `ReadKeyFromPemFile(file, pwd)` | 无（核心库暂无 `fs`，由调用方读文件） | ⏳ |
-| `WriteKeyToPem(key, pwd)` | `write_key_to_pem(key, pwd, random?)`（多一个 IV 随机源参数） | ✅ |
+| `WriteKeyToPem(key, pwd)` | `write_key_to_pem(key, pwd, random?)`（多一个随机源参数，用于生成 salt） | ✅ |
 | `WriteKeyToPemFile(file, key, pwd)` | 无（同上） | ⏳ |
+
+本仓库在 gmsm 之外**新增**的 PEM 能力（2026-11-13）：
+
+| API | 说明 |
+| --- | --- |
+| `write_key_to_pem_with(key, pwd, random?, Sm4PemEncryption)` | 显式选择加密格式 |
+| `write_key_to_pem_legacy(key, pwd, random?)` | 写 Go `x509.EncryptPEMBlock` 旧格式，仅为互通 |
+| `Sm4PemEncryption::Pbkdf2HmacSm3(iterations)` / `LegacyX509` | 格式枚举 |
+| `sm4_pem_default_iterations` / `sm4_pem_max_iterations` / `sm4_pem_min_iterations` | 迭代次数默认值与上下限 |
+
+> **默认加密格式已改为安全格式**（PBKDF2-HMAC-SM3 → SM4-CBC → HMAC-SM3），
+> gmsm 的 `WriteKeyToPem` 默认走旧格式。按 README 旧版本（`AES-256-CBC`）写的
+> 对接代码需要改为显式调用 `write_key_to_pem_legacy`。
 
 > 依赖 `byteutil` 的 base64 + PEM 支持（见 §2.1 前置依赖），两者均已补齐。
 
@@ -152,7 +165,8 @@
 
 ### 3.4 SM3
 
-无缺失。`New()`（`hash.Hash` 语义）、`Sm3Sum`、`SumMulti` 均已覆盖，
+无缺失（2026-11-13 补记：`hmac_sm3` / `pbkdf2_hmac_sm3` 也在 `sm3` 包内，
+属本仓库相对 gmsm 的**新增**能力，原 `tjfoc/gmsm/sm3` 没有对应导出）。`New()`（`hash.Hash` 语义）、`Sm3Sum`、`SumMulti` 均已覆盖，
 流式状态的 `write / sum / reset / size / block_size` 行为与 Go 对齐。
 
 ---
@@ -175,6 +189,13 @@
 - **SM3**：一次性摘要、多段拼接摘要、流式状态机。
 - **SM4**：`NewCipher`（对齐 `cipher.Block`）、ECB / CBC / CFB / OFB、GCM、
   包级 `SetIV` / `IV` 默认向量。
+
+> **GCM 与 gmsm 的关系（2026-11-13 更新）**：本仓库 `sm4_gcm_encrypt` /
+> `sm4_gcm_decrypt` 输出**标准 GCM**，与 OpenSSL / BoringSSL / Go
+> `crypto/cipher` 一致，但与 tjfoc/gmsm 的 `sm4.Sm4GCM` **不同**——后者 GHASH
+> 长度块用字节长度、计数器进位被吞。要与 gmsm 互通请改用
+> `sm4_gcm_encrypt_legacy` / `sm4_gcm_decrypt_legacy`。因此「与原版一致」这一
+> 说法对 GCM 而言只对 `_legacy` 变体成立。
 
 ---
 

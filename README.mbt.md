@@ -14,7 +14,18 @@
 - `KeyExchangeA` / `KeyExchangeB` 密钥协商，`Compress` / `Decompress` 公钥压缩 / 解压；
 - ASN.1 签名格式 `SignDigitToSignData` / `SignDataToSignDigit`；
 - `PublicKey::za`（Z 值）、`PublicKey::sm3_digest`（e = SM3(ZA ‖ M)）与
-  `sm2_verify_digest`（对已有摘要验签，对应 Go 的 `ZA` / `Sm3Digest` / `Verify`）。
+  `sm2_verify_digest`（对已有摘要验签，对应 Go 的 `ZA` / `Sm3Digest` / `Verify`）；
+- `SM2PrivateKey::wipe()` 显式清零私钥标量。
+
+**错误模型**：除 `compress_point` / `derive_public_key` 等纯计算外，所有
+对外入口都用 `raise Sm2Error` 报告失败，**不会 abort / panic**。特别地：
+
+- `sm2_decrypt` 只抛 `InvalidCipher`，不再区分「点不在曲线上」「KDF 全零」
+  「C3 不匹配」，避免错误码本身成为解密 oracle；
+- `sm2_decrypt` 的 C3 比较走 `@byteutil.ct_eq`，是常量时间；
+- `key_exchange_a` / `key_exchange_b` 也返回 `raise Sm2Error`
+  （`KdfZeroKey` / `NotOnCurve` / `InvalidParameter`），与其余 API 一致；
+- `uid` 超过 8191 字节时统一抛 `InvalidParameter`，不再 abort。
 
 ### SM3
 
@@ -23,17 +34,35 @@
 
 ### SM4
 
-- `NewCipher` 块加密，对齐 Go `cipher.Block`；
-- `Sm4Ecb` / `Sm4Cbc` / `Sm4Cfb` / `Sm4Ofb` 各模式封装，附带 PKCS7 填充与 `SetIV`；
-- `Sm4Gcm` 对应 `Sm4GCM` / `GCMEncrypt` / `GCMDecrypt`；
+- `new_cipher` 块加密，对齐 Go `cipher.Block`；
+- `sm4_ecb` / `sm4_cbc` / `sm4_cfb` / `sm4_ofb` 各模式封装，附带 PKCS7 填充；
+- `sm4_gcm_encrypt` / `sm4_gcm_decrypt` 标准 GCM 认证加密（NIST SP 800-38D，
+  与 OpenSSL / BoringSSL / Go `crypto/cipher` 互通）；
+- `sm4_gcm_encrypt_legacy` / `sm4_gcm_decrypt_legacy` 复刻 tjfoc/gmsm 的**非标准**
+  GCM 输出（GHASH 长度块用字节长度、计数器进位被吞），只用于和既有 gmsm 部署互通；
 - `read_key_from_pem` / `write_key_to_pem` 密钥 PEM 读写，对应 Go 的
-  `ReadKeyFromPem` / `WriteKeyToPem`（口令非空时按 Go 旧版 `x509.EncryptPEMBlock`
-  的 `SM4 ENCRYPTED KEY` 格式用 AES-256-CBC 加密，与 gmsm 互通）。
+  `ReadKeyFromPem` / `WriteKeyToPem`。**默认**用安全格式
+  （PBKDF2-HMAC-SM3 → SM4-CBC → HMAC-SM3，块类型 `SM4 ENCRYPTED KEY`）；
+  需要写 Go 旧版 `x509.EncryptPEMBlock`（AES-256-CBC、无盐无迭代）时显式调用
+  `write_key_to_pem_legacy`，读取端两种格式都能识别。
+
+> ⚠️ **GCM 兼容性**：默认入口 `sm4_gcm_encrypt` / `sm4_gcm_decrypt` 是**标准 GCM**；
+> 与 gmsm 通信必须两端一致地改用 `_legacy` 变体。两组入口的密文 / tag **互不相同**，
+> 混用表现为「加密成功但对方验签失败」。
 
 ### byteutil
 
-- `base64_encode` / `base64_decode`；
-- `pem_encode` / `pem_encode_simple` / `pem_decode` / `pem_decode_all`。
+- `base64_encode` / `base64_decode`（解码接受省略 padding 的输入，与 Go
+  `base64.StdEncoding` 的读取端一致）；
+- `pem_encode` / `pem_encode_simple` / `pem_decode` / `pem_decode_all`
+  （header 段必须以空行结束，否则报错，不会把带冒号的正文行静默当成 header）；
+- `hex_to_bytes`（非法字符 / 奇数长度抛 `ByteUtilError::InvalidHex`，
+  不再 abort）、`hex_to_bytes_unchecked`（字面量专用，非法输入 abort）、
+  `bytes_to_hex`。
+
+**DER 严格性**：`normalize_32` 与各 `*_der` / `*_asn1` 入口要求**最小编码**——
+`INTEGER 00 00 01` 这类冗余前导零被拒绝；`SEQUENCE` 之后追加任意字节同样被拒绝
+（尾部必须耗尽）。同一个 r/s 或同一份密文只有唯一合法的字节表示。
 
 ## 快速上手
 
@@ -112,10 +141,15 @@ test "sm4 block and modes" {
   // GCM 认证加密
   let nonce = @byteutil.hex_to_bytes("000102030405060708090a0b")
   let aad = b"header"
+  // 标准 GCM（NIST SP 800-38D），与 OpenSSL / Go crypto/cipher 互通；
+  // 与 gmsm 互通需改用 sm4_gcm_encrypt_legacy / sm4_gcm_decrypt_legacy。
   let (gcm_ct, tag) = @sm4.sm4_gcm_encrypt(key, nonce, msg, aad)
   // 解密校验：tag 不符会抛 SM4Error::InvalidTag，不返回明文
   let plain = @sm4.sm4_gcm_decrypt(key, nonce, gcm_ct, aad, tag)
   assert_true(@byteutil.bytes_eq(plain, msg))
+  // 与 gmsm 的非标准变体结果不同（差异体现在 tag 上），两者不可混用
+  let (_, legacy_tag) = @sm4.sm4_gcm_encrypt_legacy(key, nonce, msg, aad)
+  assert_false(@byteutil.bytes_eq(tag, legacy_tag))
 }
 ```
 
@@ -197,7 +231,8 @@ test "sm4 key pem" {
   let pem = @sm4.write_key_to_pem(key, b"", None)
   assert_true(@byteutil.bytes_eq(@sm4.read_key_from_pem(pem, b""), key))
 
-  // 口令加密：块类型为 SM4 ENCRYPTED KEY，内容为 AES-256-CBC 密文
+  // 口令加密（默认）：块类型 SM4 ENCRYPTED KEY，
+  // 内容为 PBKDF2-HMAC-SM3 派生密钥 + SM4-CBC + HMAC-SM3 认证
   let enc = @sm4.write_key_to_pem(key, b"sm4-pwd", @sm4.os_rand())
   let block = @byteutil.pem_decode(enc)
   assert_eq(block.type_, "SM4 ENCRYPTED KEY")

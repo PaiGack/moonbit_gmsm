@@ -65,3 +65,30 @@ test "base64_decode_rejects_bad_input" {
   assert_true(decode_fails("Zg==Zg==")) // 填充之后还有数据
   assert_true(decode_fails("Z===")) // 填充超过 2 个
 }
+
+///|
+/// Padding 可省略（Go 的 `StdEncoding` 读取端接受不带 `=` 的输入），
+/// 但一旦出现 `=`，就必须完整且位于末尾。
+test "base64_decode_padding_rules" {
+  // 省略 padding
+  assert_eq(base64_decode("YWJjZA") catch { _ => b"" }, b"abcd")
+  assert_eq(base64_decode("YWJjZA==") catch { _ => b"" }, b"abcd")
+  assert_eq(base64_decode("YWJjZGU") catch { _ => b"" }, b"abcde")
+  assert_eq(base64_decode("YWJjZGU=") catch { _ => b"" }, b"abcde")
+  // 残留一个字符无法构成完整字节
+  assert_true(b64_error("YWJjZ") is Some(ByteUtilError::InvalidBase64))
+  // `=` 出现在数据中间 / 数量过多
+  assert_true(b64_error("YW=jZA==") is Some(ByteUtilError::InvalidBase64))
+  assert_true(b64_error("YQ===") is Some(ByteUtilError::InvalidBase64))
+  assert_true(b64_error("Y===") is Some(ByteUtilError::InvalidBase64))
+  // 非字母表字符
+  assert_true(b64_error("YWJj!_==") is Some(ByteUtilError::InvalidBase64))
+  // 空串是合法的
+  assert_eq(base64_decode("") catch { _ => b"x" }, b"")
+}
+
+///|
+fn b64_error(s : String) -> ByteUtilError? {
+  let _ = base64_decode(s) catch { e => return Some(e) }
+  None
+}

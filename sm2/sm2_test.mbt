@@ -327,3 +327,173 @@ test "sm2_verify_digest_rejects_bad_scalars" {
   )
   assert_true(@sm2.sm2_verify_digest(public_key, digest, r, s))
 }
+
+///|
+/// DER 可延展性：合法的 SEQUENCE 后面追加任意字节必须被拒绝。
+/// 否则同一份签名 / 密文可以有无数种字节表示，等于破坏 DER 的唯一编码。
+test "sm2_der_rejects_trailing_bytes" {
+  let private_key = @sm2.generate_key(@sm2.os_rand())
+  let public_key = @sm2.derive_public_key(private_key)
+  let uid = @sm2.default_uid()
+  let msg = b"canonical der"
+
+  // 签名侧
+  let (r, s) = @sm2.sm2_sign(private_key, msg, uid, @sm2.os_rand())
+  let der = @sm2.sign_digit_to_sign_data(r, s)
+  let der_padded = @byteutil.concat_bytes([der, b"\xDE\xAD\xBE\xEF"])
+  let sign_raised = try {
+    let _ = @sm2.sign_data_to_sign_digit(der_padded)
+    false
+  } catch {
+    @sm2.InvalidSignature => true
+    _ => false
+  }
+  assert_true(sign_raised)
+  // `sm2_verify_der` 对尾部残留同样返回 false，不会误判为验签通过
+  assert_false(@sm2.sm2_verify_der(public_key, msg, uid, der_padded))
+
+  // 密文侧
+  let der_cipher = @sm2.sm2_encrypt_asn1(public_key, msg, @sm2.os_rand())
+  let cipher_raised = try {
+    let _ = @sm2.cipher_unmarshal(
+      @byteutil.concat_bytes([der_cipher, b"\x00\x01\x02\x03"]),
+    )
+    false
+  } catch {
+    @sm2.InvalidCipher => true
+    _ => false
+  }
+  assert_true(cipher_raised)
+}
+
+///|
+/// 签名里的 INTEGER 必须是最小编码，`00 00 01` 这类冗余前导零要被拒绝。
+test "sm2_sign_der_rejects_non_minimal_integer" {
+  // SEQUENCE { INTEGER 00 00 01, INTEGER 01 }
+  let der = Bytes::from_array([
+    b'\x30', b'\x09', b'\x02', b'\x03', b'\x00', b'\x00', b'\x01', b'\x02', b'\x01',
+    b'\x01',
+  ])
+  let raised = try {
+    let _ = @sm2.sign_data_to_sign_digit(der)
+    false
+  } catch {
+    @sm2.InvalidSignature => true
+    _ => false
+  }
+  assert_true(raised)
+}
+
+///|
+/// `uid` 过长时，所有签名相关入口都必须走 `raise`，而不是 abort。
+test "sm2_long_uid_raises_instead_of_aborting" {
+  let private_key = @sm2.generate_key(@sm2.os_rand())
+  let public_key = @sm2.derive_public_key(private_key)
+  let long_uid = Bytes::makei(8192, fn(_) { b'A' })
+  let zero = Bytes::makei(32, fn(_) { b'\x00' })
+
+  let sign_raised = try {
+    let _ = @sm2.sm2_sign(private_key, b"m", long_uid, @sm2.os_rand())
+    false
+  } catch {
+    @sm2.InvalidParameter => true
+    _ => false
+  }
+  assert_true(sign_raised)
+
+  let verify_raised = try {
+    let _ = @sm2.sm2_verify(public_key, b"m", long_uid, zero, zero)
+    false
+  } catch {
+    @sm2.InvalidParameter => true
+    _ => false
+  }
+  assert_true(verify_raised)
+}
+
+///|
+/// 密钥协商不再有 abort 通道：`pubB` / `rpubB` 不在曲线上时抛 `NotOnCurve`，
+/// 与 `sm2_decrypt` 的校验一致。
+test "sm2_key_exchange_rejects_off_curve_peer" {
+  let priv_a = @sm2.generate_key(@sm2.os_rand())
+  let rpriv_a = @sm2.generate_key(@sm2.os_rand())
+  let priv_b = @sm2.generate_key(@sm2.os_rand())
+  let pub_b = @sm2.derive_public_key(priv_b)
+  let rpub_b = @sm2.derive_public_key(priv_b)
+  // 同一个 x、换一个 y，几乎必然不在曲线上
+  let bogus = Bytes::makei(32, fn(_) { b'\x01' })
+  let bad_b = @sm2.public_key_from_xy(
+    @sm2.sm2_p256(),
+    @byteutil.bn_to_bytes(pub_b.x),
+    bogus,
+  ) catch {
+    _ => @sm2.derive_public_key(priv_a) // 构造不出来就跳过：曲线参数固定时不会走到这里
+  }
+  let raised = try {
+    let _ = @sm2.key_exchange_a(
+      16, b"1234567812345678", b"1234567812345678", priv_a, bad_b, rpriv_a, rpub_b,
+    )
+    false
+  } catch {
+    @sm2.NotOnCurve => true
+    _ => false
+  }
+  // 只有真的构造出了曲线外的点，才期望抛错
+  if !@sm2.is_on_curve(bad_b) {
+    assert_true(raised)
+  }
+}
+
+///|
+/// 解密失败的三个来源（C1 不在曲线上、KDF 全零、C3 不匹配）对外统一成
+/// `InvalidCipher`，避免错误码本身成为判定 oracle。
+test "sm2_decrypt_reports_single_error_code" {
+  let private_key = @sm2.generate_key(@sm2.os_rand())
+  let public_key = @sm2.derive_public_key(private_key)
+  let msg = b"single error code"
+  let ct = @sm2.sm2_encrypt(public_key, msg, @sm2.os_rand(), @sm2.C1C3C2)
+
+  // 篡改 C3
+  let tampered_c3 = Bytes::makei(ct.length(), fn(i) {
+    if i == 70 {
+      (ct[i].to_uint() ^ 1U).to_byte()
+    } else {
+      ct[i]
+    }
+  })
+  let e1 = try {
+    let _ = @sm2.sm2_decrypt(private_key, tampered_c3, @sm2.C1C3C2)
+    None
+  } catch {
+    e => Some(e)
+  }
+  assert_true(e1 is Some(@sm2.InvalidCipher))
+
+  // 篡改 C1（把 x 置零，点基本不可能仍在曲线上）
+  let tampered_c1 = Bytes::makei(ct.length(), fn(i) {
+    if i >= 1 && i <= 32 {
+      b'\x00'
+    } else {
+      ct[i]
+    }
+  })
+  let e2 = try {
+    let _ = @sm2.sm2_decrypt(private_key, tampered_c1, @sm2.C1C3C2)
+    None
+  } catch {
+    e => Some(e)
+  }
+  assert_true(e2 is Some(@sm2.InvalidCipher))
+}
+
+///|
+/// `SM2PrivateKey::wipe` 把私钥标量清零，之后无法再推出原公钥。
+test "sm2_private_key_wipe" {
+  let sk = @sm2.generate_key(@sm2.os_rand())
+  let pub_before = @sm2.compress_point(@sm2.derive_public_key(sk))
+  sk.wipe()
+  let zeros = Bytes::makei(32, fn(_) { b'\x00' })
+  assert_true(@byteutil.bytes_eq(@byteutil.bn_to_bytes(sk.d), zeros))
+  let pub_after = @sm2.compress_point(@sm2.derive_public_key(sk))
+  assert_false(@byteutil.bytes_eq(pub_before, pub_after))
+}

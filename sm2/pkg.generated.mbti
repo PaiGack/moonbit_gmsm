@@ -23,9 +23,9 @@ pub fn generate_key(@random.Rand?) -> SM2PrivateKey raise Sm2Error
 
 pub fn is_on_curve(SM2PublicKey) -> Bool
 
-pub fn key_exchange_a(Int32, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
+pub fn key_exchange_a(Int32, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes) raise Sm2Error
 
-pub fn key_exchange_b(Int32, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes)
+pub fn key_exchange_b(Int32, Bytes, Bytes, SM2PrivateKey, SM2PublicKey, SM2PrivateKey, SM2PublicKey) -> (Bytes, Bytes, Bytes) raise Sm2Error
 
 pub fn os_rand() -> @random.Rand?
 
@@ -100,6 +100,7 @@ pub struct SM2PrivateKey {
   curve : SM2Curve
   d : FixedArray[UInt64]
 }
+pub fn SM2PrivateKey::wipe(Self) -> Unit
 
 pub struct SM2PublicKey {
   curve : SM2Curve

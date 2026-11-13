@@ -31,9 +31,19 @@ fn gy_bytes() -> Bytes {
 /// Compute ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA).
 ///
 /// Public counterpart of `sm2.ZA(pub, uid)`; see `SM2PublicKey::za`.
-fn za(xA : FixedArray[UInt64], yA : FixedArray[UInt64], uid : Bytes) -> Bytes {
+///
+/// Raises `InvalidParameter` when `uid` is 8192 bytes or longer, so ENTLA no
+/// longer fits in 16 bits. This is the same error model as
+/// `SM2PublicKey::za` — callers such as `sm2_sign` / `sm2_verify` /
+/// `key_exchange_*` therefore report a bad `uid` as a plain `Sm2Error`
+/// instead of aborting the process.
+fn za(
+  xA : FixedArray[UInt64],
+  yA : FixedArray[UInt64],
+  uid : Bytes,
+) -> Bytes raise Sm2Error {
   if uid.length() >= 8192 {
-    abort("Sm2Error::InvalidParameter: uid too long")
+    raise Sm2Error::InvalidParameter
   }
 
   let entl = uid.length() * 8

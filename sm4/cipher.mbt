@@ -67,9 +67,25 @@ pub fn SM4Cipher::decrypt(
 }
 
 ///|
-/// Set the IV carried by this cipher, used by the `cbc_*` / `cfb_*` / `ofb_*`
-/// helper methods below. Mirrors `sm4.SetIV`, but scoped to one cipher value
-/// instead of the whole package.
+/// Zero the expanded round keys (and the stored IV) in place.
+///
+/// Call it once the cipher is no longer needed: MoonBit has no destructor, so
+/// otherwise the round-key schedule stays in the heap until the collector
+/// reclaims it. The cipher is unusable afterwards.
+pub fn SM4Cipher::wipe(self : SM4Cipher) -> Unit {
+  for i in 0..<32 {
+    self.rk[i] = 0U
+    self.rk_rev[i] = 0U
+  }
+  for i in 0..<sm4_block_size {
+    self.iv[i] = b'\x00'
+  }
+}
+
+///|
+/// Set the IV carried by this cipher value (not shared across the package,
+/// unlike the deprecated free `set_iv`). The IV is only stored; no `SM4Cipher`
+/// method consumes it implicitly, so prefer passing the IV explicitly.
 pub fn SM4Cipher::set_iv(self : SM4Cipher, iv : Bytes) -> Unit raise SM4Error {
   if iv.length() != sm4_block_size {
     raise SM4Error::InvalidIV
@@ -91,8 +107,15 @@ pub fn SM4Cipher::get_iv(self : SM4Cipher) -> Bytes {
 let default_iv : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
 
 ///|
-/// Set the package-level default IV used by `sm4_cbc` / `sm4_cfb` /
-/// `sm4_ofb`. Mirrors `sm4.SetIV`; the IV must be exactly 16 bytes.
+/// Package-level IV mutator, kept only to mirror `sm4.SetIV`.
+///
+/// **Deprecated: do not use.** It is process-wide mutable state, so two
+/// independent call sites silently overwrite each other's IV, and the initial
+/// value is an all-zero IV — catastrophic for CBC (equal plaintext prefixes
+/// leak) and for CFB/OFB (key + IV reuse turns the cipher into a broken stream
+/// cipher). Prefer the explicit-IV entry points `sm4_encrypt_cbc` /
+/// `sm4_encrypt_cfb` / `sm4_encrypt_ofb`, which take the IV as a parameter.
+#deprecated("使用显式 IV 的 sm4_encrypt_cbc / sm4_encrypt_cfb / sm4_encrypt_ofb")
 pub fn set_iv(iv : Bytes) -> Unit raise SM4Error {
   if iv.length() != sm4_block_size {
     raise SM4Error::InvalidIV
@@ -103,8 +126,35 @@ pub fn set_iv(iv : Bytes) -> Unit raise SM4Error {
 }
 
 ///|
-/// Return a copy of the package-level default IV.
+/// Read the package-level IV. Deprecated together with `set_iv`; prefer the
+/// explicit-IV entry points.
+#deprecated("使用显式 IV 的 sm4_encrypt_cbc / sm4_encrypt_cfb / sm4_encrypt_ofb")
 pub fn get_iv() -> Bytes {
+  Bytes::makei(sm4_block_size, fn(i) { default_iv[i] })
+}
+
+///|
+/// Un-deprecated aliases of `set_iv` / `get_iv` for tests and for
+/// gmsm-compatibility shims that must keep using package-level state.
+pub fn set_iv_unchecked(iv : Bytes) -> Unit raise SM4Error {
+  if iv.length() != sm4_block_size {
+    raise SM4Error::InvalidIV
+  }
+  for i in 0..<sm4_block_size {
+    default_iv[i] = iv[i]
+  }
+}
+
+///|
+pub fn get_iv_unchecked() -> Bytes {
+  default_iv_copy()
+}
+
+///|
+/// Copy of the default IV for the `mode bool` wrappers below. Kept private so
+/// the deprecated public `get_iv` can stay deprecated without the package
+/// itself tripping the warning.
+fn default_iv_copy() -> Bytes {
   Bytes::makei(sm4_block_size, fn(i) { default_iv[i] })
 }
 
@@ -135,7 +185,7 @@ pub fn sm4_cbc(
   data : Bytes,
   encrypt : Bool,
 ) -> Bytes raise SM4Error {
-  let iv = get_iv()
+  let iv = default_iv_copy()
   if encrypt {
     sm4_encrypt_cbc(key, iv, @byteutil.pkcs7_pad(data, sm4_block_size))
   } else {
@@ -154,7 +204,7 @@ pub fn sm4_cfb(
   data : Bytes,
   encrypt : Bool,
 ) -> Bytes raise SM4Error {
-  let iv = get_iv()
+  let iv = default_iv_copy()
   if encrypt {
     cfb_core(key, iv, @byteutil.pkcs7_pad(data, sm4_block_size), true)
   } else {
@@ -173,7 +223,7 @@ pub fn sm4_ofb(
   data : Bytes,
   encrypt : Bool,
 ) -> Bytes raise SM4Error {
-  let iv = get_iv()
+  let iv = default_iv_copy()
   if encrypt {
     ofb_core(key, iv, @byteutil.pkcs7_pad(data, sm4_block_size))
   } else {
@@ -185,16 +235,16 @@ pub fn sm4_ofb(
 }
 
 ///|
-/// GCM mode dispatcher. `encrypt = true` performs authenticated encryption
-/// and returns `(ciphertext, tag)`. `encrypt = false` performs authenticated
-/// decryption: when `data` is the ciphertext followed by its 16-byte tag,
-/// the tag is verified in constant time and the returned pair is
-/// `(plaintext, empty)`. A tag mismatch raises `SM4Error::InvalidTag` and no
-/// plaintext is returned.
+/// GCM mode dispatcher, mirroring `sm4.Sm4GCM`.
 ///
-/// Input without an appended tag cannot be verified and is rejected with
-/// `SM4Error::InvalidTag` (length 0 included). Use `sm4_gcm_decrypt` when the
-/// tag is passed separately.
+/// `encrypt = true` returns `(ciphertext, tag)`. `encrypt = false` requires
+/// `data = ciphertext ‖ tag`, verifies the tag in constant time and returns
+/// `(plaintext, empty)`; input shorter than 16 bytes carries no tag and is
+/// rejected with `SM4Error::InvalidTag`.
+///
+/// Prefer `sm4_gcm_encrypt` / `sm4_gcm_decrypt`: they state their return
+/// value and do not hand back a meaningless second element.
+#deprecated("改用 sm4_gcm_encrypt / sm4_gcm_decrypt")
 pub fn sm4_gcm(
   key : Bytes,
   iv : Bytes,
