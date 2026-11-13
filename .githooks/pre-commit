@@ -1,3 +1,13 @@
 #!/bin/sh
+# 本地提交前的快速检查，与 CI 的关键检查项保持一致，
+# 避免「本地 moon check 过、CI 挂」的情况。
+set -e
 
-moon check
+echo "== moon fmt --check"
+moon fmt --check
+
+echo "== moon check --deny-warn"
+moon check --deny-warn
+
+echo "== moon test --deny-warn"
+moon test --deny-warn

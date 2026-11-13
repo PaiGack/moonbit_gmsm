@@ -93,3 +93,26 @@ test "pem_crlf" {
   assert_eq(block.type_, "X")
   assert_eq(block.bytes, b"\x01\x02\x03")
 }
+
+///|
+/// 正文里带冒号的行不会被当成 header 静默吃掉：header 段必须以空行结束。
+test "pem_body_line_with_colon_is_not_a_header" {
+  // 没有空行分隔 -> 拒绝，而不是"解析成功但 bytes 为空"
+  let no_blank = "-----BEGIN X-----\nAQ: ID\n-----END X-----\n"
+  let raised = try {
+    let _ = pem_decode(no_blank)
+    false
+  } catch {
+    ByteUtilError::InvalidBase64 => true
+    _ => false
+  }
+  assert_true(raised)
+  // 有空行分隔 -> 只有空行之前的那一行是 header
+  let with_blank = "-----BEGIN X-----\nAQ: ID\n\nQUJD\n-----END X-----\n"
+  let block = pem_decode(with_blank) catch {
+    _ => abort("expected a decodable block")
+  }
+  assert_eq(block.headers.length(), 1)
+  assert_eq(block.get_header("AQ"), Some("ID"))
+  assert_eq(block.bytes, b"ABC")
+}

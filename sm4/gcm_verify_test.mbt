@@ -5,12 +5,12 @@
 
 ///|
 fn gcm_key() -> Bytes {
-  @byteutil.hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
+  @byteutil.hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
 }
 
 ///|
 fn gcm_nonce() -> Bytes {
-  @byteutil.hex_to_bytes("000102030405060708090a0b")
+  @byteutil.hex_to_bytes_unchecked("000102030405060708090a0b")
 }
 
 ///|
@@ -106,18 +106,17 @@ test "sm4_gcm_decrypt_rejects_short_tag" {
 }
 
 ///|
-/// `sm4_gcm(..., false)` with `ct || tag` verifies and returns the plaintext
-/// with an empty tag.
+/// `sm4_gcm_decrypt` 用独立 tag 校验，返回的只有明文。
 test "sm4_gcm_decrypt_verifies_appended_tag" {
   let key = gcm_key()
   let (ct, tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), b"hello gcm", b"aad")
-  let packet = @byteutil.concat_bytes([ct, tag])
-  let (plain, tag2) = @sm4.sm4_gcm(key, gcm_nonce(), packet, b"aad", false)
-  assert_bytes_eq(plain, b"hello gcm")
-  assert_eq(tag2.length(), 0)
-  let bad_packet = with_byte(packet, 5, (packet[5].to_uint() ^ 0xFFU).to_byte())
-  let r : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm(key, gcm_nonce(), bad_packet, b"aad", false),
+  assert_bytes_eq(
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), ct, b"aad", tag),
+    b"hello gcm",
+  )
+  let bad_ct = with_byte(ct, 0, (ct[0].to_uint() ^ 0xFFU).to_byte())
+  let r : Result[Bytes, @sm4.SM4Error] = Ok(
+    @sm4.sm4_gcm_decrypt(key, gcm_nonce(), bad_ct, b"aad", tag),
   ) catch {
     e => Err(e)
   }
@@ -125,23 +124,20 @@ test "sm4_gcm_decrypt_verifies_appended_tag" {
 }
 
 ///|
-/// Input without an appended tag (block-aligned ciphertext, and empty input)
-/// is rejected by the dispatcher instead of returning unauthenticated
-/// plaintext.
-test "sm4_gcm_decrypt_rejects_missing_tag" {
+/// tag 长度不是 16 字节时直接拒绝（不做截断比较）。
+test "sm4_gcm_decrypt_rejects_bad_tag_length" {
   let key = gcm_key()
   let pt = Bytes::makei(32, fn(i) { (i * 3).to_byte() })
-  let (ct, _tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), pt, b"aad")
-  let r1 : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm(key, gcm_nonce(), ct, b"aad", false),
-  ) catch {
-    e => Err(e)
+  let (ct, tag) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), pt, b"aad")
+  for bad in [b"", tag[0:15].to_owned(), @byteutil.concat_bytes([tag, b"\x00"])] {
+    let r : Result[Bytes, @sm4.SM4Error] = Ok(
+      @sm4.sm4_gcm_decrypt(key, gcm_nonce(), ct, b"aad", bad),
+    ) catch {
+      e => Err(e)
+    }
+    assert_true(r is Err(@sm4.SM4Error::InvalidTag))
   }
-  assert_true(r1 is Err(@sm4.SM4Error::InvalidTag))
-  let r2 : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm(key, gcm_nonce(), b"", b"aad", false),
-  ) catch {
-    e => Err(e)
-  }
-  assert_true(r2 is Err(@sm4.SM4Error::InvalidTag))
+  // 空明文 + 正确 tag 依然合法
+  let (c0, t0) = @sm4.sm4_gcm_encrypt(key, gcm_nonce(), b"", b"aad")
+  assert_eq(@sm4.sm4_gcm_decrypt(key, gcm_nonce(), c0, b"aad", t0).length(), 0)
 }

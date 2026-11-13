@@ -13,6 +13,12 @@
 /// The parser skips any text before `-----BEGIN`, accepts bare-LF or CRLF line
 /// endings, and ignores the optional headers unless the caller asks for them.
 ///
+/// Headers are only recognised when they are separated from the base64 body
+/// by a blank line, as RFC 1421 / Go's `encoding/pem` require. A `Key: Value`
+/// looking line inside the body is *not* silently consumed as a header: a
+/// block that starts with such a line but never ends the header section with
+/// a blank line is rejected.
+///
 /// Implementation note: every helper below takes an owned `String`. Passing a
 /// `StringView` across function boundaries is unreliable in the current
 /// toolchain (a view handed to a callee compared unequal with the same text),
@@ -160,8 +166,10 @@ fn parse_block_at(
   }
   let mut i = start + 1
   let headers : Headers = []
-  // Headers are "Key: Value" lines; a blank line, an END line, or anything
-  // that is not a header ends them.
+  // Header section: zero or more "Key: Value" lines. It must be terminated
+  // by a blank line -- otherwise a base64 body that happens to contain a
+  // colon would be swallowed as a header, and the block would "parse" into
+  // nothing at all.
   let mut in_headers = true
   while i < n && in_headers {
     let h = lines[i]
@@ -169,12 +177,18 @@ fn parse_block_at(
       in_headers = false
     } else {
       match header_pair(h) {
-        Some(pair) => headers.push(pair)
+        Some(pair) => {
+          headers.push(pair)
+          i = i + 1
+        }
         None => in_headers = false
       }
-      if in_headers {
-        i = i + 1
-      }
+    }
+  }
+  if headers.length() > 0 {
+    // Every header must be followed by the blank separator line.
+    if i >= n || lines[i].length() != 0 {
+      raise ByteUtilError::InvalidBase64
     }
   }
   if i < n && lines[i].length() == 0 {

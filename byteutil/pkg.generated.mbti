@@ -46,7 +46,9 @@ pub fn get_u64_be(Bytes, Int32) -> UInt64
 
 pub fn hex_nibble(UInt16) -> Int32
 
-pub fn hex_to_bytes(String) -> Bytes
+pub fn hex_to_bytes(String) -> Bytes raise ByteUtilError
+
+pub fn hex_to_bytes_unchecked(String) -> Bytes
 
 pub fn int_to_bytes_be(Int32) -> Bytes
 
@@ -79,6 +81,7 @@ pub fn xor_bytes(Bytes, Bytes) -> Bytes
 pub suberror ByteUtilError {
   InvalidPadding
   InvalidBase64
+  InvalidHex
   InvalidLength
   InvalidDer
 }

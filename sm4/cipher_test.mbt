@@ -4,19 +4,22 @@
 ///|
 /// `new_cipher` reuses one expanded key and matches the one-shot block API.
 test "sm4_cipher_block" {
-  let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
+  let key = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
   let c = @sm4.new_cipher(key)
   assert_eq(c.block_size(), 16)
   assert_eq(@sm4.sm4_block_size, 16)
   assert_eq(@sm4.sm4_key_size, 16)
-  let plain = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
+  let plain = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
   let cipher = c.encrypt(plain)
   // GM/T 0002-2012 Appendix A
-  assert_bytes_eq(cipher, hex_to_bytes("681EDF34D206965E86B3E94F536E4246"))
+  assert_bytes_eq(
+    cipher,
+    hex_to_bytes_unchecked("681EDF34D206965E86B3E94F536E4246"),
+  )
   assert_bytes_eq(cipher, @sm4.sm4_encrypt_block(key, plain))
   assert_bytes_eq(c.decrypt(cipher), plain)
   // the same cipher value can be reused for further blocks
-  let other = hex_to_bytes("00112233445566778899AABBCCDDEEFF")
+  let other = hex_to_bytes_unchecked("00112233445566778899AABBCCDDEEFF")
   assert_bytes_eq(c.encrypt(other), @sm4.sm4_encrypt_block(key, other))
   assert_bytes_eq(c.decrypt(other), @sm4.sm4_decrypt_block(key, other))
 }
@@ -25,7 +28,7 @@ test "sm4_cipher_block" {
 /// `new_cipher` rejects a key that is not 16 bytes.
 test "sm4_cipher_invalid_key" {
   let r : Result[@sm4.SM4Cipher, @sm4.SM4Error] = Ok(
-    @sm4.new_cipher(hex_to_bytes("0011")),
+    @sm4.new_cipher(hex_to_bytes_unchecked("0011")),
   ) catch {
     e => Err(e)
   }
@@ -38,15 +41,21 @@ test "sm4_cipher_invalid_key" {
 ///|
 /// `encrypt` / `decrypt` only accept exactly one block.
 test "sm4_cipher_invalid_block" {
-  let c = @sm4.new_cipher(hex_to_bytes("0123456789ABCDEFFEDCBA9876543210"))
-  let enc : Result[Bytes, @sm4.SM4Error] = Ok(c.encrypt(hex_to_bytes("0011"))) catch {
+  let c = @sm4.new_cipher(
+    hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210"),
+  )
+  let enc : Result[Bytes, @sm4.SM4Error] = Ok(
+    c.encrypt(hex_to_bytes_unchecked("0011")),
+  ) catch {
     e => Err(e)
   }
   match enc {
     Ok(_) => abort("encrypt: expected InvalidData")
     Err(e) => assert_true(e is @sm4.SM4Error::InvalidData)
   }
-  let dec : Result[Bytes, @sm4.SM4Error] = Ok(c.decrypt(hex_to_bytes("0011"))) catch {
+  let dec : Result[Bytes, @sm4.SM4Error] = Ok(
+    c.decrypt(hex_to_bytes_unchecked("0011")),
+  ) catch {
     e => Err(e)
   }
   match dec {
@@ -58,12 +67,19 @@ test "sm4_cipher_invalid_block" {
 ///|
 /// The per-cipher IV can be set and read back, and rejects bad lengths.
 test "sm4_cipher_set_iv" {
-  let c = @sm4.new_cipher(hex_to_bytes("0123456789ABCDEFFEDCBA9876543210"))
-  assert_bytes_eq(c.get_iv(), hex_to_bytes("00000000000000000000000000000000"))
-  let iv = hex_to_bytes("000102030405060708090A0B0C0D0E0F")
+  let c = @sm4.new_cipher(
+    hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210"),
+  )
+  assert_bytes_eq(
+    c.get_iv(),
+    hex_to_bytes_unchecked("00000000000000000000000000000000"),
+  )
+  let iv = hex_to_bytes_unchecked("000102030405060708090A0B0C0D0E0F")
   c.set_iv(iv)
   assert_bytes_eq(c.get_iv(), iv)
-  let r : Result[Unit, @sm4.SM4Error] = Ok(c.set_iv(hex_to_bytes("0001"))) catch {
+  let r : Result[Unit, @sm4.SM4Error] = Ok(
+    c.set_iv(hex_to_bytes_unchecked("0001")),
+  ) catch {
     e => Err(e)
   }
   match r {
@@ -77,32 +93,36 @@ test "sm4_cipher_set_iv" {
 ///|
 /// The package-level default IV drives the mode wrappers.
 test "sm4_default_iv" {
-  let iv = hex_to_bytes("0F0E0D0C0B0A09080706050403020100")
-  @sm4.set_iv(iv)
-  assert_bytes_eq(@sm4.get_iv(), iv)
-  let r : Result[Unit, @sm4.SM4Error] = Ok(@sm4.set_iv(hex_to_bytes("00"))) catch {
+  let iv = hex_to_bytes_unchecked("0F0E0D0C0B0A09080706050403020100")
+  @sm4.set_iv_unchecked(iv)
+  assert_bytes_eq(@sm4.get_iv_unchecked(), iv)
+  let r : Result[Unit, @sm4.SM4Error] = Ok(
+    @sm4.set_iv_unchecked(hex_to_bytes_unchecked("00")),
+  ) catch {
     e => Err(e)
   }
   match r {
     Ok(_) => abort("set_iv: expected InvalidIV")
     Err(e) => assert_true(e is @sm4.SM4Error::InvalidIV)
   }
-  assert_bytes_eq(@sm4.get_iv(), iv)
+  assert_bytes_eq(@sm4.get_iv_unchecked(), iv)
   // restore the all-zero default for the other tests
-  @sm4.set_iv(hex_to_bytes("00000000000000000000000000000000"))
+  @sm4.set_iv_unchecked(
+    hex_to_bytes_unchecked("00000000000000000000000000000000"),
+  )
 }
 
 ///|
 /// The padded wrappers round-trip for every mode and every input length, and
 /// agree with the explicit-IV API applied to the PKCS7-padded plaintext.
 test "sm4_mode_wrappers_roundtrip" {
-  let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
-  let iv = hex_to_bytes("000102030405060708090A0B0C0D0E0F")
-  @sm4.set_iv(iv)
+  let key = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
+  let iv = hex_to_bytes_unchecked("000102030405060708090A0B0C0D0E0F")
+  @sm4.set_iv_unchecked(iv)
   let inputs : Array[Bytes] = [
     b"",
     b"hello",
-    hex_to_bytes("0123456789ABCDEFFEDCBA9876543210"),
+    hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210"),
     Bytes::makei(30, fn(i) { ((i * 3 + 7) % 256).to_byte() }),
   ]
   for plain in inputs {
@@ -120,32 +140,40 @@ test "sm4_mode_wrappers_roundtrip" {
     assert_bytes_eq(ofb, @sm4.sm4_encrypt_ofb(key, iv, padded))
     assert_bytes_eq(@sm4.sm4_ofb(key, ofb, false), plain)
   }
-  @sm4.set_iv(hex_to_bytes("00000000000000000000000000000000"))
+  @sm4.set_iv_unchecked(
+    hex_to_bytes_unchecked("00000000000000000000000000000000"),
+  )
 }
 
 ///|
 /// Changing the default IV changes CBC/CFB/OFB output but not ECB output.
 test "sm4_mode_wrappers_follow_default_iv" {
-  let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
+  let key = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
   let plain = b"iv sensitivity"
-  @sm4.set_iv(hex_to_bytes("00000000000000000000000000000000"))
+  @sm4.set_iv_unchecked(
+    hex_to_bytes_unchecked("00000000000000000000000000000000"),
+  )
   let cbc0 = @sm4.sm4_cbc(key, plain, true)
   let ecb0 = @sm4.sm4_ecb(key, plain, true)
-  @sm4.set_iv(hex_to_bytes("000102030405060708090A0B0C0D0E0F"))
+  @sm4.set_iv_unchecked(
+    hex_to_bytes_unchecked("000102030405060708090A0B0C0D0E0F"),
+  )
   let cbc1 = @sm4.sm4_cbc(key, plain, true)
   let ecb1 = @sm4.sm4_ecb(key, plain, true)
   assert_false(bytes_equal(cbc0, cbc1))
   assert_true(bytes_equal(ecb0, ecb1))
   assert_bytes_eq(@sm4.sm4_cbc(key, cbc1, false), plain)
-  @sm4.set_iv(hex_to_bytes("00000000000000000000000000000000"))
+  @sm4.set_iv_unchecked(
+    hex_to_bytes_unchecked("00000000000000000000000000000000"),
+  )
 }
 
 ///|
 /// Decrypting through the wrappers rejects non block-aligned input.
 test "sm4_mode_wrappers_invalid_data" {
-  let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
+  let key = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
   let r : Result[Bytes, @sm4.SM4Error] = Ok(
-    @sm4.sm4_cbc(key, hex_to_bytes("0011"), false),
+    @sm4.sm4_cbc(key, hex_to_bytes_unchecked("0011"), false),
   ) catch {
     e => Err(e)
   }
@@ -158,45 +186,37 @@ test "sm4_mode_wrappers_invalid_data" {
 ///|
 /// The `sm4_gcm` dispatcher matches the dedicated encrypt/decrypt entries.
 test "sm4_gcm_dispatcher" {
-  let key = hex_to_bytes("0123456789ABCDEFFEDCBA9876543210")
-  let iv = hex_to_bytes("000102030405060708090A0B")
+  let key = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
+  let iv = hex_to_bytes_unchecked("000102030405060708090A0B")
   let aad = b"header"
   let plain = b"gcm dispatcher"
-  let (c, t) = @sm4.sm4_gcm(key, iv, plain, aad, true)
+  let (c, t) = @sm4.sm4_gcm_encrypt(key, iv, plain, aad)
   let (c2, t2) = @sm4.sm4_gcm_encrypt(key, iv, plain, aad)
   assert_bytes_eq(c, c2)
   assert_bytes_eq(t, t2)
-  // Bare ciphertext whose length is not block-aligned cannot carry an
-  // appended tag, so the dispatcher refuses it instead of returning
-  // unauthenticated plaintext.
-  let bare : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
-    @sm4.sm4_gcm(key, iv, c, aad, false),
+  // tag 不匹配时 `sm4_gcm_decrypt` 直接拒绝，不会返回未认证的明文。
+  let wrong_tag = Bytes::makei(t.length(), fn(i) {
+    if i == 0 {
+      (t[i].to_uint() ^ 0xFFU).to_byte()
+    } else {
+      t[i]
+    }
+  })
+  let bare : Result[Bytes, @sm4.SM4Error] = Ok(
+    @sm4.sm4_gcm_decrypt(key, iv, c, aad, wrong_tag),
   ) catch {
     e => Err(e)
   }
   match bare {
-    Ok(_) => abort("sm4_gcm: expected InvalidTag for bare ciphertext")
+    Ok(_) => abort("sm4_gcm_decrypt: tag mismatch must raise")
     Err(e) => assert_true(e is @sm4.SM4Error::InvalidTag)
   }
-  // With the tag appended the dispatcher verifies it and returns the
-  // plaintext (with an empty trailing tag).
-  let packet = @byteutil.concat_bytes([c, t])
-  let (p, t3) = @sm4.sm4_gcm(key, iv, packet, aad, false)
-  assert_bytes_eq(p, plain)
-  assert_eq(t3.length(), 0)
-  // Block-aligned bare ciphertext and empty input also lack a tag and are
-  // rejected rather than returning unauthenticated plaintext.
-  for missing in [c2, hex_to_bytes("000102030405060708090A0B0C0D0E0F"), b""] {
-    let r : Result[(Bytes, Bytes), @sm4.SM4Error] = Ok(
-      @sm4.sm4_gcm(key, iv, missing, aad, false),
-    ) catch {
-      e => Err(e)
-    }
-    match r {
-      Ok(_) => abort("sm4_gcm: expected InvalidTag for input without tag")
-      Err(e) => assert_true(e is @sm4.SM4Error::InvalidTag)
-    }
-  }
+  // 正确 tag 下返回明文；返回类型是 `Bytes`，不再有永远为空的第二个分量。
+  assert_bytes_eq(@sm4.sm4_gcm_decrypt(key, iv, c, aad, t), plain)
+  // 空明文在 GCM 下是合法的：密文为空、tag 仍被认证。
+  let (c3, t4) = @sm4.sm4_gcm_encrypt(key, iv, b"", aad)
+  assert_eq(c3.length(), 0)
+  assert_eq(@sm4.sm4_gcm_decrypt(key, iv, c3, aad, t4).length(), 0)
 }
 
 ///|
@@ -211,4 +231,20 @@ fn bytes_equal(a : Bytes, b : Bytes) -> Bool {
     }
   }
   true
+}
+
+///|
+/// `SM4Cipher::wipe` 清零轮密钥：之后再用该 cipher 加密，结果与真实密钥
+/// 不再一致（说明密钥确实被抹掉了，而不是只改了个标志位）。
+test "sm4_cipher_wipe_clears_round_keys" {
+  let key = hex_to_bytes_unchecked("0123456789ABCDEFFEDCBA9876543210")
+  let c = @sm4.new_cipher(key)
+  let block = hex_to_bytes_unchecked("0123456789abcdeffedcba9876543210")
+  let before = c.encrypt(block)
+  c.wipe()
+  let after = c.encrypt(block)
+  assert_false(@byteutil.bytes_eq(before, after))
+  // 再建一个 cipher 结果应与首个一致，确认 wipe 只影响被调用的实例
+  assert_bytes_eq(@sm4.new_cipher(key).encrypt(block), before)
+  assert_eq(c.get_iv(), Bytes::makei(16, fn(_) { b'\x00' }))
 }

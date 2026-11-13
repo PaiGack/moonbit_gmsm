@@ -519,7 +519,12 @@ fn gf_mult_arr(x : FixedArray[Byte], y : Bytes) -> FixedArray[Byte] {
 ///|
 /// GHASH over additional data `a` and ciphertext `c` (both arbitrary length,
 /// zero-padded to 16-byte blocks). `h` is the GHASH subkey E_K(0^128).
-fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
+///
+/// `bit_lengths = true` is the GCM specification (NIST SP 800-38D): the final
+/// block holds `len(A) * 8 || len(C) * 8`. `false` reproduces tjfoc/gmsm's
+/// quirk of writing the **byte** lengths there, kept only for the legacy
+/// gmsm-compatible path.
+fn ghash(h : Bytes, a : Bytes, c : Bytes, bit_lengths : Bool) -> Bytes {
   let mut x : FixedArray[Byte] = FixedArray::makei(16, fn(_) { b'\x00' })
   let a_blocks = (a.length() + 15) / 16
   for i in 0..<a_blocks {
@@ -540,12 +545,11 @@ fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
     x = gf_mult_arr(x, h)
   }
   // length block: 64-bit length of A || 64-bit length of C.
-  // NOTE: mirrors tjfoc/gmsm `GHASH`, which uses *byte* lengths here (not the
-  // bit lengths required by the GCM specification).
   // Use UInt64 so the 56-bit right shifts stay within range (a 32-bit UInt
   // would reduce shifts >= 32 modulo 32 and corrupt the block).
-  let a_len : UInt64 = a.length().reinterpret_as_uint().to_uint64()
-  let c_len : UInt64 = c.length().reinterpret_as_uint().to_uint64()
+  let scale : UInt64 = if bit_lengths { 8UL } else { 1UL }
+  let a_len : UInt64 = a.length().reinterpret_as_uint().to_uint64() * scale
+  let c_len : UInt64 = c.length().reinterpret_as_uint().to_uint64() * scale
   for k in 0..<8 {
     let bk = ((a_len >> (56 - k * 8)) & 0xFFUL).to_uint().to_byte()
     x[k] = (x[k].to_uint() ^ bk.to_uint()).to_byte()
@@ -561,7 +565,7 @@ fn ghash(h : Bytes, a : Bytes, c : Bytes) -> Bytes {
 ///|
 /// Initial counter block J0. For a 96-bit IV: J0 = IV || 0x00000001.
 /// Otherwise: J0 = GHASH(H, "", IV).
-fn gcm_get_y0(h : Bytes, iv : Bytes) -> Bytes {
+fn gcm_get_y0(h : Bytes, iv : Bytes, bit_lengths : Bool) -> Bytes {
   if iv.length() * 8 == 96 {
     let y0 : FixedArray[Byte] = FixedArray::makei(16, fn(i) {
       if i < iv.length() {
@@ -574,18 +578,36 @@ fn gcm_get_y0(h : Bytes, iv : Bytes) -> Bytes {
     })
     Bytes::makei(16, fn(i) { y0[i] })
   } else {
-    ghash(h, Bytes::makei(0, fn(_) { b'\x00' }), iv)
+    ghash(h, Bytes::makei(0, fn(_) { b'\x00' }), iv, bit_lengths)
   }
 }
 
 ///|
-/// Increment the 128-bit counter block by 1. Mirrors tjfoc/gmsm `addYone`
-/// (used by `incr`). The arithmetic is done byte-wise (mod 256), so a byte
-/// equal to `0xff` plus a carry wraps to `0x00` *and* stays `0x00` (the
-/// incoming carry is absorbed), rather than producing `0x01`. This quirk is
-/// required so the generated counter blocks match `sm4.Sm4GCM`'s output
-/// byte-for-byte.
-fn gcm_inc(y : Bytes) -> Bytes {
+/// Increment the 128-bit counter block by 1.
+///
+/// `standard = true` is the GCM specification: the last 32 bits are
+/// interpreted as a big-endian unsigned integer and incremented modulo 2^32,
+/// with the leading 96 bits left untouched.
+///
+/// `standard = false` mirrors tjfoc/gmsm `addYone`: the arithmetic is done
+/// byte-wise over all 16 bytes, so a byte equal to `0xff` plus a carry wraps
+/// to `0x00` *and* absorbs the carry instead of producing `0x01`. Kept only so
+/// the legacy gmsm-compatible path can reproduce its output byte-for-byte.
+fn gcm_inc(y : Bytes, standard : Bool) -> Bytes {
+  if standard {
+    let out : FixedArray[Byte] = FixedArray::makei(16, fn(i) { y[i] })
+    // Increment the low 32 bits modulo 2^32; they may legitimately wrap to 0.
+    let low = (out[12].to_uint() << 24) |
+      (out[13].to_uint() << 16) |
+      (out[14].to_uint() << 8) |
+      out[15].to_uint()
+    let next = (low + 1U) & 0xFFFF_FFFFU
+    out[12] = ((next >> 24) & 0xFFU).to_byte()
+    out[13] = ((next >> 16) & 0xFFU).to_byte()
+    out[14] = ((next >> 8) & 0xFFU).to_byte()
+    out[15] = (next & 0xFFU).to_byte()
+    return Bytes::makei(16, fn(i) { out[i] })
+  }
   let out : FixedArray[Byte] = FixedArray::makei(16, fn(i) { y[i] })
   let mut rc : UInt32 = 0U
   for k = 15; k >= 0; k = k - 1 {
@@ -612,22 +634,57 @@ fn gcm_inc(y : Bytes) -> Bytes {
 }
 
 ///|
-/// SM4 GCM authenticated encryption. Returns `(ciphertext, tag)`.
-/// `iv` may be any length (96-bit IV uses the standard J0 form); `plaintext`
-/// and `aad` are arbitrary length (no padding). Mirrors tjfoc/gmsm
-/// `sm4.Sm4GCM` / `GCMEncrypt` (tag length 16 bytes / 128 bits).
+/// SM4 GCM authenticated encryption (NIST SP 800-38D). Returns
+/// `(ciphertext, tag)`; the tag is 16 bytes / 128 bits.
+///
+/// `iv` may be any length (a 96-bit IV uses the standard `J0 = IV ‖ 00000001`
+/// form); `plaintext` and `aad` are arbitrary length and are not padded.
+///
+/// This is the interoperable variant: it matches any standard GCM
+/// implementation (OpenSSL, BoringSSL, Go's `crypto/cipher`). See
+/// `sm4_gcm_encrypt_legacy` for the byte-compatible-with-gmsm variant, which
+/// produces **different** output.
 pub fn sm4_gcm_encrypt(
   key : Bytes,
   iv : Bytes,
   plaintext : Bytes,
   aad : Bytes,
 ) -> (Bytes, Bytes) raise SM4Error {
+  gcm_encrypt_with(key, iv, plaintext, aad, true)
+}
+
+///|
+/// SM4 GCM authenticated encryption reproducing tjfoc/gmsm's (non-standard)
+/// output byte-for-byte: the GHASH length block holds byte lengths and the
+/// counter increment swallows carries.
+///
+/// Use it only to talk to an existing gmsm deployment. It is **not**
+/// compatible with standard GCM. Prefer `sm4_gcm_encrypt`.
+pub fn sm4_gcm_encrypt_legacy(
+  key : Bytes,
+  iv : Bytes,
+  plaintext : Bytes,
+  aad : Bytes,
+) -> (Bytes, Bytes) raise SM4Error {
+  gcm_encrypt_with(key, iv, plaintext, aad, false)
+}
+
+///|
+/// GCM encryption core. `standard = true` selects the specification-compliant
+/// behaviour, `false` the gmsm-compatible one.
+fn gcm_encrypt_with(
+  key : Bytes,
+  iv : Bytes,
+  plaintext : Bytes,
+  aad : Bytes,
+  standard : Bool,
+) -> (Bytes, Bytes) raise SM4Error {
   if key.length() != 16 {
     raise SM4Error::InvalidKey
   }
   let rk = sm4_expand_key(key)
   let h = sm4_block(rk, Bytes::makei(16, fn(_) { b'\x00' }))
-  let y0 = gcm_get_y0(h, iv)
+  let y0 = gcm_get_y0(h, iv, standard)
   let l = plaintext.length()
   let n = if l == 0 { 1 } else { (l + 15) / 16 }
   let yblocks : FixedArray[Bytes] = FixedArray::makei(n + 1, fn(_) {
@@ -635,7 +692,7 @@ pub fn sm4_gcm_encrypt(
   })
   yblocks[0] = y0
   for i in 1..<=n {
-    yblocks[i] = gcm_inc(yblocks[i - 1])
+    yblocks[i] = gcm_inc(yblocks[i - 1], standard)
   }
   let cipher : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
   for i in 1..<n {
@@ -658,7 +715,7 @@ pub fn sm4_gcm_encrypt(
   }
   let c = Bytes::makei(l, fn(i) { cipher[i] })
   let ey0 = sm4_block(rk, y0)
-  let s = ghash(h, aad, c)
+  let s = ghash(h, aad, c, standard)
   let tag = @byteutil.xor_bytes(ey0, s)
   (c, Bytes::makei(16, fn(i) { tag[i] }))
 }
@@ -678,10 +735,37 @@ pub fn sm4_gcm_decrypt(
   aad : Bytes,
   tag : Bytes,
 ) -> Bytes raise SM4Error {
+  gcm_decrypt_with(key, iv, ciphertext, aad, tag, true)
+}
+
+///|
+/// SM4 GCM authenticated decryption matching `sm4_gcm_encrypt_legacy` (i.e.
+/// tjfoc/gmsm's non-standard GCM). Use it only for data produced by
+/// `sm4_gcm_encrypt_legacy`; it will reject standard GCM ciphertexts.
+pub fn sm4_gcm_decrypt_legacy(
+  key : Bytes,
+  iv : Bytes,
+  ciphertext : Bytes,
+  aad : Bytes,
+  tag : Bytes,
+) -> Bytes raise SM4Error {
+  gcm_decrypt_with(key, iv, ciphertext, aad, tag, false)
+}
+
+///|
+/// GCM decryption core with explicit tag verification.
+fn gcm_decrypt_with(
+  key : Bytes,
+  iv : Bytes,
+  ciphertext : Bytes,
+  aad : Bytes,
+  tag : Bytes,
+  standard : Bool,
+) -> Bytes raise SM4Error {
   if tag.length() != 16 {
     raise SM4Error::InvalidTag
   }
-  let (plain, computed) = gcm_decrypt_raw(key, iv, ciphertext, aad)
+  let (plain, computed) = gcm_decrypt_raw(key, iv, ciphertext, aad, standard)
   if !@byteutil.ct_eq(computed, tag) {
     raise SM4Error::InvalidTag
   }
@@ -696,13 +780,14 @@ fn gcm_decrypt_raw(
   iv : Bytes,
   ciphertext : Bytes,
   aad : Bytes,
+  standard : Bool,
 ) -> (Bytes, Bytes) raise SM4Error {
   if key.length() != 16 {
     raise SM4Error::InvalidKey
   }
   let rk = sm4_expand_key(key)
   let h = sm4_block(rk, Bytes::makei(16, fn(_) { b'\x00' }))
-  let y0 = gcm_get_y0(h, iv)
+  let y0 = gcm_get_y0(h, iv, standard)
   let l = ciphertext.length()
   let n = if l == 0 { 1 } else { (l + 15) / 16 }
   let yblocks : FixedArray[Bytes] = FixedArray::makei(n + 1, fn(_) {
@@ -710,10 +795,10 @@ fn gcm_decrypt_raw(
   })
   yblocks[0] = y0
   for i in 1..<=n {
-    yblocks[i] = gcm_inc(yblocks[i - 1])
+    yblocks[i] = gcm_inc(yblocks[i - 1], standard)
   }
   let ey0 = sm4_block(rk, y0)
-  let s = ghash(h, aad, ciphertext)
+  let s = ghash(h, aad, ciphertext, standard)
   let tag = @byteutil.xor_bytes(ey0, s)
   let plain : FixedArray[Byte] = FixedArray::makei(l, fn(_) { b'\x00' })
   for i in 1..<n {

@@ -3,6 +3,8 @@
 ## Pre-commit Hook
 
 This pre-commit hook performs automatic checks before finalizing your commit.
+It runs the same core checks as CI: `moon fmt --check`, `moon check --deny-warn`
+and `moon test --deny-warn`. If any of them fail the commit is aborted.
 
 ### Usage Instructions
 

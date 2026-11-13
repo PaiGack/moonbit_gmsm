@@ -1,5 +1,8 @@
 //| SM2 demo (GM/T 0003-2012): key generation, signature, encryption,
 //| point compression and key exchange. Run with `moon run cmd/sm2`.
+//|
+//| 注意：示例会打印私钥与协商出的共享密钥，仅为演示算法流程。生产代码不要
+//| 记录 / 打印私钥，用完请调用 `wipe()` 清零。
 
 ///|
 fn main {
@@ -10,7 +13,8 @@ fn main {
     let pri = @gmsm_sm2.generate_key(@gmsm_sm2.os_rand())
     let pubk = @gmsm_sm2.derive_public_key(pri)
     println(
-      "Private key d : " + @byteutil.bytes_to_hex(@byteutil.bn_to_bytes(pri.d)),
+      "[demo only] Private key d : " +
+      @byteutil.bytes_to_hex(@byteutil.bn_to_bytes(pri.d)),
     )
     println(
       "Public key  X : " + @byteutil.bytes_to_hex(@byteutil.bn_to_bytes(pubk.x)),
@@ -97,7 +101,15 @@ fn main {
     println(
       "Key exchange equal : " + @byteutil.bstr(@byteutil.bytes_eq(ka, kb)),
     )
-    println("Shared key (hex)   : " + @byteutil.bytes_to_hex(ka))
+    println("[demo only] Shared key (hex) : " + @byteutil.bytes_to_hex(ka))
+
+    // 用完即抹：MoonBit 没有析构钩子，显式清零私钥可缩短其在内存中的存活期。
+    pri.wipe()
+    let zero = Bytes::makei(32, fn(_) { b'\x00' })
+    println(
+      "Private key wiped   : " +
+      @byteutil.bstr(@byteutil.bytes_eq(@byteutil.bn_to_bytes(pri.d), zero)),
+    )
 
     println("========== SM2 Demo Done ==========")
   } catch {

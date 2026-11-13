@@ -465,12 +465,21 @@ fn asn1_expect_tlv(
 /// order. Every element must fit in its parent and the SEQUENCE must be
 /// well-formed; everything else is reported as `InvalidSignature`. Each
 /// yielded element is `(content_start, content_end, tag)`.
+///
+/// When `end_limit` is the end of the whole input (the top level), the
+/// SEQUENCE must also **exhaust** it: trailing bytes after `-----END` of the
+/// SEQUENCE are rejected instead of being silently ignored. Otherwise one
+/// valid signature / ciphertext could be padded with arbitrary bytes and
+/// still be accepted, which breaks DER canonical form.
 fn asn1_sequence_children(
   der : Bytes,
   off : Int32,
   end_limit : Int32,
 ) -> Array[(Int32, Int32, Int32)] raise Sm2Error {
   let (seq_start, seq_end) = asn1_expect_tlv(der, off, end_limit, b'\x30')
+  if end_limit == der.length() && seq_end != end_limit {
+    raise Sm2Error::InvalidSignature
+  }
   let children : Array[(Int32, Int32, Int32)] = []
   // Walk with a plain `while` cursor: each step fully validates the next TLV
   // (tag byte present, length parses, content inside the SEQUENCE) before it
@@ -663,20 +672,21 @@ pub fn sm2_decrypt(
   let x2b = @byteutil.bn_to_bytes(x2)
   let y2b = @byteutil.bn_to_bytes(y2)
   let (t, ok) = kdf(c2.length(), [x2b, y2b])
+  // Every failure below is reported as `InvalidCipher`. Distinguishing "bad
+  // point", "KDF zero" and "bad C3" would hand an attacker a decryption
+  // oracle: with the private key fixed, a tampered C1 could otherwise be
+  // told apart from a tampered C3 by the error code alone.
   if !ok {
-    raise Sm2Error::KdfZeroKey
+    raise Sm2Error::InvalidCipher
   }
 
   let dec = @byteutil.xor_bytes(c2, t)
   let u_input = @byteutil.concat_bytes([x2b, dec, y2b])
   let u = @sm3.sm3_sum(u_input)
-  if u.length() != c3.length() {
+  // Constant-time C3 check: `bytes_eq` returns on the first difference, which
+  // leaks the matching prefix length through timing.
+  if !@byteutil.ct_eq(u, c3) {
     raise Sm2Error::InvalidCipher
-  }
-  for i in 0..<u.length() {
-    if u[i] != c3[i] {
-      raise Sm2Error::InvalidCipher
-    }
   }
   dec
 }
@@ -785,7 +795,7 @@ pub fn key_exchange_a(
   pubB : SM2PublicKey,
   rpriA : SM2PrivateKey,
   rpubB : SM2PublicKey,
-) -> (Bytes, Bytes, Bytes) {
+) -> (Bytes, Bytes, Bytes) raise Sm2Error {
   let pubA = derive_public_key(priA)
   let rpubA = derive_public_key(rpriA)
 
@@ -823,7 +833,7 @@ pub fn key_exchange_a(
   let y2b = @byteutil.bn_to_bytes(y2)
   let (k, ok) = kdf(klen, [x2b, y2b, za_a, zb_b])
   if !ok {
-    abort("KDF all-zero key")
+    raise Sm2Error::KdfZeroKey
   }
 
   // gmsm hashes the responder's ephemeral point first on both sides.
@@ -850,7 +860,7 @@ pub fn key_exchange_b(
   pubA : SM2PublicKey,
   rpriB : SM2PrivateKey,
   rpubA : SM2PublicKey,
-) -> (Bytes, Bytes, Bytes) {
+) -> (Bytes, Bytes, Bytes) raise Sm2Error {
   let pubB = derive_public_key(priB)
   let rpubB = derive_public_key(rpriB)
 
@@ -886,7 +896,7 @@ pub fn key_exchange_b(
   let y2b = @byteutil.bn_to_bytes(y2)
   let (k, ok) = kdf(klen, [x2b, y2b, za_a, zb_b])
   if !ok {
-    abort("KDF all-zero key")
+    raise Sm2Error::KdfZeroKey
   }
 
   let inner = compute_ke_inner(
@@ -995,3 +1005,20 @@ pub extend Sm2Error with @debug.Debug::{to_repr}
 
 ///|
 pub extend Sm2Error with Eq::{not_equal, equal}
+
+///|
+/// Zero the private scalar in place.
+///
+/// MoonBit has no destructor hook, so key material stays in the heap until the
+/// collector reclaims it (and a moving/copying collector may not overwrite the
+/// old bytes at all). This gives callers an explicit way to shorten that
+/// window: call it as soon as the key is no longer needed.
+///
+/// The key is unusable afterwards — `derive_public_key` / `sm2_sign` will
+/// produce garbage. The struct is left intact so no method can observe a
+/// half-cleared state.
+pub fn SM2PrivateKey::wipe(self : SM2PrivateKey) -> Unit {
+  for i in 0..<4 {
+    self.d[i] = 0UL
+  }
+}
