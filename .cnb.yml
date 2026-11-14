@@ -1,17 +1,15 @@
 # .cnb.yml
+# 云原生开发环境镜像（.ide/Dockerfile）中已预装 MoonBit 等工具链，CI 通过 *dev-env 复用同一镜像。
 $:
   vscode:
-    - docker:
-        # 指定开发环境镜像，可以是任意可访问的镜像。
-        # 如果 image 指定的镜像中已安装 code-server 代码服务，将使用单容器模式启动开发环境
-        # 如果 image 指定的镜像中未安装 code-server 代码服务，将使用双容器模式启动开发环境
-        # 如下镜像为 CNB 默认开发环境镜像，已安装代码服务，将使用单容器模式启动开发环境
-        # 可按需替换为其他镜像
-        build: 
+    # 指定开发环境镜像，可以是任意可访问的镜像。
+    # 如果 image 指定的镜像中已安装 code-server 代码服务，将使用单容器模式启动开发环境
+    # 如果 image 指定的镜像中未安装 code-server 代码服务，将使用双容器模式启动开发环境
+    # 如下镜像为 CNB 默认开发环境镜像，已安装代码服务，将使用单容器模式启动开发环境
+    # 可按需替换为其他镜像
+    - docker: &dev-env
+        build:
           dockerfile: .ide/Dockerfile
-        #   by:
-        #     - .ide/vscode-server.sh
-        # image: docker.cnb.cool/nrzhangsan/solana-simple/env:latest
       runner:
         cpus: 8
       services:
@@ -22,4 +20,18 @@ $:
         - name: CNB_VSCODE_PROXY_URI
           script:
             - echo "# endpoints" >> CNB_VSCODE_PROXY_URI
-            - echo "$CNB_VSCODE_PROXY_URI" >> CNB_VSCODE_PROXY_URI
+            - echo "$(printenv CNB_VSCODE_PROXY_URI)" >> CNB_VSCODE_PROXY_URI
+
+  push:
+    - name: MoonBit check & test
+      docker: *dev-env
+      stages:
+        - name: MoonBit CI
+          script: bash scripts/ci.sh
+
+  pull_request:
+    - name: MoonBit check & test
+      docker: *dev-env
+      stages:
+        - name: MoonBit CI
+          script: bash scripts/ci.sh
