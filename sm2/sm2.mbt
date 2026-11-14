@@ -22,9 +22,39 @@ pub struct SM2PublicKey {
 }
 
 ///|
+/// Curve parameters of this public key.
+pub fn SM2PublicKey::curve(self : SM2PublicKey) -> SM2Curve {
+  self.curve
+}
+
+///|
+/// Affine x coordinate as 32 big-endian bytes (a fresh copy each call).
+pub fn SM2PublicKey::x_bytes(self : SM2PublicKey) -> Bytes {
+  @byteutil.bn_to_bytes(self.x)
+}
+
+///|
+/// Affine y coordinate as 32 big-endian bytes (a fresh copy each call).
+pub fn SM2PublicKey::y_bytes(self : SM2PublicKey) -> Bytes {
+  @byteutil.bn_to_bytes(self.y)
+}
+
+///|
 pub struct SM2PrivateKey {
   curve : SM2Curve
   d : Bn
+}
+
+///|
+/// Curve parameters of this private key.
+pub fn SM2PrivateKey::curve(self : SM2PrivateKey) -> SM2Curve {
+  self.curve
+}
+
+///|
+/// Private scalar `d` as 32 big-endian bytes (a fresh copy each call).
+pub fn SM2PrivateKey::to_bytes(self : SM2PrivateKey) -> Bytes {
+  @byteutil.bn_to_bytes(self.d)
 }
 
 ///|

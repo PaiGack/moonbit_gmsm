@@ -100,6 +100,8 @@ pub struct SM2PrivateKey {
   curve : SM2Curve
   d : FixedArray[UInt64]
 }
+pub fn SM2PrivateKey::curve(Self) -> SM2Curve
+pub fn SM2PrivateKey::to_bytes(Self) -> Bytes
 pub fn SM2PrivateKey::wipe(Self) -> Unit
 
 pub struct SM2PublicKey {
@@ -107,7 +109,10 @@ pub struct SM2PublicKey {
   x : FixedArray[UInt64]
   y : FixedArray[UInt64]
 }
+pub fn SM2PublicKey::curve(Self) -> SM2Curve
 pub fn SM2PublicKey::sm3_digest(Self, Bytes, Bytes) -> Bytes raise Sm2Error
+pub fn SM2PublicKey::x_bytes(Self) -> Bytes
+pub fn SM2PublicKey::y_bytes(Self) -> Bytes
 pub fn SM2PublicKey::za(Self, Bytes) -> Bytes raise Sm2Error
 
 // Type aliases

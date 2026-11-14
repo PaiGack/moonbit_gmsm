@@ -92,7 +92,7 @@ test "sm2_compress_decompress_roundtrip" {
   assert_true(compressed[0] == b'\x02' || compressed[0] == b'\x03')
   let decompressed = @sm2.decompress_point(compressed)
   assert_true(@sm2.is_on_curve(decompressed))
-  assert_eq(compressed[0] == b'\x02', (decompressed.y[0] & 1UL) == 0UL)
+  assert_eq(compressed[0] == b'\x02', (decompressed.y_bytes()[31] & 1) == 0)
 }
 
 ///|
@@ -116,9 +116,9 @@ test "sm2_key_exchange" {
   )
   // the four static/ephemeral keys must really be different, otherwise the
   // agreement below would hold trivially
-  assert_false(bn_equal(priv_a.d, priv_b.d))
-  assert_false(bn_equal(rpriv_a.d, rpriv_b.d))
-  assert_false(bn_equal(priv_a.d, rpriv_a.d))
+  assert_false(@byteutil.bytes_eq(priv_a.to_bytes(), priv_b.to_bytes()))
+  assert_false(@byteutil.bytes_eq(rpriv_a.to_bytes(), rpriv_b.to_bytes()))
+  assert_false(@byteutil.bytes_eq(priv_a.to_bytes(), rpriv_a.to_bytes()))
   assert_eq(ka.length(), klen)
   for i in 0..<klen {
     assert_eq(ka[i], kb[i])
@@ -141,17 +141,6 @@ fn bytes_same(a : Bytes, b : Bytes) -> Bool {
     return false
   }
   for i in 0..<a.length() {
-    if a[i] != b[i] {
-      return false
-    }
-  }
-  true
-}
-
-///|
-/// Helper: compare two 4-limb scalars.
-fn bn_equal(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Bool {
-  for i in 0..<4 {
     if a[i] != b[i] {
       return false
     }
@@ -422,11 +411,7 @@ test "sm2_key_exchange_rejects_off_curve_peer" {
   let rpub_b = @sm2.derive_public_key(priv_b)
   // 同一个 x、换一个 y，几乎必然不在曲线上
   let bogus = Bytes::makei(32, fn(_) { b'\x01' })
-  let bad_b = @sm2.public_key_from_xy(
-    @sm2.sm2_p256(),
-    @byteutil.bn_to_bytes(pub_b.x),
-    bogus,
-  ) catch {
+  let bad_b = @sm2.public_key_from_xy(@sm2.sm2_p256(), pub_b.x_bytes(), bogus) catch {
     _ => @sm2.derive_public_key(priv_a) // 构造不出来就跳过：曲线参数固定时不会走到这里
   }
   let raised = try {
@@ -493,7 +478,7 @@ test "sm2_private_key_wipe" {
   let pub_before = @sm2.compress_point(@sm2.derive_public_key(sk))
   sk.wipe()
   let zeros = Bytes::makei(32, fn(_) { b'\x00' })
-  assert_true(@byteutil.bytes_eq(@byteutil.bn_to_bytes(sk.d), zeros))
+  assert_true(@byteutil.bytes_eq(sk.to_bytes(), zeros))
   let pub_after = @sm2.compress_point(@sm2.derive_public_key(sk))
   assert_false(@byteutil.bytes_eq(pub_before, pub_after))
 }
