@@ -225,15 +225,20 @@ pub fn write_key_to_pem_legacy(
 
 ///|
 /// 用操作系统 CSPRNG（`@env.rand`）播种一个 `@random.Rand`，可直接传给
-/// `write_key_to_pem`。平台无 OS 熵源时返回 `None`，此时调用方需自行
-/// 提供安全播种的生成器。
+/// `write_key_to_pem`。
 ///
-/// `moonbitlang/core/env` 在 `wasm-gc` 上没有 OS 熵源，此时改用
-/// `@sm2.seed_from_entropy` 混合环境中可获得的熵来播种。
+/// 平台无 OS 熵源时（例如 `wasm-gc`，`@env.rand` 恒报失败）退化为
+/// `@sm2.seed_from_entropy()` 播种，并先向 stderr 打印告警：该来源在完全
+/// 隔离的主机上只剩时钟与调用计数器，**不是密码学安全的**。
 pub fn os_rand() -> @random.Rand? {
   let seed = match @env.rand(32) {
     Some(seed) => seed
-    None => @sm2.seed_from_entropy()
+    None => {
+      eprintln(
+        "[gmsm] WARNING: no OS entropy source available; falling back to seed_from_entropy() (clock + call counter). PEM keys/IVs generated with this source are NOT cryptographically secure.",
+      )
+      @sm2.seed_from_entropy()
+    }
   }
   Some(@random.Rand::chacha8(seed~))
 }

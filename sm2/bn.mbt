@@ -622,13 +622,18 @@ fn add_8(a : FixedArray[UInt64], b : FixedArray[UInt64]) -> Unit {
 /// (`@env.rand`). Prefer this over `@random.Rand::chacha8()` when the caller
 /// has no secret seed of its own.
 ///
-/// Returns `None` on platforms where the OS entropy source is unavailable;
-/// in that case the caller must supply its own securely seeded
-/// `@random.Rand`.
+/// When the platform has no usable OS entropy source (e.g. `wasm-gc`, where
+/// `moonbitlang/core/env` always reports failure), this falls back to
+/// `seed_from_entropy()` **and writes a warning to stderr**. The fallback is
+/// only as strong as the host's exposed entropy (worst case: clock + call
+/// counter), so such a generator is not suitable for protecting secrets in a
+/// fully isolated host. The warning is the only signal; callers that need to
+/// reject such a source should call `seed_from_entropy()` themselves and
+/// decide.
 ///
-/// `moonbitlang/core/env` has no entropy source on `wasm-gc`, so there the
-/// generator is keyed by `seed_from_entropy`, which also gathers provider
-/// entropy (including `@env.rand` wherever the host supplies it).
+/// Returning `None` here would make `generate_key(os_rand())` fail outright on
+/// `wasm-gc`; a loud but working fallback is preferred so the platform stays
+/// usable while the degradation is visible.
 pub fn os_rand() -> @random.Rand? {
   match os_entropy() {
     Some(seed) => Some(@random.Rand::chacha8(seed~))
@@ -639,22 +644,26 @@ pub fn os_rand() -> @random.Rand? {
 ///|
 /// Collect OS entropy for seeding a CSPRNG.
 ///
-/// Hybrid of the two kinds of source a host can offer:
-///
-/// - **provider entropy** (`@env.rand`): authoritative where it exists. It is
-///   returned immediately when the host fills it, so `os_rand()` keeps its
-///   previous output on `native`, `js` and `wasm`.
-/// - **seed entropy** (`seed_from_entropy`): used when the host guarantees no
-///   entropy source (`wasm-gc`, whose `@env.rand` always reports
-///   failure/unimplemented). It gathers whatever entropy the environment
-///   exposes, so a `wasm-gc` host that *does* implement `@env.rand` still
-///   contributes to the seed.
+/// Prefers the host's provider entropy (`@env.rand`). The only case that
+/// reaches the fallback below is a host where the provider exists but reports
+/// failure, or a platform without one; on `wasm-gc`, `@env.rand` always
+/// reports failure. The fallback is `seed_from_entropy()` plus a stderr
+/// warning, so degradation is never silent (audit S2).
 fn os_entropy() -> Bytes? {
-  let provider = @env.rand(32)
-  match provider {
+  match @env.rand(32) {
     Some(seed) => Some(seed)
-    None => Some(seed_from_entropy())
+    None => Some(warn_weak_entropy_source())
   }
+}
+
+///|
+/// Fall back to `seed_from_entropy()` for CSPRNG seeding, warning on stderr
+/// first. Kept private so that every caller of the unsafe path is loud.
+fn warn_weak_entropy_source() -> Bytes {
+  eprintln(
+    "[gmsm] WARNING: no OS entropy source available; falling back to seed_from_entropy() (clock + call counter). The generated keys/nonces are NOT cryptographically secure. Supply an explicitly seeded @random.Rand in production.",
+  )
+  seed_from_entropy()
 }
 
 ///|

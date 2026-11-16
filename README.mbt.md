@@ -27,6 +27,14 @@
   （`KdfZeroKey` / `NotOnCurve` / `InvalidParameter`），与其余 API 一致；
 - `uid` 超过 8191 字节时统一抛 `InvalidParameter`，不再 abort。
 
+**随机源**：所有随机数入口（`generate_key` / `sm2_sign` / `sm2_encrypt` /
+`key_exchange_*` 等）接收 `@random.Rand?`，没有进程级兜底；传入 `None`
+会抛 `MissingRandomSource`。`os_rand()` 用 `@env.rand` 的 OS 熵源播种。
+平台不提供 OS 熵源时（如 `wasm-gc`）退化为 `seed_from_entropy()`
+（时钟 + 调用计数器），并**向 stderr 打印告警**——该种子可预测，只保证
+平台可用，生产环境必须换用自备的安全种子。`seed_from_entropy()` 同时作为
+公开接口保留，文档已标注其不安全性。
+
 ### SM3
 
 - `Sm3Sum` / `Sm3SumMulti` 一次性摘要；

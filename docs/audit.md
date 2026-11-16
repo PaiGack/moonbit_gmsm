@@ -48,6 +48,14 @@
   `seed_from_entropy` 保留为显式的、文档标注不安全的接口。`sm4/utils.mbt:233`
   的 `os_rand` 同样处理。
 
+**修复状态（2026-11-16）**：按「保留 wasm 可用性」的决定，处理方式是
+**退化 + 告警**而不是报错——`sm2::os_entropy()` 在 `@env.rand` 为 `None` 时先向
+stderr 打印 `[gmsm] WARNING: no OS entropy source available ...`，再退回
+`seed_from_entropy()`；`sm4::os_rand` 同样处理（告警后调用
+`@sm2.seed_from_entropy()`）。退化不再是静默的，`MissingRandomSource` 只保留给
+调用方显式传入 `None` 的情形。`seed_from_entropy` 文档仍标注「not
+unpredictable」。README 新增「随机源」段落说明该行为。测试 352/352 通过。
+
 ### S3. 密钥协商不校验任何公钥/临时点的曲线成员关系，静默算出错误密钥【实测】
 [sm2.mbt:853-857]（A 侧）与 [sm2.mbt:916-920]（B 侧）把 `rpubB` / `pubB`
 直接喂给 `point_from_pubkey` + `scalar_mult`，**没有** `point_is_on_curve_affine`。
