@@ -664,6 +664,10 @@ fn os_entropy() -> Bytes? {
 /// fallback. `@random.Rand::chacha8()` uses a fixed public seed, so using it
 /// as a default (or sharing one stream process-wide) would make signing
 /// nonces, private keys and ephemeral encryption keys predictable.
+///
+/// Rejection sampling is bounded: a source that never yields `1 ≤ k < n`
+/// (for example one stuck returning zero) raises `MissingRandomSource`
+/// instead of spinning forever.
 fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] raise Sm2Error {
   let n = n_limbs()
   let k : FixedArray[UInt64] = FixedArray::makei(4, fn(_) { 0UL })
@@ -671,12 +675,12 @@ fn bn_rand_k(random : @random.Rand?) -> FixedArray[UInt64] raise Sm2Error {
     Some(r) => r
     None => raise MissingRandomSource
   }
-  while true {
+  for _attempt in 0..<(64 : Int32) {
     let buf = Bytes::makei(32, fn(_i) { (r.int(limit=256) & 0xFF).to_byte() })
     @byteutil.bn_from_bytes(k, buf, 0)
     if !bn_is_zero(k) && bn_lt(k, n) {
       return k
     }
   }
-  k
+  raise Sm2Error::MissingRandomSource
 }

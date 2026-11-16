@@ -511,6 +511,77 @@ test "generate_key_with_provided_rand" {
 }
 
 ///|
+/// A `@random.Source` that always yields zero, so every candidate scalar is
+/// rejected. Used to prove rejection-sampling loops are bounded.
+struct ZeroSource {}
+
+///|
+impl @random.Source for ZeroSource with fn next(self) -> UInt64 {
+  ignore(self)
+  0UL
+}
+
+///|
+fn zero_rand() -> @random.Rand {
+  @random.Rand::Rand(generator=ZeroSource::{ })
+}
+
+///|
+test "private_key_from_bytes_rejects_n_minus_1" {
+  let curve = sm2_p256()
+  let d = @byteutil.bn_to_bytes(n_minus_1(curve.n))
+  let res : Result[Unit, Sm2Error] = try {
+    ignore(private_key_from_bytes(curve, d))
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  match res {
+    Err(InvalidParameter) => ()
+    _ => abort("expected InvalidParameter for d = n-1")
+  }
+}
+
+///|
+test "private_key_from_bytes_accepts_n_minus_2" {
+  let curve = sm2_p256()
+  let n2 = FixedArray::makei(4, fn(i) {
+    if i == 0 {
+      curve.n[0] - 2UL
+    } else {
+      curve.n[i]
+    }
+  })
+  let pk = private_key_from_bytes(curve, @byteutil.bn_to_bytes(n2))
+  assert_eq(pk.to_bytes(), @byteutil.bn_to_bytes(n2))
+  ignore(derive_public_key(pk))
+}
+
+///|
+/// A broken random source that only ever yields rejected scalars must raise
+/// instead of looping forever, both when generating a key and when signing.
+test "degenerate_random_source_does_not_hang" {
+  let curve = sm2_p256()
+  let ok : Result[Unit, Sm2Error] = try {
+    ignore(generate_key(Some(zero_rand())))
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  assert_true(ok is Err(MissingRandomSource))
+  let pk = private_key_from_bytes(
+    curve, b"\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff\x01",
+  )
+  let res : Result[Unit, Sm2Error] = try {
+    ignore(sm2_sign(pk, b"m", default_uid(), Some(zero_rand())))
+    Ok(())
+  } catch {
+    e => Err(e)
+  }
+  assert_true(res is Err(MissingRandomSource))
+}
+
+///|
 test "sm2_verify_s_out_of_range" {
   // r valid, s = n (out of range) -> InvalidSignature (sv branch).
   let private_key = generate_key(os_rand())

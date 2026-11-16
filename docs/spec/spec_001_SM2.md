@@ -93,7 +93,7 @@ p = FFFFFFFE FFFFFFFF FFFFFFFF FFFFFFFF FFFFFFFF 00000000 FFFFFFFF FFFFFFFF
 | `bn_modsqr_p(r, a)` | 同上 |
 | `bn_modinv_p(r, a)` | Fermat：`a^(p-2) mod p`（平方-乘 256 轮）；后续可换为 `addchain` |
 | `bn_mod_n(r, a)` | 模曲线阶 n。n < 2^256 但与 NIST P-256 的 n 不同，**不**复用 P-256 约简路径；采用「算到 512-bit 再用 `n` 减几次」朴素方案（gmsm 同款） |
-| `bn_rand_k(random) -> FA[U64]` | 1 ≤ k ≤ n-1（签名随机数，**不是**私钥生成；用 MoonBit `random` 接口；**必须**传入安全播种的随机源，`None` 直接 abort）。算法：`k = (rand_bytes mod (n-1)) + 1`（与 gmsm `sm2.go:622-637` `randFieldElement` 一致） |
+| `bn_rand_k(random) -> FA[U64]` | 1 ≤ k ≤ n-1（签名随机数，**不是**私钥生成；用 MoonBit `random` 接口；**必须**传入安全播种的随机源，`None` 抛 `MissingRandomSource`）。算法：拒绝采样——取 32 字节大端整数，`0 < k < n` 才接受，否则重抽；重试上限 64 次，超限抛 `MissingRandomSource`（与 gmsm `sm2.go:622-637` `randFieldElement` 的采样范围一致，但 gmsm 用取模，本实现用拒绝采样以避免取模偏差） |
 
 #### 2.1.1 模 `p` 快速约简（4 × 64-bit 路径）
 
@@ -337,14 +337,15 @@ pub suberror Sm2Error {
   InvalidCipher         // 密文 C3 校验失败 / 长度错误 / ASN.1 解码失败
   InvalidSignature      // 签名 ASN.1 解析失败
   InvalidPoint          // 压缩点首字节非法 / 椭圆曲线点无效
-  InvalidParameter      // 通用参数错误（uid 过长、int_to_bytes_be 越界）
+  InvalidParameter      // 通用参数错误（uid 过长、int_to_bytes_be 越界、私钥 d = n-1）
   KdfZeroKey            // KDF 输出全 0
-} derive(Show, Eq)
+  MissingRandomSource   // 随机源为 None，或拒绝采样超过重试上限
+} derive(Debug, Eq)
 ```
 
 > 与 gmsm 的 `errZeroParam`（sm2.go:65）保持兼容；`InvalidParameter`/`InvalidSignature`/`InvalidPoint`/`KdfZeroKey` 是在 gmsm 错误语义上做的细化（gmsm 全部用 `errors.New("...")`，未细分）。
 
-`@random.Rand?` 是 MoonBit 标准库的伪随机源（`moonbitlang/core/random`）。`None` 表示**没有**随机源：库内部一律 abort，不再提供进程内共享的 `Rand::chacha8()` 兜底（其固定默认种子会让私钥、签名 nonce 和临时密钥可预测）。推荐直接使用 `@sm2.os_rand()`（用 `@env.rand` 的 OS 熵源播种），测试需要可复现时传入显式播种的 `Rand::chacha8(seed=...)`。
+`@random.Rand?` 是 MoonBit 标准库的伪随机源（`moonbitlang/core/random`）。`None` 表示**没有**随机源：库内部一律抛 `MissingRandomSource`（不 abort），不再提供进程内共享的 `Rand::chacha8()` 兜底（其固定默认种子会让私钥、签名 nonce 和临时密钥可预测）。推荐直接使用 `@sm2.os_rand()`（用 `@env.rand` 的 OS 熵源播种），测试需要可复现时传入显式播种的 `Rand::chacha8(seed=...)`。
 
 ## 3. 互操作性与字节序约定
 
@@ -566,6 +567,8 @@ mode = C1C3C2
 | 压缩首字节 ≠ 02/03 | `decompress_point` | `Sm2Error::InvalidPoint` |
 | 私钥 d = 0 | `derive_public_key` / `private_key_from_bytes` | `Sm2Error::ZeroParam` |
 | 私钥 d ≥ n | `private_key_from_bytes` | `Sm2Error::ZeroParam`（gmsm 用 `errZeroParam`） |
+| 私钥 d = n-1 | `private_key_from_bytes` / `generate_key` | 跳过；`private_key_from_bytes` 抛 `Sm2Error::InvalidParameter`，`sm2_sign` 对这类 d 亦抛 `InvalidParameter`（`(1+d)⁻¹` 不存在，无法签名） |
+| 随机源持续产出非法标量（超过 64 次重试） | `generate_key` / `sm2_sign` / `sm2_encrypt` / `bn_rand_k` | `Sm2Error::MissingRandomSource`（不挂起、不 abort） |
 | 公钥点不在曲线 | `public_key_from_xy` | `Sm2Error::NotOnCurve` |
 | uid 长度 ≥ 8192 字节 | `za` | `Sm2Error::InvalidParameter`（沿用 gmsm `uidLen >= 8192` 字节校验，`sm2.go:446`） |
 | uid 为空 | `sm2_sign` / `sm2_verify` | 允许，gmsm 默认走 `default_uid` 路径 |
@@ -583,7 +586,7 @@ mode = C1C3C2
 | M1 大数层 | `sm2/bn.mbt` | `moon check`、`bn_*` 全部白盒通过；含 1000+ 组随机 512-bit 输入与 `math/big` 模 p/模 n 比对 |
 | M2 点运算 | `sm2/curve.mbt` | `point_double/add` 与硬编码 KAT 比对通过 |
 | M2.5 辅助函数 | `sm2/primitives.mbt` | `default_uid` / `za` / `kdf` / `ke_x_hat` / `int_to_bytes_be` 白盒通过；`za` 与手工拼装 ENTLA=0x0080 ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA 的 SM3 摘要比对 |
-| M3 密钥对 | `sm2/sm2.mbt` 替换 `generate_key`/`derive_public_key`/`is_on_curve` | (a) `private_key_from_bytes(d)` 当 `d ∈ [0, n-1]` 时成功，`d == 0` 或 `d >= n` 时抛 `ZeroParam`；(b) 固定 `zeroReader` 作 `random` 时 `generate_key` 产出稳定公钥；(c) `derive_public_key(d)` 与 gmsm `ScalarBaseMult(d)` 在固定 d 下字节级一致 |
+| M3 密钥对 | `sm2/sm2.mbt` 替换 `generate_key`/`derive_public_key`/`is_on_curve` | (a) `private_key_from_bytes(d)` 当 `d ∈ [1, n-2]` 时成功，`d == 0` 或 `d >= n` 时抛 `ZeroParam`，`d == n-1` 时抛 `InvalidParameter`；(b) 固定 `zeroReader` 作 `random` 时 `generate_key` 产出稳定公钥；(c) `derive_public_key(d)` 与 gmsm `ScalarBaseMult(d)` 在固定 d 下字节级一致 |
 | M4 签名 | `sm2/sm2.mbt` `sm2_sign`/`sm2_verify` | 黑盒 round-trip + gmsm 生成的确定性 KAT 字节级一致（见 §4.4 强制验收项） |
 | M5 加解密 | `sm2/sm2.mbt` `sm2_encrypt`/`sm2_decrypt` | 黑盒 round-trip + gmsm 生成的确定性 KAT 字节级一致（见 §4.5 强制验收项） |
 | M6 协商 | `sm2/sm2.mbt` `key_exchange_a/b` | `TestKEB2` KAT 全通过（`k1 == k2 == expk`, `S1 == Sb`, `Sa == S2`） |

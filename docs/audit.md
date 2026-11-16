@@ -11,7 +11,7 @@
 
 ## 🔴 严重
 
-### S1. `d = n-1` 的合法私钥签名时死循环【实测】
+### S1. `d = n-1` 的合法私钥签名时死循环【实测】【已修复】
 [crypto 签名][sm2/sm2.mbt:293] 计算 `inv = (1 + d)⁻¹ mod n`。`d = n-1` 时
 `1 + d ≡ 0`，`bn_modinv_n(0)` 返回 0，于是 `s = inv · t ≡ 0` 恒成立；
 [sm2.mbt:343] 的 `if bn_is_zero(s) { continue }` **永不退出**，循环内重新取 k
@@ -25,6 +25,14 @@
   `sm2_sign` 计算 `one_plus_d` 后为 0 时 `raise InvalidParameter`（两者都做更稳）。
   同时把 `while true` 改为有界重试 + 最终 `raise`，去掉 [sm2.mbt:348] 的
   `abort("unreachable")`（它违反 README「不 abort」的承诺）。
+
+**修复状态（2026-11-16）**：上述三处均已落地——
+`check_private_scalar` 拒绝 `d = n-1`（`InvalidParameter`），`generate_key`
+在拒绝采样中跳过它；`sm2_sign` 在 `(1+d) mod n == 0` 时立即
+`raise InvalidParameter`；`sm2_sign`、`bn_rand_k`、`generate_key` 的采样循环
+统一为 64 次有界重试，超限 `raise MissingRandomSource`，`abort` 已删除。
+白盒测试：`private_key_from_bytes_rejects_n_minus_1`、
+`private_key_from_bytes_accepts_n_minus_2`、`degenerate_random_source_does_not_hang`。
 
 ### S2. `os_rand()` 在无熵平台上静默退化，`MissingRandomSource` 永远不会触发【读码】
 [sm2/bn.mbt:652] `os_entropy()` 的 `None => Some(seed_from_entropy())` 使得

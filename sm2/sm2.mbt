@@ -102,6 +102,39 @@ pub fn sm2_p256() -> SM2Curve {
 }
 
 ///|
+/// Upper bound on rejection-sampling rounds when drawing a private scalar or a
+/// signing nonce. A healthy CSPRNG accepts with overwhelming probability on the
+/// first round; hitting this bound means the source is broken, not unlucky.
+const MAX_RANDOM_ATTEMPTS : Int32 = 64
+
+///|
+/// `n - 1` as a fresh 4-limb big number.
+fn n_minus_1(n : Bn) -> Bn {
+  FixedArray::makei(4, fn(i) { if i == 0 { n[0] - 1UL } else { n[i] } })
+}
+
+///|
+/// Reject private scalars that the signing equation cannot handle.
+///
+/// `d = 0` and `d ≥ n` are outside the group order (`ZeroParam`). `d = n-1`
+/// is technically in range, but it makes `(1 + d) mod n = 0`, so the signature
+/// equation `s = (1 + d)⁻¹ · (k - r·d) mod n` has no solution and signing would
+/// loop forever. It is rejected here rather than only at signing time so no
+/// unusable key can be constructed.
+fn check_private_scalar(curve : SM2Curve, d : Bn) -> Unit raise Sm2Error {
+  if bn_is_zero(d) || !bn_lt(d, curve.n) {
+    raise Sm2Error::ZeroParam
+  }
+  if bn_eq(d, n_minus_1(curve.n)) {
+    raise Sm2Error::InvalidParameter
+  }
+}
+
+///|
+/// Parse a 32-byte big-endian private scalar.
+///
+/// Raises `ZeroParam` when `d` is 0 or `d ≥ n`, and `InvalidParameter` when
+/// `d = n-1` (see `check_private_scalar`).
 pub fn private_key_from_bytes(
   curve : SM2Curve,
   d : Bytes,
@@ -111,9 +144,7 @@ pub fn private_key_from_bytes(
   }
   let dv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   @byteutil.bn_from_bytes(dv, d, 0)
-  if bn_is_zero(dv) || !bn_lt(dv, curve.n) {
-    raise Sm2Error::ZeroParam
-  }
+  check_private_scalar(curve, dv)
   SM2PrivateKey::{ curve, d: dv, }
 }
 
@@ -142,6 +173,11 @@ pub fn public_key_from_xy(
 /// `random` is mandatory and must be seeded from a cryptographically secure
 /// source; passing `None` raises `MissingRandomSource`. Do **not** use
 /// `@random.Rand::chacha8()` without an explicit, secret seed.
+///
+/// The scalar is drawn by rejection sampling from `[1, n-1]`, excluding `0`,
+/// values `≥ n` and the unusable `n-1`. Sampling is bounded; a source that
+/// keeps producing rejected values raises `MissingRandomSource` instead of
+/// looping forever.
 pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey raise Sm2Error {
   let curve = sm2_p256()
   let r = match random {
@@ -149,14 +185,14 @@ pub fn generate_key(random : @random.Rand?) -> SM2PrivateKey raise Sm2Error {
     None => raise MissingRandomSource
   }
   let d : Bn = FixedArray::makei(4, fn(_) { 0UL })
-  while true {
+  for _attempt in 0..<MAX_RANDOM_ATTEMPTS {
     let buf = Bytes::makei(32, fn(_) { (r.int(limit=256) & 0xFF).to_byte() })
     @byteutil.bn_from_bytes(d, buf, 0)
-    if !bn_is_zero(d) && bn_lt(d, curve.n) {
-      break
+    if !bn_is_zero(d) && bn_lt(d, curve.n) && !bn_eq(d, n_minus_1(curve.n)) {
+      return SM2PrivateKey::{ curve, d, }
     }
   }
-  SM2PrivateKey::{ curve, d, }
+  raise Sm2Error::MissingRandomSource
 }
 
 ///|
@@ -265,6 +301,13 @@ fn bn_modsqr_n(r : Bn, a : Bn, n : Bn) -> Unit {
 }
 
 ///|
+/// Sign `msg` under the identity `uid`. Mirrors `PrivateKey.Sign`.
+///
+/// The nonce `k` is redrawn when the equation yields a degenerate `r` or `s`;
+/// retries are bounded, and a random source that never yields a usable nonce
+/// raises `MissingRandomSource` rather than looping forever. Raises
+/// `InvalidParameter` if the private scalar `d` is `n-1`, for which
+/// `(1 + d)⁻¹ mod n` does not exist.
 pub fn sm2_sign(
   private_key : SM2PrivateKey,
   msg : Bytes,
@@ -288,11 +331,15 @@ pub fn sm2_sign(
   })
   add_to_8(da8, private_key.d)
   bn_mod_n(one_plus_d, da8)
+  if bn_is_zero(one_plus_d) {
+    // d ≡ -1 (mod n): s has no solution for any k, so never retry.
+    raise Sm2Error::InvalidParameter
+  }
 
   let inv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   bn_modinv_n(inv, one_plus_d, n)
 
-  while true {
+  for _attempt in 0..<MAX_RANDOM_ATTEMPTS {
     let k = bn_rand_k(random)
     let p : SM2Point = point_infinity()
     scalar_base_mult(p, k)
@@ -345,7 +392,7 @@ pub fn sm2_sign(
     }
     return (@byteutil.bn_to_bytes(r), @byteutil.bn_to_bytes(s))
   }
-  abort("unreachable")
+  raise Sm2Error::MissingRandomSource
 }
 
 ///|
