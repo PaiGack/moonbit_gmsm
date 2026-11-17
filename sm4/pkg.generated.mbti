@@ -18,6 +18,8 @@ pub fn os_rand() -> @random.Rand?
 
 pub fn read_key_from_pem(String, Bytes) -> Bytes raise SM4Error
 
+pub fn read_key_from_pem_strict(String, Bytes, Sm4PemReadPolicy) -> Bytes raise SM4Error
+
 #deprecated
 pub fn set_iv(Bytes) -> Unit raise SM4Error
 
@@ -115,6 +117,16 @@ pub fn Sm4PemEncryption::equal(Self, Self) -> Bool
 #deprecated
 pub fn Sm4PemEncryption::not_equal(Self, Self) -> Bool
 pub impl Eq for Sm4PemEncryption
+
+pub(all) enum Sm4PemReadPolicy {
+  AcceptAny
+  EncryptedOnly
+}
+#deprecated
+pub fn Sm4PemReadPolicy::equal(Self, Self) -> Bool
+#deprecated
+pub fn Sm4PemReadPolicy::not_equal(Self, Self) -> Bool
+pub impl Eq for Sm4PemReadPolicy
 
 // Type aliases
 pub type SM4Key = Bytes

@@ -134,7 +134,7 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
 
 ## 🟠 高
 
-### H1. `read_key_from_pem` 无格式认证，攻击者可指定明文密钥或降级到旧格式【读码】
+### H1. `read_key_from_pem` 无格式认证，攻击者可指定明文密钥或降级到旧格式【读码】【已修复】
 [sm4/utils.mbt:139-157]：只去掉 `Proc-Type` 头、保留块类型 `SM4 KEY`，
 即可让函数**原样返回**攻击者写入的 16 字节；保留 `SM4 ENCRYPTED KEY`、
 把 `DEK-Info` 换成 `AES-256-CBC,<iv>` 则自动走无 MAC 的 legacy 路径。
@@ -142,6 +142,27 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
 
 - 修法：增加 `require_encrypted` / `strict` 入口（拒绝明文块、禁用 legacy
   自动降级），并在函数文档中写明「本函数只负责解码，不保证来源可信」。
+
+**修复状态（2026-11-17）**：新增读取策略与严格入口，`read_key_from_pem`
+签名不变（内部转发到 `read_key_from_pem_strict(…, AcceptAny)`）。
+
+- `pub(all) enum Sm4PemReadPolicy { AcceptAny, EncryptedOnly }`
+  （[sm4/utils.mbt]），`read_key_from_pem_strict(data, pwd, policy)` 为公开
+  入口。`EncryptedOnly` 要求：块类型为 `SM4 ENCRYPTED KEY`、
+  `Proc-Type: 4,ENCRYPTED`、`DEK-Info` 为三字段安全格式、口令非空；明文
+  `SM4 KEY` 与 `AES-256-CBC` 旧格式（含把安全格式头部改成旧格式的降级）
+  一律 `raise InvalidData`，不存在自动降级。
+- 头部字段本身不参与 MAC 的客观事实写进了两个函数的文档：「读取成功」
+  只有在 `EncryptedOnly` 下才等于「文件未被篡改」；宽松入口明示
+  「只负责解码，不保证来源可信」。
+- 测试：`sm4_pem_strict_rejects_plaintext_block`（攻击者明文块与自写明文块
+  均被拒、宽松入口确实接受以证明必要性）、
+  `sm4_pem_strict_rejects_legacy_downgrade`、
+  `sm4_pem_strict_rejects_missing_proc_type`、
+  `sm4_pem_strict_accepts_secure_format`；README 增补说明与示例。
+
+全量测试 361/361 通过；`.mbti` 新增 `Sm4PemReadPolicy` 与
+`read_key_from_pem_strict`（纯增量）。
 
 ### H2. legacy PEM 口令长度语义与 Go 相反，长口令文件无法互通，错误语义不一致【读码】
 [aes.mbt:342-347] `pem_legacy_key` 在 `pwd.length() > 32` 时 `raise InvalidData`，

@@ -120,23 +120,69 @@ pub impl Eq for Sm4PemEncryption with fn equal(self, other) {
 }
 
 ///|
+/// 读取端接受的 PEM 密钥加密格式。
+///
+/// `read_key_from_pem` 默认全部接受（与 gmsm 兼容）；需要判定密钥来源可信时
+/// 改用 `read_key_from_pem_strict`，只接受本库写出的安全格式。
+pub(all) enum Sm4PemReadPolicy {
+  /// 明文 `SM4 KEY`、安全格式、旧格式（`AES-256-CBC`）都接受。
+  /// 只负责解码，**不保证来源可信**。
+  AcceptAny
+  /// 只接受安全格式（PBKDF2-HMAC-SM3 + SM4-CBC + HMAC-SM3）。明文块与
+  /// 旧格式一律拒绝，不存在静默降级。
+  EncryptedOnly
+}
+
+///|
 /// 从 PEM 文本读取 SM4 密钥。加密块需要 `pwd`；未加密块忽略 `pwd`。
 /// 对应 `ReadKeyFromPem(data, pwd)`。
 ///
-/// 注意：未加密块（`SM4 KEY`）里就是明文密钥，传了 `pwd` 也**不会**解密，
-/// 因此传口令并不代表内容被加密过；判断依据请用 `@byteutil.pem_decode`
-/// 之后的 `Proc-Type` 头，或对 `SM4 ENCRYPTED KEY` 的块类型检查。
+/// **本函数只负责解码，不保证来源可信**：未加密块（`SM4 KEY`）里就是明文
+/// 密钥，传了 `pwd` 也**不会**解密；加密块也会按 `DEK-Info` 自动降级到无
+/// 认证的旧格式（`AES-256-CBC,...`）。任何能改写文件的人都可以把密文换成
+/// 自己指定的明文密钥，或把头部改成旧格式来绕过认证。需要在安全边界上
+/// 导入密钥时请用 `read_key_from_pem_strict`：
+///
+/// ```mbt nocheck
+/// let key = read_key_from_pem_strict(data, pwd, Sm4PemReadPolicy::EncryptedOnly)
+/// ```
 ///
 /// 加密块会按 `DEK-Info` 自动识别安全格式（`SM4-CBC,PBKDF2-HMAC-SM3,...`）
 /// 或旧格式（`AES-256-CBC,...`）并解密；读取旧格式时不受时间攻击保护，
 /// 应在迁移后重新用 `write_key_to_pem` 写出。
 ///
-/// PEM 格式错误、块类型未知、加密块缺少口令、`DEK-Info` 缺失或格式错误
-/// 时抛出 `SM4Error::InvalidData`；解密后填充不合法时抛出
+/// 错误语义见 `read_key_from_pem_strict`。
+pub fn read_key_from_pem(data : String, pwd : Bytes) -> SM4Key raise SM4Error {
+  read_key_from_pem_strict(data, pwd, Sm4PemReadPolicy::AcceptAny)
+}
+
+///|
+/// 按 `policy` 读取 PEM 密钥，用于需要**认证来源**的场景。
+///
+/// - `AcceptAny`：与 `read_key_from_pem` 完全相同，接受明文块、安全格式与
+///   旧格式。
+/// - `EncryptedOnly`：认证密钥导入的推荐入口。要求块类型为
+///   `SM4 ENCRYPTED KEY`、`Proc-Type: 4,ENCRYPTED`、`DEK-Info` 恰好是安全
+///   格式，并强制 `pwd` 非空。明文块、旧格式（包括把安全格式的 `DEK-Info`
+///   改成 `AES-256-CBC,...` 的降级）都不接受。
+///
+/// 无论哪种策略，安全格式本身都以 `c ‖ tag` 的 HMAC-SM3 认证为准——头部
+/// 字段（块类型、`Proc-Type`、`DEK-Info` 的参数）不参与认证，所以只要还
+/// 接受旧格式或明文，就不能把「读取成功」当成「文件未被篡改」。反过来，
+/// 在 `EncryptedOnly` 下改任何一项头部都会导致读取失败：参数不在白名单里，
+/// 或密文不再能通过 MAC。
+///
+/// PEM 格式错误、块类型未知、加密块缺少口令、`DEK-Info` 缺失或格式错误，
+/// 以及 `EncryptedOnly` 下遇到明文块 / 旧格式时，抛出
+/// `SM4Error::InvalidData`；解密后填充不合法时抛出
 /// `SM4Error::InvalidPadding`；安全格式的认证标签不匹配时抛出
 /// `SM4Error::InvalidTag`；KDF 参数越界（如迭代次数过大）时抛出
 /// `SM4Error::InvalidKdfParams`。
-pub fn read_key_from_pem(data : String, pwd : Bytes) -> SM4Key raise SM4Error {
+pub fn read_key_from_pem_strict(
+  data : String,
+  pwd : Bytes,
+  policy : Sm4PemReadPolicy,
+) -> SM4Key raise SM4Error {
   let block = @byteutil.pem_decode(data) catch {
     _ => raise SM4Error::InvalidData
   }
@@ -147,8 +193,11 @@ pub fn read_key_from_pem(data : String, pwd : Bytes) -> SM4Key raise SM4Error {
     if pwd.length() == 0 {
       raise SM4Error::InvalidData
     }
-    decrypt_pem_block(block, pwd)
+    decrypt_pem_block(block, pwd, policy)
   } else {
+    if policy == Sm4PemReadPolicy::EncryptedOnly {
+      raise SM4Error::InvalidData
+    }
     if block.type_ != sm4_key_pem_type {
       raise SM4Error::InvalidData
     }
@@ -469,10 +518,24 @@ fn decrypt_pem_block_pbkdf2(
 }
 
 ///|
-/// 按 `DEK-Info` 分派到安全格式或旧格式的解密流程。
+#deprecated
+pub extend Sm4PemReadPolicy with Eq::{not_equal, equal}
+
+///|
+pub impl Eq for Sm4PemReadPolicy with fn equal(self, other) {
+  match (self, other) {
+    (AcceptAny, AcceptAny) | (EncryptedOnly, EncryptedOnly) => true
+    _ => false
+  }
+}
+
+///|
+/// 按 `DEK-Info` 分派到安全格式或旧格式的解密流程。`policy` 为
+/// `EncryptedOnly` 时旧格式被拒绝，不会降级。
 fn decrypt_pem_block(
   block : @byteutil.PemBlock,
   pwd : Bytes,
+  policy : Sm4PemReadPolicy,
 ) -> Bytes raise SM4Error {
   let dek = match block.get_header("DEK-Info") {
     Some(v) => v
@@ -500,7 +563,8 @@ fn decrypt_pem_block(
       decrypt_pem_block_pbkdf2(block, pwd, salt, iterations)
     }
     [cipher, iv_hex] => {
-      if cipher != sm4_pem_legacy_cipher_name {
+      if cipher != sm4_pem_legacy_cipher_name ||
+        policy == Sm4PemReadPolicy::EncryptedOnly {
         raise SM4Error::InvalidData
       }
       let iv = parse_hex16(iv_hex.to_owned())

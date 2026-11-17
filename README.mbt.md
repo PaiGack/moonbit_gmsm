@@ -53,6 +53,10 @@
   （PBKDF2-HMAC-SM3 → SM4-CBC → HMAC-SM3，块类型 `SM4 ENCRYPTED KEY`）；
   需要写 Go 旧版 `x509.EncryptPEMBlock`（AES-256-CBC、无盐无迭代）时显式调用
   `write_key_to_pem_legacy`，读取端两种格式都能识别。
+  `read_key_from_pem` 只负责解码、**不保证来源可信**：它接受明文块与旧格式，
+  篡改文件即可替换密钥或把安全格式降级到无认证的旧格式。需要认证来源时用
+  `read_key_from_pem_strict(data, pwd, Sm4PemReadPolicy::EncryptedOnly)`，
+  只接受安全格式，拒绝一切降级。
 
 > ⚠️ **GCM 兼容性**：默认入口 `sm4_gcm_encrypt` / `sm4_gcm_decrypt` 是**标准 GCM**；
 > 与 gmsm 通信必须两端一致地改用 `_legacy` 变体。两组入口的密文 / tag **互不相同**，
@@ -245,6 +249,14 @@ test "sm4 key pem" {
   let block = @byteutil.pem_decode(enc)
   assert_eq(block.type_, "SM4 ENCRYPTED KEY")
   assert_true(@byteutil.bytes_eq(@sm4.read_key_from_pem(enc, b"sm4-pwd"), key))
+
+  // 需要认证来源时：只接受安全格式，明文块与 legacy 旧格式都拒绝
+  let strict = @sm4.read_key_from_pem_strict(
+    enc,
+    b"sm4-pwd",
+    @sm4.Sm4PemReadPolicy::EncryptedOnly,
+  )
+  assert_true(@byteutil.bytes_eq(strict, key))
 }
 ```
 

@@ -361,3 +361,116 @@ test "write_key_to_pem_rejects_bad_length" {
   let r = write_key_to_pem(b"short", b"", None) catch { _ => "" }
   assert_eq(r, "")
 }
+
+///|
+test "sm4_pem_strict_rejects_plaintext_block" {
+  let key : SM4Key = b"0123456789abcdef"
+  // 攻击者把块内容替换成自己选的明文密钥
+  let forged = @byteutil.pem_encode_simple("SM4 KEY", b"attacker-key-0000")
+  // 宽松入口照单全收——这正是需要严格入口的原因
+  assert_eq(read_key_from_pem(forged, b""), b"attacker-key-0000")
+  let e = try {
+    ignore(
+      read_key_from_pem_strict(forged, b"pwd", Sm4PemReadPolicy::EncryptedOnly),
+    )
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e, Some(SM4Error::InvalidData))
+  // 本库自己写出的明文块在严格模式下同样被拒绝
+  let plain = write_key_to_pem(key, b"", None)
+  let e2 = try {
+    ignore(
+      read_key_from_pem_strict(plain, b"", Sm4PemReadPolicy::EncryptedOnly),
+    )
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e2, Some(SM4Error::InvalidData))
+}
+
+///|
+test "sm4_pem_strict_rejects_legacy_downgrade" {
+  let key : SM4Key = b"0123456789abcdef"
+  let pwd = b"pwd"
+  // 从安全格式的块上剥掉 Proc-Type，再谎报为旧格式 DEK-Info
+  let pem = write_key_to_pem(key, pwd, test_rand())
+  let block = @byteutil.pem_decode(pem)
+  let downgraded = @byteutil.pem_encode(
+    "SM4 ENCRYPTED KEY",
+    [
+      ("Proc-Type", "4,ENCRYPTED"),
+      ("DEK-Info", "AES-256-CBC,000102030405060708090A0B0C0D0E0F"),
+    ],
+    block.bytes,
+  )
+  let e = try {
+    ignore(
+      read_key_from_pem_strict(downgraded, pwd, Sm4PemReadPolicy::EncryptedOnly),
+    )
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e, Some(SM4Error::InvalidData))
+  // 真正的旧格式文件也被拒绝
+  let legacy = write_key_to_pem_legacy(key, pwd, test_rand())
+  let e2 = try {
+    ignore(
+      read_key_from_pem_strict(legacy, pwd, Sm4PemReadPolicy::EncryptedOnly),
+    )
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e2, Some(SM4Error::InvalidData))
+}
+
+///|
+test "sm4_pem_strict_accepts_secure_format" {
+  let key : SM4Key = b"0123456789abcdef"
+  let pwd = b"pwd"
+  let pem = write_key_to_pem(key, pwd, test_rand())
+  assert_eq(
+    read_key_from_pem_strict(pem, pwd, Sm4PemReadPolicy::EncryptedOnly),
+    key,
+  )
+  // 严格模式与宽松模式对安全格式的结果一致
+  assert_eq(
+    read_key_from_pem_strict(pem, pwd, Sm4PemReadPolicy::AcceptAny),
+    key,
+  )
+  // 缺少口令
+  let e = try {
+    ignore(read_key_from_pem_strict(pem, b"", Sm4PemReadPolicy::EncryptedOnly))
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e, Some(SM4Error::InvalidData))
+}
+
+///|
+test "sm4_pem_strict_rejects_missing_proc_type" {
+  // 去掉 Proc-Type 后块不再被识别为加密块；严格模式必须报错，不能退回
+  // 明文路径（宽松入口会因块类型不是 `SM4 KEY` 同样报错）。
+  let key : SM4Key = b"0123456789abcdef"
+  let pem = write_key_to_pem(key, b"pwd", test_rand())
+  let block = @byteutil.pem_decode(pem)
+  let no_proc = @byteutil.pem_encode(
+    "SM4 ENCRYPTED KEY",
+    [("DEK-Info", block.get_header("DEK-Info").unwrap())],
+    block.bytes,
+  )
+  let e = try {
+    ignore(
+      read_key_from_pem_strict(no_proc, b"pwd", Sm4PemReadPolicy::EncryptedOnly),
+    )
+    None
+  } catch {
+    err => Some(err)
+  }
+  assert_eq(e, Some(SM4Error::InvalidData))
+}
