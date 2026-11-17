@@ -52,7 +52,11 @@
   `ReadKeyFromPem` / `WriteKeyToPem`。**默认**用安全格式
   （PBKDF2-HMAC-SM3 → SM4-CBC → HMAC-SM3，块类型 `SM4 ENCRYPTED KEY`）；
   需要写 Go 旧版 `x509.EncryptPEMBlock`（AES-256-CBC、无盐无迭代）时显式调用
-  `write_key_to_pem_legacy`，读取端两种格式都能识别。
+  `write_key_to_pem_legacy`，读取端两种格式都能识别。旧格式仅供导入：
+  `read_key_from_pem_legacy` 只接受旧格式（拒绝明文块、安全格式与带
+  `SM4-KDF-Iterations` 头的块），口令与 Go 一致「不足 32 字节补零、超过
+  32 字节截断」，解密失败统一报 `LegacyPemDecryptFailed` 且去填充为常量
+  时间，不构成 padding oracle；导入后应立即用 `write_key_to_pem` 重写。
   `read_key_from_pem` 只负责解码、**不保证来源可信**：它接受明文块与旧格式，
   篡改文件即可替换密钥或把安全格式降级到无认证的旧格式。需要认证来源时用
   `read_key_from_pem_strict(data, pwd, Sm4PemReadPolicy::EncryptedOnly)`，

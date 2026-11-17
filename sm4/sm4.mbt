@@ -66,6 +66,10 @@ pub suberror SM4Error {
   InvalidTag // GCM tag does not match (authentication failed)
   MissingRandomSource // random source is None (no insecure fallback exists)
   InvalidKdfParams // PEM KDF parameters malformed or out of range
+  // Legacy (unauthenticated AES-256-CBC) PEM block failed to decode: wrong
+  // passphrase or corrupted ciphertext. Deliberately a single error for both
+  // cases so it does not act as a padding oracle. See `read_key_from_pem_legacy`.
+  LegacyPemDecryptFailed
 }
 
 ///|

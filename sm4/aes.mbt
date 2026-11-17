@@ -339,9 +339,16 @@ fn aes256_cbc_decrypt_raw(
 ///|
 /// Legacy `x509.EncryptPEMBlock` key derivation: copy the passphrase into a
 /// zeroed key-size buffer; passphrases longer than 32 bytes are truncated.
-fn pem_legacy_key(pwd : Bytes, size : Int32) -> Bytes raise SM4Error {
-  if pwd.length() > size {
-    raise SM4Error::InvalidData
-  }
-  Bytes::makei(size, fn(i) { if i < pwd.length() { pwd[i] } else { b'\x00' } })
+///
+/// Truncation is what Go does (`copy(key, []byte(password))` zero-pads *and*
+/// cuts off at `key` length), so anything else breaks interoperability with
+/// files written by Go / gmsm using a passphrase longer than 32 bytes.
+fn pem_legacy_key(pwd : Bytes, size : Int32) -> Bytes {
+  Bytes::makei(size, fn(i) {
+    if i < size && i < pwd.length() {
+      pwd[i]
+    } else {
+      b'\x00'
+    }
+  })
 }

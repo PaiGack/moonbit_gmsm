@@ -7,7 +7,8 @@
 /// 未加密块类型为 `SM4 KEY`。带口令加密时，默认写出安全的
 /// `SM4 ENCRYPTED KEY`（PBKDF2-HMAC-SM3 + SM4-CBC + HMAC-SM3 认证）；
 /// 需要与 Go `x509.EncryptPEMBlock` / gmsm 互通时，可用
-/// `write_key_to_pem_legacy` 显式写出旧格式，读取端始终兼容旧格式。
+/// `write_key_to_pem_legacy` 显式写出旧格式，读取端始终兼容旧格式；只想读
+/// 旧格式并防止头部降级时用 `read_key_from_pem_legacy`。
 ///
 /// 安全格式布局：
 ///
@@ -103,6 +104,7 @@ pub(all) enum Sm4PemEncryption {
   /// PBKDF2-HMAC-SM3 + SM4-CBC + HMAC-SM3，安全默认值；参数为迭代次数。
   Pbkdf2HmacSm3(Int32)
   /// Go 旧版 `x509.EncryptPEMBlock` 格式，仅为与 gmsm 互通保留，不安全。
+  /// 读取端见 `read_key_from_pem_legacy`。
   LegacyX509
 }
 
@@ -149,11 +151,66 @@ pub(all) enum Sm4PemReadPolicy {
 ///
 /// 加密块会按 `DEK-Info` 自动识别安全格式（`SM4-CBC,PBKDF2-HMAC-SM3,...`）
 /// 或旧格式（`AES-256-CBC,...`）并解密；读取旧格式时不受时间攻击保护，
-/// 应在迁移后重新用 `write_key_to_pem` 写出。
+/// 应在迁移后重新用 `write_key_to_pem` 写出。只想读旧格式时用
+/// `read_key_from_pem_legacy`，它会拒绝安全的与明文的块。
 ///
-/// 错误语义见 `read_key_from_pem_strict`。
+/// 错误语义见 `read_key_from_pem_strict`；旧格式解密失败抛
+/// `SM4Error::LegacyPemDecryptFailed`（不区分口令错误与填充错误）。
 pub fn read_key_from_pem(data : String, pwd : Bytes) -> SM4Key raise SM4Error {
   read_key_from_pem_strict(data, pwd, Sm4PemReadPolicy::AcceptAny)
+}
+
+///|
+/// **仅供导入旧文件**：只读取旧格式（`AES-256-CBC`）加密的 PEM 块，用于把
+/// Go `x509.EncryptPEMBlock` / gmsm 写出的密钥迁移进本库。**导入后应立即用
+/// `write_key_to_pem` 以安全格式重写**，不要长期持有或继续分发旧格式文件。
+///
+/// 旧格式无盐、无迭代、无 MAC：拿到文件的人可以低成本暴力破解口令，密文也
+/// 不可认证。读取端的防护只有下面两条：
+///
+/// - **不接受头部降级**：块类型必须是 `SM4 ENCRYPTED KEY`，`Proc-Type` 必须
+///   是 `4,ENCRYPTED`，`DEK-Info` 必须恰为两字段的 `AES-256-CBC,<16 字节 IV
+///   十六进制>`，且不得携带安全格式的 `SM4-KDF-Iterations` 头。安全格式、
+///   明文 `SM4 KEY` 都会 `raise SM4Error::InvalidData`。
+/// - **错误不可区分**：口令错误、密文损坏、填充不合法统一抛
+///   `SM4Error::LegacyPemDecryptFailed`；去填充为常量时间实现，避免把这条
+///   无认证路径变成 padding oracle。
+///
+/// 口令长度语义与 Go 一致：不足 32 字节补零，超过 32 字节**截断**到 32 字节
+/// （`x509.EncryptPEMBlock` 的 `copy` 语义），因此长口令文件也能互通。
+///
+/// ```mbt nocheck
+/// let key = read_key_from_pem_legacy(old_pem, pwd)
+///
+/// let migrated = write_key_to_pem(key, pwd, os_rand())
+/// ```
+pub fn read_key_from_pem_legacy(
+  data : String,
+  pwd : Bytes,
+) -> SM4Key raise SM4Error {
+  let block = @byteutil.pem_decode(data) catch {
+    _ => raise SM4Error::InvalidData
+  }
+  if !is_encrypted_pem_block(block) || block.type_ != sm4_encrypted_key_pem_type {
+    raise SM4Error::InvalidData
+  }
+  if pwd.length() == 0 || block.get_header(sm4_pem_iterations_header) != None {
+    raise SM4Error::InvalidData
+  }
+  let fields = match block.get_header("DEK-Info") {
+    Some(v) => v.split(",").collect()
+    None => raise SM4Error::InvalidData
+  }
+  match fields {
+    [cipher, iv_hex] => {
+      if cipher != sm4_pem_legacy_cipher_name {
+        raise SM4Error::InvalidData
+      }
+      let iv = parse_hex16(iv_hex.to_owned())
+      decrypt_pem_block_legacy(block, pwd, iv)
+    }
+    _ => raise SM4Error::InvalidData
+  }
 }
 
 ///|
@@ -232,7 +289,8 @@ pub fn write_key_to_pem(
 ///
 /// `Sm4PemEncryption::LegacyX509` 仅用于与 Go / gmsm 互通：口令被零填充
 /// 成 AES-256-CBC 密钥，无盐无迭代，任何拿到文件的人都能低成本破解。
-/// 新代码应使用 `write_key_to_pem`。
+/// 新代码应使用 `write_key_to_pem`。口令语义与 Go 一致：不足 32 字节补零、
+/// 超过 32 字节截断到 32 字节。
 pub fn write_key_to_pem_with(
   key : SM4Key,
   pwd : Bytes,
@@ -262,8 +320,11 @@ pub fn write_key_to_pem_with(
 }
 
 ///|
-/// 用指定格式写出加密 PEM（`pwd` 为空时同样写出未加密块）。
-/// 兼容旧接口的调用习惯，见 `write_key_to_pem_with`。
+/// 用旧格式（`x509.EncryptPEMBlock` 兼容）写出加密 PEM（`pwd` 为空时同样写出
+/// 未加密块）。兼容旧接口的调用习惯，见 `write_key_to_pem_with`。
+///
+/// **仅为互通保留**：旧格式无盐、无迭代、无 MAC。读取端对应
+/// `read_key_from_pem_legacy`；迁移到安全格式时用 `write_key_to_pem` 重写。
 pub fn write_key_to_pem_legacy(
   key : SM4Key,
   pwd : Bytes,
@@ -441,6 +502,48 @@ fn pkcs7_unpad_key(data : Bytes) -> Bytes raise SM4Error {
 }
 
 ///|
+/// 常量时间的 PKCS#7 去填充（分组长度 16 字节），只供无认证的**旧格式**
+/// PEM 解密使用——这条路径没有 MAC，填充校验是攻击者唯一能观察到的差异，
+/// 因此这里不提前返回、不按 `tail` 变化循环次数：
+///
+/// - 16 个尾部字节逐个与 `tail` 比较，差异 OR 进同一个累加器；
+/// - 每个字节都用同一张「保留掩码」做与运算，输出长度恒为 `n - 16`，
+///   合法与非法填充走完全相同的路径；
+/// - 填充是否合法只以单个 `Bool` 返回，调用方随后统一抛
+///   `SM4Error::LegacyPemDecryptFailed`，不区分「口令错误」与「填充错误」。
+///
+/// 同时校验 `tail != 0`、`tail <= 16`。
+fn pkcs7_unpad_key_ct(data : Bytes) -> (Bytes, Bool) {
+  let n = data.length()
+  if n < sm4_pem_key_len || n % sm4_pem_key_len != 0 {
+    return (b"", false)
+  }
+  let tail = data[n - 1].to_uint()
+  let mut tail_ok = tail != 0U && tail <= sm4_pem_key_len.reinterpret_as_uint()
+  // 位置 `j`（从末尾数，0 起）是否属于填充：不属于时为 `0xFF` 保留、
+  // 属于时为 `0x00` 清零的掩码。
+  let keep_mask = fn(j : Int32) -> Int32 {
+    let d = j - tail.reinterpret_as_int() + 1
+    // `d <= 0` → 0x00（属于填充）；`d > 0` → 0xFF（保留）。
+    (d >> 31) & 0xFF
+  }
+  let mut diff : UInt32 = 0U
+  for j = 0; j < sm4_pem_key_len; j = j + 1 {
+    let m = keep_mask(j)
+    // 属于填充区的字节必须等于 tail；保留区不参与判断。
+    let neq = data[n - 1 - j].to_uint() ^ tail
+    let nonzero = (neq | (0U - neq)) >> 31
+    diff = diff | (nonzero & (m ^ 0xFF).reinterpret_as_uint())
+  }
+  tail_ok = tail_ok && diff == 0U
+  let keep = n - sm4_pem_key_len
+  let out = Bytes::makei(keep, fn(i) {
+    (data[i].to_int() & keep_mask(i - (keep - 1))).to_byte()
+  })
+  (out, tail_ok)
+}
+
+///|
 /// 由 salt 派生 IV：`HMAC-SM3(K_m, 标签 ‖ salt)[0:16]`。
 fn derive_pem_iv(k_m : Bytes, salt : Bytes) -> Bytes {
   let mac = @sm3.hmac_sm3(k_m, @byteutil.concat_bytes([sm4_pem_iv_label, salt]))
@@ -593,17 +696,26 @@ fn encrypt_pem_block_legacy(
 }
 
 ///|
-/// 解密旧格式 PEM 块：IV 来自 `DEK-Info`，明文按 PKCS#7 去填充以还原密钥。
+/// 旧格式解密的核心：只负责「无认证的 CBC 解密 + 常量时间去填充」，不检查
+/// 块类型、不检查读取策略。`read_key_from_pem_*` 与
+/// `read_key_from_pem_legacy` 都经由它，旧格式的参数校验只有这一份实现。
+///
+/// 解密失败（口令错误、密文被改成非 16 字节倍数、填充不合法、去填充后不是
+/// 16 字节）一律抛 `SM4Error::LegacyPemDecryptFailed`，**不区分具体原因**：
+/// 旧格式没有 MAC，把「填充错误」和「口令错误」分开报告就是一个 padding
+/// oracle。填充检查本身走 `pkcs7_unpad_key_ct`，不提前返回。
 fn decrypt_pem_block_legacy(
   block : @byteutil.PemBlock,
   pwd : Bytes,
   iv : Bytes,
 ) -> Bytes raise SM4Error {
   let cipher_key = pem_legacy_key(pwd, 32)
-  let padded = aes256_cbc_decrypt_raw(cipher_key, iv, block.bytes)
-  let key = pkcs7_unpad_key(padded)
-  if key.length() != sm4_key_size {
-    raise SM4Error::InvalidPadding
+  let padded = aes256_cbc_decrypt_raw(cipher_key, iv, block.bytes) catch {
+    _ => raise SM4Error::LegacyPemDecryptFailed
+  }
+  let (key, ok) = pkcs7_unpad_key_ct(padded)
+  if !ok || key.length() != sm4_key_size {
+    raise SM4Error::LegacyPemDecryptFailed
   }
   key
 }

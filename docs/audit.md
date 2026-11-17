@@ -164,7 +164,7 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
 全量测试 361/361 通过；`.mbti` 新增 `Sm4PemReadPolicy` 与
 `read_key_from_pem_strict`（纯增量）。
 
-### H2. legacy PEM 口令长度语义与 Go 相反，长口令文件无法互通，错误语义不一致【读码】
+### H2. legacy PEM 口令长度语义与 Go 相反，长口令文件无法互通，错误语义不一致【读码】【已修复】
 [aes.mbt:342-347] `pem_legacy_key` 在 `pwd.length() > 32` 时 `raise InvalidData`，
 而同文件注释与 Go `x509.EncryptPEMBlock` 都是**截断到 32 字节**。
 
@@ -172,6 +172,38 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
   映射为 `InvalidPadding`，属于无认证 CBC 的 padding-oracle 结构；`pkcs7_unpad_key`
   循环长度随 `tail` 变化，也不是常量时间。
 - 修法：恢复截断语义；旧格式入口文档标注「仅供导入，导入后立即用安全格式重写」。
+
+**修复状态（2026-11-17）**：
+
+- **截断语义**：`pem_legacy_key`（[sm4/aes.mbt]）改为 Go `copy` 语义——不足 32
+  字节补零、超过 32 字节截断，不再抛错，且不再返回 `raise`（无失败路径）。回归测试
+  `sm4_pem_legacy_passphrase_longer_than_32_bytes_is_truncated` 用 33 / 40 / 32 /
+  短口令交叉解密，确认前 32 字节相同即可互通、不同即失败。
+- **常量时间去填充**：新增 `pkcs7_unpad_key_ct`（[sm4/utils.mbt]），固定循环 16
+  次、按「保留掩码」做与运算，输出长度恒为 `n − 16`，合法性只以单个 `Bool`
+  返回、不按 `tail` 提前返回。安全格式路径（先验 MAC）仍用原
+  `pkcs7_unpad_key`，行为不变。
+- **错误不可区分**：新增 `SM4Error::LegacyPemDecryptFailed`，旧格式的「密文长度
+  不是 16 的倍数」「填充不合法」「去填充后不是 16 字节」「口令错误」**统一**为
+  这一个错误；`read_key_from_pem` 读旧格式时的错误也从 `InvalidPadding` 变为
+  它（`sm4_pem_legacy_roundtrip_by_default_reader` 已同步）。
+- **仅供导入的入口**：新增 `read_key_from_pem_legacy(data, pwd)`，只接受旧格式：
+  块类型必须是 `SM4 ENCRYPTED KEY`、`Proc-Type: 4,ENCRYPTED`、`DEK-Info` 恰为
+  `AES-256-CBC,<IV>`、不得带 `SM4-KDF-Iterations` 头、口令非空；明文块与安全
+  格式一律 `InvalidData`。文档写明「导入后立即用 `write_key_to_pem` 重写」。
+  `read_key_from_pem_legacy` 与 `decrypt_pem_block` 的旧格式分支共用同一份
+  `decrypt_pem_block_legacy`，参数校验没有第二份实现。
+- **残留风险（未消除，受格式限制）**：无 MAC 的 CBC 即使消除填充错误码，攻击者
+  仍可从响应时间 / 与已知明文比较中得到信息；本库只能保证「错误同源 + 常量时间
+  填充检查」。因此旧格式只适合一次性导入，长期使用必须迁移到安全格式。
+
+回归测试：`sm4_pem_legacy_passphrase_longer_than_32_bytes_is_truncated`、
+`sm4_pem_legacy_decrypt_failures_are_indistinguishable`、
+`sm4_pem_legacy_reader_only_accepts_legacy_blocks`、
+`pkcs7_unpad_key_ct_matches_reference`。
+
+全量测试 365/365 通过；`.mbti` 新增 `LegacyPemDecryptFailed` 与
+`read_key_from_pem_legacy`（`pem_legacy_key` 为私有函数，签名变化不外露）。
 
 ### H3. `sm2_sign` 私钥 d 的标量乘法是分支相关的，存在时序侧信道【读码】
 [curve.mbt:313-389] `scalar_mult` 的 wNAF 迭代按标量位决定是否调用

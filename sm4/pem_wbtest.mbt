@@ -301,14 +301,121 @@ test "sm4_pem_legacy_roundtrip_by_default_reader" {
   assert_eq(block.bytes.length(), 32)
   // 读取端按 DEK-Info 自动识别旧格式
   assert_eq(read_key_from_pem(pem, pwd), key)
-  // 旧格式错误口令必须是 InvalidPadding（解密后填充校验失败）
+  // 旧格式没有 MAC：口令错误与填充错误必须给出同一个错误，
+  // 否则错误码本身就是 padding oracle。
   let e = try {
     ignore(read_key_from_pem(pem, b"wrong"))
     None
   } catch {
     err => Some(err)
   }
-  assert_eq(e, Some(SM4Error::InvalidPadding))
+  assert_eq(e, Some(SM4Error::LegacyPemDecryptFailed))
+}
+
+///|
+test "sm4_pem_legacy_passphrase_longer_than_32_bytes_is_truncated" {
+  let key : SM4Key = b"0123456789abcdef"
+  // 33 字节与 40 字节口令：Go `x509.EncryptPEMBlock` 的 copy 语义会把它们
+  // 都截断成同一个 32 字节 AES 密钥，所以文件可互相解密。
+  let pwd33 = Bytes::makei(33, fn(i) { (('a'.to_int() + i) & 0xFF).to_byte() })
+  let pwd40 = Bytes::makei(40, fn(i) { (('a'.to_int() + i) & 0xFF).to_byte() })
+  let pem = write_key_to_pem_legacy(key, pwd33, test_rand())
+  assert_eq(read_key_from_pem(pem, pwd33), key)
+  assert_eq(read_key_from_pem(pem, pwd40), key)
+  // 截断后的前 32 字节仍然是区分口令的依据
+  let pwd_other = Bytes::makei(33, fn(i) {
+    (('a'.to_int() + i + 1) & 0xFF).to_byte()
+  })
+  let r = read_key_from_pem(pem, pwd_other) catch { _ => b"" }
+  assert_eq(r.length(), 0)
+  // 恰好 32 字节与不足 32 字节的口令
+  let pwd32 = Bytes::makei(32, fn(i) { (('a'.to_int() + i) & 0xFF).to_byte() })
+  let pem32 = write_key_to_pem_legacy(key, pwd32, test_rand())
+  assert_eq(read_key_from_pem(pem32, pwd40), key)
+  let pem_short = write_key_to_pem_legacy(key, b"short", test_rand())
+  assert_eq(read_key_from_pem(pem_short, b"short"), key)
+}
+
+///|
+test "sm4_pem_legacy_decrypt_failures_are_indistinguishable" {
+  let key : SM4Key = b"0123456789abcdef"
+  let pwd = b"legacy-pwd"
+  let pem = write_key_to_pem_legacy(key, pwd, test_rand())
+  let block = @byteutil.pem_decode(pem)
+  let err_of = fn(data : String, p : Bytes) {
+    try {
+      ignore(read_key_from_pem_legacy(data, p))
+      None
+    } catch {
+      err => Some(err)
+    }
+  }
+  // 错误口令
+  assert_eq(err_of(pem, b"wrong"), Some(SM4Error::LegacyPemDecryptFailed))
+  // 密文长度不是 16 的倍数
+  let short_ct = @byteutil.pem_encode(
+    "SM4 ENCRYPTED KEY",
+    block.headers,
+    block.bytes[:16].to_owned(),
+  )
+  assert_eq(err_of(short_ct, pwd), Some(SM4Error::LegacyPemDecryptFailed))
+  // 密文长度不是 16 的倍数之外的畸形长度同样不能泄露原因
+  let half = @byteutil.pem_encode(
+    "SM4 ENCRYPTED KEY",
+    block.headers,
+    block.bytes[:20].to_owned(),
+  )
+  assert_eq(err_of(half, pwd), Some(SM4Error::LegacyPemDecryptFailed))
+}
+
+///|
+test "sm4_pem_legacy_reader_only_accepts_legacy_blocks" {
+  let key : SM4Key = b"0123456789abcdef"
+  let err_of = fn(data : String, p : Bytes) {
+    try {
+      ignore(read_key_from_pem_legacy(data, p))
+      None
+    } catch {
+      err => Some(err)
+    }
+  }
+  // 明文块
+  assert_eq(
+    err_of(write_key_to_pem(key, b"", None), b"pwd"),
+    Some(SM4Error::InvalidData),
+  )
+  // 安全格式（含 SM4-KDF-Iterations 头）
+  let secure = write_key_to_pem(key, b"pwd", test_rand())
+  assert_eq(err_of(secure, b"pwd"), Some(SM4Error::InvalidData))
+  // 空口令
+  assert_eq(
+    err_of(write_key_to_pem_legacy(key, b"p", test_rand()), b""),
+    Some(SM4Error::InvalidData),
+  )
+  // 真正的旧格式可以读
+  let legacy = write_key_to_pem_legacy(key, b"pwd", test_rand())
+  assert_eq(read_key_from_pem_legacy(legacy, b"pwd"), key)
+}
+
+///|
+test "pkcs7_unpad_key_ct_matches_reference" {
+  for n in 0..<4 {
+    let body = Bytes::makei(n * 16, fn(i) { ((i * 11 + 3) & 0xFF).to_byte() })
+    let padded = pkcs7_pad_key(body)
+    let (out, ok) = pkcs7_unpad_key_ct(padded)
+    assert_true(ok)
+    assert_eq(out, body)
+  }
+  // 非法填充：0 值填充、超过 16、尾部字节互不一致
+  for
+    bad in [
+      Bytes::makei(16, fn(_) { b'\x00' }),
+      @byteutil.concat_bytes([Bytes::makei(15, fn(_) { b'\x01' }), b"\x11"]),
+      @byteutil.concat_bytes([Bytes::makei(14, fn(_) { b'\x02' }), b"\x03\x03"]),
+    ] {
+    let (_, ok) = pkcs7_unpad_key_ct(bad)
+    assert_false(ok)
+  }
 }
 
 ///|
