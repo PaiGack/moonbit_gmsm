@@ -401,32 +401,152 @@ test "sm2_long_uid_raises_instead_of_aborting" {
 }
 
 ///|
-/// 密钥协商不再有 abort 通道：`pubB` / `rpubB` 不在曲线上时抛 `NotOnCurve`，
-/// 与 `sm2_decrypt` 的校验一致。
-test "sm2_key_exchange_rejects_off_curve_peer" {
+/// 审计 S3：密钥协商对对方静态 / 临时公钥做曲线校验，并要求四把密钥的
+/// 曲线参数完全一致。
+///
+/// 公开 API 无法直接构造「curve 是 p256、但坐标不在 p256 上」的公钥
+/// （`public_key_from_xy` 会拒绝），能构造出的近似威胁是「在篡改过的
+/// 曲线副本下合法」的公钥；这类密钥的参数与 p256 不一致，因此必须被
+/// `InvalidParameter` 拦下，而不能静默算出一个对方无法复现的共享密钥。
+/// `NotOnCurve` 这一半由白盒测试 `check_peer_point_rejects_off_curve_inputs`
+/// 直接覆盖。
+test "sm2_key_exchange_rejects_foreign_curve_keys" {
+  let ida = b"1234567812345678"
+  let idb = b"1234567812345678"
   let priv_a = @sm2.generate_key(@sm2.os_rand())
   let rpriv_a = @sm2.generate_key(@sm2.os_rand())
   let priv_b = @sm2.generate_key(@sm2.os_rand())
+  let rpriv_b = @sm2.generate_key(@sm2.os_rand())
+  let pub_a = @sm2.derive_public_key(priv_a)
+  let rpub_a = @sm2.derive_public_key(rpriv_a)
   let pub_b = @sm2.derive_public_key(priv_b)
-  let rpub_b = @sm2.derive_public_key(priv_b)
-  // 同一个 x、换一个 y，几乎必然不在曲线上
-  let bogus = Bytes::makei(32, fn(_) { b'\x01' })
-  let bad_b = @sm2.public_key_from_xy(@sm2.sm2_p256(), pub_b.x_bytes(), bogus) catch {
-    _ => @sm2.derive_public_key(priv_a) // 构造不出来就跳过：曲线参数固定时不会走到这里
+  let rpub_b = @sm2.derive_public_key(rpriv_b)
+
+  // 控制组：未经改动的四把密钥照常协商
+  let (ka, _, _) = @sm2.key_exchange_a(
+    16, ida, idb, priv_a, pub_b, rpriv_a, rpub_b,
+  )
+  let (kb, _, _) = @sm2.key_exchange_b(
+    16, ida, idb, priv_b, pub_a, rpriv_b, rpub_a,
+  )
+  assert_true(@byteutil.bytes_eq(ka, kb))
+
+  let expect_invalid_parameter = fn(f : () -> Unit raise) {
+    try {
+      f()
+      abort("expected InvalidParameter")
+    } catch {
+      @sm2.InvalidParameter => ()
+      e => abort("expected InvalidParameter, got \{e}")
+    }
   }
-  let raised = try {
+
+  // 只改 b 的曲线副本：n / gx / a 都不变，只有 `b` 不同。
+  // `same_curve` 必须比较 `b`，否则这条用例会落到曲线方程检查上。
+  let tweaked_curve = @sm2.sm2_p256()
+  tweaked_curve.b[0] = tweaked_curve.b[0] ^ 1UL
+  let off_b = @sm2.public_key_from_xy(
+    tweaked_curve,
+    pub_b.x_bytes(),
+    pub_b.y_bytes(),
+  )
+  let off_rpub_b = @sm2.public_key_from_xy(
+    tweaked_curve,
+    rpub_b.x_bytes(),
+    rpub_b.y_bytes(),
+  )
+  // 探针前提：这些点自称「在曲线上」（按篡改后的 b），但在 p256 上不成立
+  assert_true(@sm2.is_on_curve(off_b))
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_a(16, ida, idb, priv_a, off_b, rpriv_a, rpub_b)
+  })
+  expect_invalid_parameter(fn() raise {
     let _ = @sm2.key_exchange_a(
-      16, b"1234567812345678", b"1234567812345678", priv_a, bad_b, rpriv_a, rpub_b,
+      16, ida, idb, priv_a, pub_b, rpriv_a, off_rpub_b,
     )
-    false
-  } catch {
-    @sm2.NotOnCurve => true
-    _ => false
-  }
-  // 只有真的构造出了曲线外的点，才期望抛错
-  if !@sm2.is_on_curve(bad_b) {
-    assert_true(raised)
-  }
+  })
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_b(16, ida, idb, priv_b, off_b, rpriv_b, rpub_a)
+  })
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_b(
+      16, ida, idb, priv_b, pub_a, rpriv_b, off_rpub_b,
+    )
+  })
+
+  // 改 n / gx 的副本：参数检查同样先命中
+  let forged_curve = @sm2.sm2_p256()
+  forged_curve.n[0] = forged_curve.n[0] ^ 1UL
+  forged_curve.gx[0] = forged_curve.gx[0] ^ 1UL
+  let forged = @sm2.public_key_from_xy(
+    forged_curve,
+    pub_b.x_bytes(),
+    pub_b.y_bytes(),
+  )
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_a(16, ida, idb, priv_a, forged, rpriv_a, rpub_b)
+  })
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_b(16, ida, idb, priv_b, forged, rpriv_b, rpub_a)
+  })
+
+  // 本方的密钥自带别的曲线时，同样拒绝
+  let tweaked_pri_a = @sm2.private_key_from_bytes(
+    tweaked_curve,
+    priv_a.to_bytes(),
+  )
+  let tweaked_rpri_b = @sm2.private_key_from_bytes(
+    tweaked_curve,
+    rpriv_b.to_bytes(),
+  )
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_a(
+      16, ida, idb, tweaked_pri_a, pub_b, rpriv_a, rpub_b,
+    )
+  })
+  expect_invalid_parameter(fn() raise {
+    let _ = @sm2.key_exchange_b(
+      16, ida, idb, priv_b, pub_a, tweaked_rpri_b, rpub_a,
+    )
+  })
+}
+
+///|
+/// 审计 M2：`sm2_p256()` 每次返回独立的数组，调用方改写副本不会影响后续
+/// 构造的密钥与协商。
+test "sm2_p256_returns_fresh_arrays" {
+  let copy = @sm2.sm2_p256()
+  copy.n[0] = 0UL
+  copy.gx[0] = 0UL
+  copy.b[0] = 0UL
+  let fresh = @sm2.sm2_p256()
+  assert_true(fresh.n[0] != 0UL)
+  assert_true(fresh.gx[0] != 0UL)
+  assert_true(fresh.b[0] != 0UL)
+
+  let priv_a = @sm2.generate_key(@sm2.os_rand())
+  let rpriv_a = @sm2.generate_key(@sm2.os_rand())
+  let priv_b = @sm2.generate_key(@sm2.os_rand())
+  let rpriv_b = @sm2.generate_key(@sm2.os_rand())
+  let (ka, _, _) = @sm2.key_exchange_a(
+    16,
+    b"1234567812345678",
+    b"1234567812345678",
+    priv_a,
+    @sm2.derive_public_key(priv_b),
+    rpriv_a,
+    @sm2.derive_public_key(rpriv_b),
+  )
+  let (kb, _, _) = @sm2.key_exchange_b(
+    16,
+    b"1234567812345678",
+    b"1234567812345678",
+    priv_b,
+    @sm2.derive_public_key(priv_a),
+    rpriv_b,
+    @sm2.derive_public_key(rpriv_a),
+  )
+  assert_true(@byteutil.bytes_eq(ka, kb))
 }
 
 ///|

@@ -56,7 +56,7 @@ stderr 打印 `[gmsm] WARNING: no OS entropy source available ...`，再退回
 调用方显式传入 `None` 的情形。`seed_from_entropy` 文档仍标注「not
 unpredictable」。README 新增「随机源」段落说明该行为。测试 352/352 通过。
 
-### S3. 密钥协商不校验任何公钥/临时点的曲线成员关系，静默算出错误密钥【实测】
+### S3. 密钥协商不校验任何公钥/临时点的曲线成员关系，静默算出错误密钥【实测】【已修复】
 [sm2.mbt:853-857]（A 侧）与 [sm2.mbt:916-920]（B 侧）把 `rpubB` / `pubB`
 直接喂给 `point_from_pubkey` + `scalar_mult`，**没有** `point_is_on_curve_affine`。
 相比之下 `sm2_decrypt` 对 C1 是校验的（[sm2.mbt:689]）。
@@ -69,6 +69,33 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
 - 补充：现有测试 `sm2_key_exchange_rejects_off_curve_peer`
   （[sm2/sm2_test.mbt:406]）实际只覆盖了「B 侧 `pubB` 不在曲线上」这一条，
   临时点与 A 侧都没有覆盖，测试名有误导。
+
+**修复状态（2026-11-17）**：`key_exchange_a` / `key_exchange_b` 入口现在先做
+两层检查，再进入任何标量乘法——
+
+- `same_curve`：四把密钥的 `p / a / b / n / gx / gy` 六项必须与
+  `sm2_p256()` 完全一致，否则 `raise InvalidParameter`。`b` 必须比较：只在
+  `b` 上被篡改的曲线副本 `n / gx / a` 都不变，不比较 `b` 就绕过了参数检查。
+- `check_peer_public_key`：对方的**静态**与**临时**公钥都按 p256 自己的参数
+  重算曲线方程 `y² = x·(x² − 3) + b`，并要求坐标规范（`< p`、拒绝 `(0,0)`），
+  否则 `raise NotOnCurve`。
+
+两点实现说明：
+
+- 不直接复用 `point_is_on_curve_affine`：它的 `a·x` 项经 `bn_addmod_p` 计算，
+  在部分输入上与后者的缺陷叠加会得到错误结论（见下方新增 **H4**）。
+  `check_peer_point` 改用 `x·(x² − 3) + b` 的等价写法，全程只用 `bn_eq` /
+  `bn_lt` 与「减 3」这一个必然可归约的 `bn_submod_p`。
+- 公开 API 构造不出「`curve` 是 p256、坐标却不在 p256 上」的公钥
+  （`public_key_from_xy` 会拒绝），因此黑盒测试
+  `sm2_key_exchange_rejects_foreign_curve_keys` 覆盖参数不一致的
+  `InvalidParameter` 路径（四个入口位置 + 本方私钥），而 `NotOnCurve` 路径由
+  白盒测试 `check_peer_point_rejects_off_curve_inputs` 直接覆盖，另有
+  `same_curve_compares_every_parameter` 锁定六项逐一比较。
+- 顺带修了 M2 中 `sm2_p256()` 的 `n` / `gx`：现在每次调用都返回新数组，
+  回归测试 `sm2_p256_returns_independent_arrays`。
+
+全量测试 356/356 通过；`.mbti` 无变化。
 
 ### S4. 空 `uid` 语义在签名 / 验签 / 摘要三条路径上不一致【实测】
 [sm2.mbt:208] `sm3_digest` 把空 uid 换成 `default_uid()`；
@@ -114,6 +141,25 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
 
 - 修法（择一）：① 在 README / `safe.md` 顶部显式声明「非常量时间，勿用于
   可被同机计时的场景」；② 对 d 做标量 / 坐标盲化。
+
+### H4. `bn_addmod_p` 在「和恰为 p」时返回 p 而不是 0，`bn_submod_p` 的借位分支不可用【实测】【未修复】
+修 S3 时发现，这是比 S3 更底层的缺陷。
+
+- `bn_addmod_p`（[sm2/bn.mbt:493]）用 `bn_sub(r, r, p)` 处理「有进位或
+  `r >= p`」的情形，但 `bn_sub` 只处理 4 limb，**进位被丢弃**。当 `a + b == p`
+  时 `r` 恰好等于 `p`，相减得到 0 并返回借位，落进位没有被抵消，最终留下
+  `p`（即 0 的非规范表示）。最小复现：`bn_addmod_p(x3, 1)` 再
+  `bn_addmod_p(x3, b)`，其中 `x3 + 1 ≡ 0 (mod p)`——结果是 `p` 而不是 `b`。
+- `bn_submod_p` 的借位分支同样丢借位：`0 - 1 mod p` 在本轮修复前的实现里
+  返回 `2^256 - 1`（应返回 `p - 1`）。
+- 影响：`point_is_on_curve_affine`（[sm2/curve.mbt:70]）对这类输入给出错误
+  结论——`public_key_from_xy` / `is_on_curve` 会把真正在曲线上的点判为不在
+  曲线上，`sm2_decrypt` 的 C1 检查、`public_key_from_xy` 的构造校验都会随之
+  误拒。由于这些误判依赖具体坐标，属于输入相关的隐性失败，而不是稳定行为。
+- 本轮处置：S3 的新检查绕开了这两条路径（见 S3 的修复说明）；`bn` 层本身
+  **未改**，留待专项处理。修法：`bn_addmod_p` / `bn_submod_p` 用带第 5 limb
+  的加减法（或 `bn_add` / `bn_sub` 返回的进位/借位手工维护）完成规约，并为
+  `(p-1)+1`、`0-1`、`a+b == p` 等边界补回归测试。
 
 ---
 

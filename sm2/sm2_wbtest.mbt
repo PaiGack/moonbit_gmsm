@@ -919,3 +919,95 @@ test "panic_za_uid_too_long" {
   let long_uid = Bytes::makei(8192, fn(_) { b'\x00' })
   ignore(za(curve.gx, curve.gy, long_uid))
 }
+
+///|
+/// `check_peer_point` accepts every real curve point and rejects every
+/// encoding that is not one (audit S3). The blackbox test can only reach the
+/// `InvalidParameter` half through foreign curve parameters, because the
+/// public `public_key_from_xy` refuses off-curve coordinates; this test drives
+/// the `NotOnCurve` half directly.
+test "check_peer_point_rejects_off_curve_inputs" {
+  let curve = sm2_p256()
+  let p = curve.p
+  let expect_not_on_curve = fn(f : () -> Unit raise) {
+    try {
+      f()
+      abort("expected NotOnCurve")
+    } catch {
+      NotOnCurve => ()
+      e => abort("expected NotOnCurve, got \{e}")
+    }
+  }
+
+  // 生成元与真实派生点必须通过
+  check_peer_point(curve.gx, curve.gy)
+  let sk = generate_key(os_rand())
+  let pk = derive_public_key(sk)
+  check_peer_point(pk.x, pk.y)
+
+  // 翻转坐标最低位：编码合法、但不在曲线上
+  let bad_y : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  bn_copy(bad_y, pk.y)
+  bad_y[0] = bad_y[0] ^ 1UL
+  expect_not_on_curve(fn() raise { check_peer_point(pk.x, bad_y) })
+  let bad_x : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  bn_copy(bad_x, pk.x)
+  bad_x[0] = bad_x[0] ^ 1UL
+  expect_not_on_curve(fn() raise { check_peer_point(bad_x, pk.y) })
+
+  // 无穷远点的仿射编码 (0, 0)
+  let zero : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  expect_not_on_curve(fn() raise { check_peer_point(zero, zero) })
+
+  // 非规范编码：坐标等于 p，以及全 1（远超 p）
+  expect_not_on_curve(fn() raise { check_peer_point(p, pk.y) })
+  expect_not_on_curve(fn() raise { check_peer_point(pk.x, p) })
+  let huge : Bn = FixedArray::from_array([
+    0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFFFFFFFFFFUL, 0xFFFFFFFFFFFFFFFFUL,
+  ])
+  expect_not_on_curve(fn() raise { check_peer_point(huge, pk.y) })
+  expect_not_on_curve(fn() raise { check_peer_point(pk.x, huge) })
+}
+
+///|
+/// `same_curve` 必须逐项比较六个参数——漏掉 `b` 时，在篡改 `b` 的副本下
+/// 合法、但在 p256 上不合法的公钥会绕过参数检查（audit S3）。
+test "same_curve_compares_every_parameter" {
+  let base = sm2_p256()
+  assert_true(same_curve(base, sm2_p256()))
+  let mutants : Array[SM2Curve] = []
+  for _ in 0..<6 {
+    mutants.push(sm2_p256())
+  }
+  mutants[0].p[0] = mutants[0].p[0] ^ 1UL
+  mutants[1].a[0] = mutants[1].a[0] ^ 1UL
+  mutants[2].b[0] = mutants[2].b[0] ^ 1UL
+  mutants[3].n[0] = mutants[3].n[0] ^ 1UL
+  mutants[4].gx[0] = mutants[4].gx[0] ^ 1UL
+  mutants[5].gy[0] = mutants[5].gy[0] ^ 1UL
+  for m in mutants {
+    assert_false(same_curve(base, m))
+    assert_false(same_curve(m, base))
+  }
+}
+
+///|
+/// `sm2_p256()` 每次返回新的数组（audit M2）：改写一次返回值不应影响
+/// 下一次调用。
+test "sm2_p256_returns_independent_arrays" {
+  let first = sm2_p256()
+  first.n[0] = 0UL
+  first.gx[0] = 0UL
+  first.gy[0] = 0UL
+  first.a[0] = 0UL
+  first.b[0] = 0UL
+  first.p[0] = 0UL
+  let second = sm2_p256()
+  assert_true(second.n[0] != 0UL)
+  assert_true(second.gx[0] != 0UL)
+  assert_true(second.gy[0] != 0UL)
+  assert_true(second.a[0] != 0UL)
+  assert_true(second.b[0] != 0UL)
+  assert_true(second.p[0] != 0UL)
+  assert_true(point_is_on_curve_affine(second.gx, second.gy))
+}

@@ -864,6 +864,79 @@ fn point_from_pubkey(pk : SM2PublicKey) -> SM2Point {
 }
 
 ///|
+/// Check that every key handed to `key_exchange_*` agrees on all six curve
+/// parameters. All four keys are supplied by the caller, so a mixed curve set
+/// could otherwise produce a key that neither side can reproduce.
+///
+/// `b` *is* compared even though the curve equation is evaluated with p256's
+/// own `b` anyway: a key imported under a tweaked `b` can pass its own
+/// `is_on_curve` yet not be a p256 point, and "your parameters disagree" is
+/// both more accurate and more actionable than "your point is bogus".
+fn same_curve(a : SM2Curve, b : SM2Curve) -> Bool {
+  bn_eq(a.p, b.p) &&
+  bn_eq(a.a, b.a) &&
+  bn_eq(a.b, b.b) &&
+  bn_eq(a.n, b.n) &&
+  bn_eq(a.gx, b.gx) &&
+  bn_eq(a.gy, b.gy)
+}
+
+///|
+/// Validate a peer point before it reaches `scalar_mult` / `point_add`.
+///
+/// `sm2_decrypt` guards its C1 point with `point_is_on_curve_affine`; key
+/// agreement needs the same guard on both peer keys. An off-curve point does
+/// not fail loudly — it yields a shared key the other side cannot reproduce,
+/// which surfaces only much later as a garbled handshake. The checks are:
+///
+/// - **canonical coordinates**: `x`, `y` must be in `[0, p)`.
+/// - **the identity**: `(0, 0)` — the affine encoding of infinity used by
+///   `point_to_affine` — is rejected, since a shared key derived from it
+///   would be fully predictable.
+/// - **the curve equation** `y² = x³ + a·x + b (mod p)`, with p256's own
+///   `a` and `b` (the parameters the subsequent scalar multiplication
+///   actually works in).
+///
+/// Known limitation: `bn_addmod_p` can return p (instead of 0) when the sum
+/// is exactly p, so it cannot be relied on for a modular-equality check. The
+/// equation is therefore built as `x·(x² - 3) + b`, which only needs
+/// `x² - 3 mod p` (a genuine reduction, since 3 <= x² < p) and a final
+/// `+ b`. The `x < p` bound is confirmed separately with `bn_eq(x, p)`
+/// because `bn_lt` is only trusted here for the remaining comparisons. The
+/// full fix belongs in the `bn` layer.
+fn check_peer_point(x : Bn, y : Bn) -> Unit raise Sm2Error {
+  let curve = sm2_p256()
+  let p = curve.p
+  if bn_eq(x, p) || bn_eq(y, p) || bn_lt(p, x) || bn_lt(p, y) {
+    raise Sm2Error::NotOnCurve
+  }
+  if bn_is_zero(x) && bn_is_zero(y) {
+    raise Sm2Error::NotOnCurve
+  }
+  let y2 : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  let x2 : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  let t3 : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  let rhs : Bn = FixedArray::makei(4, fn(_) { 0UL })
+  bn_modsqr_p(y2, y)
+  bn_modsqr_p(x2, x)
+  bn_submod_p(t3, x2, (FixedArray::from_array([3UL, 0UL, 0UL, 0UL]) : Bn))
+  bn_modmul_p(rhs, x, t3)
+  bn_addmod_p(rhs, rhs, curve.b)
+  if !bn_eq(y2, rhs) {
+    raise Sm2Error::NotOnCurve
+  }
+}
+
+///|
+/// Validate a peer public key for key agreement: the point must be a real,
+/// canonical curve point. Parameter agreement is checked first (via
+/// `same_curve`), so a mismatch is reported as `InvalidParameter` before this
+/// runs.
+fn check_peer_public_key(pk : SM2PublicKey) -> Unit raise Sm2Error {
+  check_peer_point(pk.x, pk.y)
+}
+
+///|
 pub fn key_exchange_a(
   klen : Int32,
   ida : Bytes,
@@ -873,6 +946,29 @@ pub fn key_exchange_a(
   rpriA : SM2PrivateKey,
   rpubB : SM2PublicKey,
 ) -> (Bytes, Bytes, Bytes) raise Sm2Error {
+  // Audit S3: the peer's static and ephemeral public keys are attacker
+  // controlled and must be real, canonical curve points before any scalar
+  // multiplication. Two independent guards:
+  //
+  // - `same_curve` rejects keys that were built under different curve
+  //   parameters (`InvalidParameter`);
+  // - `check_peer_public_key` re-evaluates the curve equation with p256's
+  //   own parameters, because a key imported under a tweaked curve can pass
+  //   its own `is_on_curve` while not being a p256 point (`NotOnCurve`).
+  //
+  // Without these, an off-curve point silently yields a shared key the
+  // other side cannot reproduce, which only surfaces later as a garbled
+  // handshake.
+  let fixed = sm2_p256()
+  if !(same_curve(priA.curve, fixed) &&
+    same_curve(rpriA.curve, fixed) &&
+    same_curve(pubB.curve, fixed) &&
+    same_curve(rpubB.curve, fixed)) {
+    raise Sm2Error::InvalidParameter
+  }
+  check_peer_public_key(pubB)
+  check_peer_public_key(rpubB)
+
   let pubA = derive_public_key(priA)
   let rpubA = derive_public_key(rpriA)
 
@@ -938,6 +1034,19 @@ pub fn key_exchange_b(
   rpriB : SM2PrivateKey,
   rpubA : SM2PublicKey,
 ) -> (Bytes, Bytes, Bytes) raise Sm2Error {
+  // Symmetric to `key_exchange_a` (audit S3): same parameter-agreement and
+  // on-curve checks on the peer's static and ephemeral keys before any
+  // scalar multiplication.
+  let fixed = sm2_p256()
+  if !(same_curve(priB.curve, fixed) &&
+    same_curve(rpriB.curve, fixed) &&
+    same_curve(pubA.curve, fixed) &&
+    same_curve(rpubA.curve, fixed)) {
+    raise Sm2Error::InvalidParameter
+  }
+  check_peer_public_key(pubA)
+  check_peer_public_key(rpubA)
+
   let pubB = derive_public_key(priB)
   let rpubB = derive_public_key(rpriB)
 
