@@ -602,3 +602,43 @@ test "sm2_private_key_wipe" {
   let pub_after = @sm2.compress_point(@sm2.derive_public_key(sk))
   assert_false(@byteutil.bytes_eq(pub_before, pub_after))
 }
+
+///|
+/// 审计 S4：空 `uid` 在签名 / 验签 / 摘要三条路径上语义一致，
+/// 即一律等价于 `default_uid()`（与 gmsm 的 `Sm2Sign` / `Sm3Digest` 一致）。
+///
+/// 修复前 `sm2_sign` / `sm2_verify` 把空串原样使用，而 `sm3_digest`
+/// 换成默认值，导致「sign(空) 之后 verify(default) / verify_digest 套
+/// sm3_digest(msg, 空)」失败。
+///
+/// `za` 不在其列：gmsm 的 `sm2.ZA(pub, uid)` 对空 uid 是原样使用的
+/// （ENTLA = 0），向量 `go_sm2_za_empty-*` 锁定这一点。
+test "sm2_empty_uid_means_default_uid_in_sign_verify_digest" {
+  let sk = @sm2.generate_key(@sm2.os_rand())
+  let pub_key = @sm2.derive_public_key(sk)
+  let msg = b"empty uid semantics"
+  let default_uid = @sm2.default_uid()
+
+  // sign(空) 可被 verify(空) 与 verify(default) 同时接受，反之亦然
+  let (r, s) = @sm2.sm2_sign(sk, msg, b"", @sm2.os_rand())
+  assert_true(@sm2.sm2_verify(pub_key, msg, b"", r, s))
+  assert_true(@sm2.sm2_verify(pub_key, msg, default_uid, r, s))
+
+  let (r2, s2) = @sm2.sm2_sign(sk, msg, default_uid, @sm2.os_rand())
+  assert_true(@sm2.sm2_verify(pub_key, msg, b"", r2, s2))
+
+  // 摘要路径与签名路径一致：sign(空) 的 e 即 sm3_digest(msg, 空) = sm3_digest(msg, default)
+  let digest_empty = pub_key.sm3_digest(msg, b"")
+  assert_true(
+    @byteutil.bytes_eq(digest_empty, pub_key.sm3_digest(msg, default_uid)),
+  )
+  assert_true(@sm2.sm2_verify_digest(pub_key, digest_empty, r, s))
+
+  // 非空 uid 仍按原样区分，不能被空串语义「吃掉」
+  let other = b"another-uid"
+  assert_false(@sm2.sm2_verify(pub_key, msg, other, r, s))
+
+  // za 保持 gmsm 的原始语义：空 uid 原样使用（ENTLA = 0），不等于默认 uid 的
+  // Z 值；而上面的 sm3_digest(msg, 空) 用的是默认 uid 的 Z 值。
+  assert_false(@byteutil.bytes_eq(pub_key.za(b""), pub_key.za(default_uid)))
+}

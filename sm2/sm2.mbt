@@ -218,7 +218,11 @@ pub fn default_uid() -> Bytes {
 /// ZA = SM3(ENTLA ‖ uid ‖ a ‖ b ‖ Gx ‖ Gy ‖ xA ‖ yA), the public
 /// identity hash of GM/T 0003-2012. Mirrors `sm2.ZA(pub, uid)`.
 ///
-/// The `uid` is used verbatim; pass `default_uid()` for the default identity.
+/// The `uid` is used verbatim, including the empty one (ENTLA = 0), exactly
+/// like gmsm's `sm2.ZA`. Only the signing / digest entry points
+/// (`sm2_sign`, `sm2_verify`, `sm3_digest`) map an empty `uid` to
+/// `default_uid()`.
+///
 /// Raises `InvalidParameter` when `uid` is 8192 bytes or longer (and therefore
 /// ENTLA no longer fits in 16 bits).
 pub fn SM2PublicKey::za(
@@ -241,8 +245,7 @@ pub fn SM2PublicKey::sm3_digest(
   msg : Bytes,
   uid : Bytes,
 ) -> Bytes raise Sm2Error {
-  let uid = if uid.length() == 0 { default_uid_impl() } else { uid }
-  let za_val = self.za(uid)
+  let za_val = self.za(uid_or_default(uid))
   @sm3.sm3_sum(@byteutil.concat_bytes([za_val, msg]))
 }
 
@@ -303,6 +306,8 @@ fn bn_modsqr_n(r : Bn, a : Bn, n : Bn) -> Unit {
 ///|
 /// Sign `msg` under the identity `uid`. Mirrors `PrivateKey.Sign`.
 ///
+/// An empty `uid` selects `default_uid()`, exactly as in `sm2_verify`.
+///
 /// The nonce `k` is redrawn when the equation yields a degenerate `r` or `s`;
 /// retries are bounded, and a random source that never yields a usable nonce
 /// raises `MissingRandomSource` rather than looping forever. Raises
@@ -316,7 +321,7 @@ pub fn sm2_sign(
 ) -> (Bytes, Bytes) raise Sm2Error {
   let curve = private_key.curve
   let pubkey = derive_public_key(SM2PrivateKey::{ curve, d: private_key.d, })
-  let za_val = za(pubkey.x, pubkey.y, uid)
+  let za_val = za(pubkey.x, pubkey.y, uid_or_default(uid))
   let e = msg_hash(za_val, msg)
   let n = curve.n
   let one : Bn = FixedArray::makei(4, fn(i) { if i == 0 { 1UL } else { 0UL } })
@@ -484,6 +489,8 @@ fn verify_with_e(
 ///|
 /// Verify a signature over a message, i.e. over `e = SM3(ZA ‖ msg)`.
 ///
+/// An empty `uid` selects `default_uid()`, exactly as in `sm2_sign`.
+///
 /// Note: `r` / `s` must be exactly 32 bytes. Raises `InvalidSignature` when
 /// they are not valid scalars and `InvalidParameter` when `uid` is too long.
 pub fn sm2_verify(
@@ -496,7 +503,7 @@ pub fn sm2_verify(
   if r.length() != 32 || s.length() != 32 {
     raise Sm2Error::InvalidSignature
   }
-  let e = msg_hash(public_key.za(uid), msg)
+  let e = msg_hash(public_key.za(uid_or_default(uid)), msg)
   let rv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   let sv : Bn = FixedArray::makei(4, fn(_) { 0UL })
   @byteutil.bn_from_bytes(rv, r, 0)

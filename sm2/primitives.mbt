@@ -7,6 +7,19 @@ fn default_uid_impl() -> Bytes {
 }
 
 ///|
+/// An empty `uid` selects `default_uid()`, matching gmsm's signing API.
+/// `sm2_sign` / `sm2_verify` / `sm3_digest` all go through this helper so
+/// their uids stay interchangeable. `SM2PublicKey::za` deliberately does not:
+/// gmsm's `sm2.ZA` hashes the raw uid (ENTLA = 0 for the empty one).
+fn uid_or_default(uid : Bytes) -> Bytes {
+  if uid.length() == 0 {
+    default_uid_impl()
+  } else {
+    uid
+  }
+}
+
+///|
 // Curve constants as 32-byte strings
 fn a_bytes() -> Bytes {
   @byteutil.bn_to_bytes(sm2_p256().a)

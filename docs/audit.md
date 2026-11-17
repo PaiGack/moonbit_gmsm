@@ -111,6 +111,25 @@ unpredictable」。README 新增「随机源」段落说明该行为。测试 35
 - 修法：在 `za` / `sm2_sign` / `sm2_verify` 统一「空 uid → default_uid」，
   或反过来取消 `sm3_digest` 的特判并修正文档。
 
+**修复状态（2026-11-17）**：采用「签名 API 统一、`za` 保持原样」的方案。
+原先假设的「gmsm 对空 uid 一律走默认值」并不成立于 `ZA`：gmsm 的
+`sm2.ZA(pub, uid)` 对空 uid 是**原样哈希**（ENTLA = 0），向量
+`go_sm2_za_empty-*`（由 gmsm oracle 生成）锁定了 `c13adcc1…` 这个值。
+因此统一范围改为「签名 / 验签 / 摘要」三条路径：
+
+- 新增私有 `uid_or_default`（[sm2/primitives.mbt:14]），`sm2_sign`（[sm2.mbt:324]）、
+  `sm2_verify`（[sm2.mbt:506]）、`sm3_digest`（[sm2.mbt:248]）全部经由它取
+  生效 uid；三条路径互相可替换，不再出现「签名成功、验签失败」。
+- `SM2PublicKey::za` 恢复原样使用 uid（修复前就是如此），并在文档中写明
+  「空 uid 原样使用、仅签名 API 才映射到默认值」，避免读者误用。
+- `sm2_sign_der` / `sm2_verify_der` 只是转发，自动继承该语义。
+
+回归测试 `sm2_empty_uid_means_default_uid_in_sign_verify_digest`
+（[sm2/sm2_test.mbt:616]）覆盖四种交叉组合 + 摘要路径 + 非空 uid 不被吞掉 +
+`za(空) ≠ za(默认)`；`go_sm2_za_empty-*` 四个向量保持原样通过。
+
+全量测试 357/357 通过；`.mbti` 无变化。
+
 ---
 
 ## 🟠 高
